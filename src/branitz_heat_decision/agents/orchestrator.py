@@ -1,7 +1,9 @@
 """
 Dynamic Orchestrator – State-Aware Router for Branitz Heat Decision.
 
-Replaces the linear pipeline with intent-based dynamic tool selection.
+Phase 1: Intent-based tool selection.
+Phase 2: DynamicExecutor for lazy, context-aware simulation execution.
+
 Implements: "Try to achieve it with tools" – runs only the simulations needed
 for the user's intent, using file-based cache to avoid redundant runs.
 """
@@ -18,10 +20,22 @@ from branitz_heat_decision.config import resolve_cluster_path
 
 logger = logging.getLogger(__name__)
 
+# Simulation intents delegated to DynamicExecutor (Phase 2)
+_EXECUTOR_INTENTS = frozenset({
+    "CO2_COMPARISON", "LCOH_COMPARISON", "VIOLATION_ANALYSIS",
+    "WHAT_IF_SCENARIO", "NETWORK_DESIGN",
+})
+
 # Lazy imports to avoid circular deps and optional deps
 def _get_classify_intent():
     from branitz_heat_decision.nlu import classify_intent
     return classify_intent
+
+
+def _get_executor():
+    from branitz_heat_decision.agents.executor import DynamicExecutor
+    return DynamicExecutor
+
 
 def _get_adk_tools():
     from branitz_heat_decision.adk.tools import (
@@ -131,17 +145,19 @@ def _fallback_template(user_query: str, intent_data: Dict[str, Any]) -> str:
 class BranitzOrchestrator:
     """
     Central orchestrator: dynamically selects which tools to run based on intent,
-    not a fixed sequence. Uses file-based cache (results/) to avoid re-simulation.
+    not a fixed sequence. Phase 2: delegates simulation execution to DynamicExecutor.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, cache_dir: str = "./cache"):
         """
         Args:
             api_key: Optional GOOGLE_API_KEY override; else uses env.
+            cache_dir: Directory for DynamicExecutor simulation cache.
         """
         if api_key:
             os.environ["GOOGLE_API_KEY"] = api_key
-        self._session_cache: Dict[str, Any] = {}  # Optional in-memory cache
+        self._session_cache: Dict[str, Any] = {}
+        self.executor = _get_executor()(cache_dir=cache_dir)
 
     def route_request(
         self,
@@ -203,16 +219,46 @@ class BranitzOrchestrator:
             }
 
         # 3. ROUTE by intent
-        if intent == "CO2_COMPARISON":
-            return self._handle_co2_request(cluster_id, intent_data, run_missing)
-        if intent == "LCOH_COMPARISON":
-            return self._handle_lcoh_request(cluster_id, intent_data, run_missing)
-        if intent == "VIOLATION_ANALYSIS":
-            return self._handle_violation_request(cluster_id, intent_data, run_missing)
-        if intent == "NETWORK_DESIGN":
-            return self._handle_network_request(cluster_id, intent_data, run_missing)
-        if intent == "WHAT_IF_SCENARIO":
-            return self._handle_whatif_request(cluster_id, intent_data, run_missing)
+        # Phase 2: Simulation intents → DynamicExecutor
+        if intent in _EXECUTOR_INTENTS:
+            try:
+                results = self.executor.execute(
+                    intent=intent,
+                    street_id=cluster_id,
+                    context={
+                        "modification": (intent_data.get("entities") or {}).get("modification"),
+                        "history": context.get("history", []),
+                        "run_missing": run_missing,
+                    },
+                )
+                return self._format_executor_response(
+                    intent=intent,
+                    intent_data=intent_data,
+                    results=results,
+                )
+            except ValueError as e:
+                return {
+                    "type": "fallback",
+                    "intent_data": intent_data,
+                    "execution_plan": [],
+                    "data": {},
+                    "answer": str(e),
+                    "sources": [],
+                    "can_proceed": False,
+                }
+            except Exception as e:
+                logger.exception("Executor failed for intent=%s", intent)
+                return {
+                    "type": "ERROR",
+                    "intent_data": intent_data,
+                    "execution_plan": [],
+                    "data": {},
+                    "answer": f"Simulation failed: {str(e)}",
+                    "sources": [],
+                    "can_proceed": False,
+                    "suggestion": "Please try a different query or check the street data.",
+                }
+
         if intent == "EXPLAIN_DECISION":
             return self._handle_explain_request(cluster_id, intent_data, run_missing)
 
@@ -226,6 +272,130 @@ class BranitzOrchestrator:
             "sources": [],
             "can_proceed": False,
         }
+
+    def _format_executor_response(
+        self,
+        intent: str,
+        intent_data: Dict[str, Any],
+        results: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Transform DynamicExecutor results to orchestrator response format.
+        """
+        if "error" in results:
+            return {
+                "type": intent.lower(),
+                "intent_data": intent_data,
+                "execution_plan": results.get("execution_log", []),
+                "data": results,
+                "answer": results["error"],
+                "sources": [],
+                "can_proceed": False,
+                "execution_log": results.get("execution_log", []),
+                "visualization": None,
+            }
+
+        answer = self._format_answer(results, intent)
+        viz = self._create_viz(results, intent)
+
+        # Map executor data keys to orchestrator data format for UI compatibility
+        data = dict(results)
+        if intent == "CO2_COMPARISON":
+            data["co2_dh_t_per_a"] = results.get("dh_tons_co2", 0)
+            data["co2_hp_t_per_a"] = results.get("cha_tons_co2", 0)
+        elif intent == "LCOH_COMPARISON":
+            data["lcoh_dh_eur_per_mwh"] = results.get("lcoh_dh_eur_per_mwh", 0)
+            data["lcoh_hp_eur_per_mwh"] = results.get("lcoh_hp_eur_per_mwh", 0)
+
+        return {
+            "type": intent.lower(),
+            "intent_data": intent_data,
+            "execution_plan": results.get("execution_log", []),
+            "data": data,
+            "answer": answer,
+            "sources": ["DynamicExecutor"] + (results.get("execution_log", []) or []),
+            "can_proceed": True,
+            "execution_log": results.get("execution_log", []),
+            "visualization": viz,
+        }
+
+    def _format_answer(self, results: Dict[str, Any], intent: str) -> str:
+        """Convert executor results to human-readable answer."""
+        if intent == "CO2_COMPARISON":
+            dh = results.get("dh_tons_co2", 0)
+            cha = results.get("cha_tons_co2", 0)
+            winner = results.get("winner", "")
+            return (
+                f"District Heating: {dh:.1f} tCO₂/year vs Heat Pumps: {cha:.1f} tCO₂/year. "
+                f"{winner} has lower emissions."
+            )
+        if intent == "LCOH_COMPARISON":
+            dh = results.get("lcoh_dh_eur_per_mwh", 0)
+            hp = results.get("lcoh_hp_eur_per_mwh", 0)
+            winner = results.get("winner", "")
+            return (
+                f"LCOH DH: {dh:.1f} €/MWh vs HP: {hp:.1f} €/MWh. "
+                f"{winner} has lower cost."
+            )
+        if intent == "VIOLATION_ANALYSIS":
+            cha = results.get("cha", {})
+            dha = results.get("dha", {})
+            v_max = cha.get("velocity_ms_max", "N/A")
+            p_max = cha.get("pressure_bar_max", "N/A")
+            v_viol = dha.get("voltage_violations", 0)
+            l_viol = dha.get("line_violations", 0)
+            return (
+                f"CHA: max velocity={v_max} m/s, max pressure={p_max} bar. "
+                f"DHA: {v_viol} voltage violations, {l_viol} line violations."
+            )
+        if intent == "NETWORK_DESIGN":
+            topo = results.get("topology", {})
+            pipes = results.get("pipes", [])
+            n_pipes = len(pipes) if isinstance(pipes, list) else 0
+            return (
+                f"Network design: {n_pipes} pipes, topology info available. "
+                "See data for details."
+            )
+        if intent == "WHAT_IF_SCENARIO":
+            mod = results.get("modification_applied", "N/A")
+            comp = results.get("comparison", {})
+            dp = comp.get("pressure_change_bar", 0)
+            dq = comp.get("heat_delivered_change_mw", 0)
+            return (
+                f"What-if ({mod}): pressure change {dp:.4f} bar, "
+                f"heat delivered change {dq:.4f} MW."
+            )
+        return str(results)
+
+    def _create_viz(self, results: Dict[str, Any], intent: str) -> Optional[Dict[str, Any]]:
+        """Create visualization hint for UI (chart type, series, etc.)."""
+        if intent == "CO2_COMPARISON":
+            return {
+                "chart_type": "bar",
+                "series": [
+                    {"name": "District Heating", "value": results.get("dh_tons_co2", 0)},
+                    {"name": "Heat Pump", "value": results.get("cha_tons_co2", 0)},
+                ],
+                "x_label": "Option",
+                "y_label": "tCO₂/year",
+            }
+        if intent == "LCOH_COMPARISON":
+            return {
+                "chart_type": "bar",
+                "series": [
+                    {"name": "District Heating", "value": results.get("lcoh_dh_eur_per_mwh", 0)},
+                    {"name": "Heat Pump", "value": results.get("lcoh_hp_eur_per_mwh", 0)},
+                ],
+                "x_label": "Option",
+                "y_label": "€/MWh",
+            }
+        if intent == "WHAT_IF_SCENARIO":
+            return {
+                "chart_type": "comparison",
+                "baseline": results.get("baseline", {}),
+                "scenario": results.get("scenario", {}),
+            }
+        return None
 
     def _compute_execution_plan(
         self,
@@ -245,144 +415,6 @@ class BranitzOrchestrator:
             if phase in checks and not checks[phase](cluster_id):
                 missing.append(phase)
         return [p for p in order if p in missing]
-
-    def _handle_co2_request(
-        self,
-        cluster_id: str,
-        intent_data: Dict[str, Any],
-        run_missing: bool,
-    ) -> Dict[str, Any]:
-        """CO2 comparison requires CHA + DHA + Economics."""
-        required = ["cha", "dha", "economics"]
-        execution_plan = self._compute_execution_plan(cluster_id, required)
-        sources = []
-        if execution_plan and run_missing:
-            run_cha, run_dha, run_economics, _ = _get_adk_tools()
-            for phase in execution_plan:
-                if phase == "cha":
-                    run_cha(cluster_id)
-                    sources.append("CHA Simulation")
-                elif phase == "dha":
-                    run_dha(cluster_id)
-                    sources.append("DHA Simulation")
-                elif phase == "economics":
-                    run_economics(cluster_id)
-                    sources.append("Economics Simulation")
-        else:
-            sources = ["Cached Data"] if not execution_plan else ["Partial Cache"]
-
-        # Load economics results for CO2
-        econ_path = resolve_cluster_path(cluster_id, "economics") / "economics_deterministic.json"
-        econ = _load_json(econ_path)
-        co2_dh = econ.get("co2_dh_t_per_a") or econ.get("co2", {}).get("dh") or 0
-        co2_hp = econ.get("co2_hp_t_per_a") or econ.get("co2", {}).get("hp") or 0
-
-        answer = (
-            f"District Heating: {co2_dh:.1f} tCO₂/year vs Heat Pumps: {co2_hp:.1f} tCO₂/year."
-        )
-        return {
-            "type": "co2_comparison",
-            "intent_data": intent_data,
-            "execution_plan": execution_plan if run_missing else required,
-            "data": {"co2_dh_t_per_a": co2_dh, "co2_hp_t_per_a": co2_hp},
-            "answer": answer,
-            "sources": sources,
-            "can_proceed": True,
-        }
-
-    def _handle_lcoh_request(
-        self,
-        cluster_id: str,
-        intent_data: Dict[str, Any],
-        run_missing: bool,
-    ) -> Dict[str, Any]:
-        """LCOH comparison requires CHA + DHA + Economics."""
-        required = ["cha", "dha", "economics"]
-        execution_plan = self._compute_execution_plan(cluster_id, required)
-        sources = []
-        if execution_plan and run_missing:
-            run_cha, run_dha, run_economics, _ = _get_adk_tools()
-            for phase in execution_plan:
-                if phase == "cha":
-                    run_cha(cluster_id)
-                elif phase == "dha":
-                    run_dha(cluster_id)
-                elif phase == "economics":
-                    run_economics(cluster_id)
-            sources = ["CHA", "DHA", "Economics"]
-        else:
-            sources = ["Cached Data"] if not execution_plan else ["Partial Cache"]
-
-        econ_path = resolve_cluster_path(cluster_id, "economics") / "economics_deterministic.json"
-        econ = _load_json(econ_path)
-        lcoh_dh = econ.get("lcoh_dh_eur_per_mwh") or econ.get("lcoh", {}).get("dh") or 0
-        lcoh_hp = econ.get("lcoh_hp_eur_per_mwh") or econ.get("lcoh", {}).get("hp") or 0
-
-        answer = f"LCOH DH: {lcoh_dh:.1f} €/MWh vs HP: {lcoh_hp:.1f} €/MWh."
-        return {
-            "type": "lcoh_comparison",
-            "intent_data": intent_data,
-            "execution_plan": execution_plan if run_missing else required,
-            "data": {"lcoh_dh_eur_per_mwh": lcoh_dh, "lcoh_hp_eur_per_mwh": lcoh_hp},
-            "answer": answer,
-            "sources": sources,
-            "can_proceed": True,
-        }
-
-    def _handle_violation_request(
-        self,
-        cluster_id: str,
-        intent_data: Dict[str, Any],
-        run_missing: bool,
-    ) -> Dict[str, Any]:
-        """Violation analysis requires CHA only."""
-        required = ["cha"]
-        execution_plan = self._compute_execution_plan(cluster_id, required)
-        sources = []
-        if execution_plan and run_missing:
-            run_cha, _, _, _ = _get_adk_tools()
-            run_cha(cluster_id)
-            sources = ["CHA Simulation"]
-        else:
-            sources = ["Cached Data"]
-
-        cha_path = resolve_cluster_path(cluster_id, "cha") / "cha_kpis.json"
-        cha = _load_json(cha_path)
-        agg = cha.get("aggregate", {})
-        v_share = agg.get("v_share_within_limits") or cha.get("hydraulics", {}).get("velocity_share_within_limits") or 0
-        dp_max = agg.get("dp_max_bar_per_100m") or 0
-
-        answer = (
-            f"Velocity compliance: {v_share*100:.1f}%, "
-            f"max pressure drop: {dp_max:.3f} bar/100m."
-        )
-        return {
-            "type": "violation_analysis",
-            "intent_data": intent_data,
-            "execution_plan": execution_plan if run_missing else required,
-            "data": {"v_share_within_limits": v_share, "dp_max_bar_per_100m": dp_max, "cha_kpis": cha},
-            "answer": answer,
-            "sources": sources,
-            "can_proceed": True,
-        }
-
-    def _handle_network_request(
-        self,
-        cluster_id: str,
-        intent_data: Dict[str, Any],
-        run_missing: bool,
-    ) -> Dict[str, Any]:
-        """Network design requires CHA only."""
-        return self._handle_violation_request(cluster_id, intent_data, run_missing)
-
-    def _handle_whatif_request(
-        self,
-        cluster_id: str,
-        intent_data: Dict[str, Any],
-        run_missing: bool,
-    ) -> Dict[str, Any]:
-        """What-if: currently triggers CHA; future: modification engine."""
-        return self._handle_violation_request(cluster_id, intent_data, run_missing)
 
     def _handle_explain_request(
         self,
