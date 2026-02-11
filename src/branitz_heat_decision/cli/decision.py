@@ -97,6 +97,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--config", help="Custom decision config JSON file")
     parser.add_argument("--no-fallback", action="store_true", help="Fail if LLM unavailable / API fails / safety fails")
+    # Phase 1: Intent-aware orchestrator (migration path)
+    parser.add_argument("--intent-chat", action="store_true", help="Use orchestrator: route by query, run only needed simulations")
+    parser.add_argument("--query", help="Natural language query (required with --intent-chat)")
     parser.add_argument(
         "--format",
         default="all",
@@ -173,7 +176,35 @@ def _write_explanation_outputs(
 def main() -> None:
     _configure_logging_from_env()
     args = parse_args()
-    
+
+    # Phase 1: Intent-aware orchestrator (migration path)
+    if getattr(args, "intent_chat", False):
+        if not args.cluster_id:
+            print("❌ --intent-chat requires --cluster-id", file=sys.stderr)
+            sys.exit(1)
+        if not getattr(args, "query", None) or not str(args.query).strip():
+            print("❌ --intent-chat requires --query", file=sys.stderr)
+            sys.exit(1)
+        try:
+            from branitz_heat_decision.agents import BranitzOrchestrator
+        except ImportError as e:
+            print(f"❌ Orchestrator not available: {e}", file=sys.stderr)
+            sys.exit(1)
+        api_key = os.getenv("GOOGLE_API_KEY")
+        orch = BranitzOrchestrator(api_key=api_key)
+        result = orch.route_request(
+            user_query=args.query,
+            cluster_id=args.cluster_id,
+            context={},
+            run_missing=True,
+        )
+        print(result.get("answer", str(result)))
+        if result.get("execution_plan"):
+            print(f"  Ran: {result['execution_plan']}")
+        if not result.get("can_proceed", True) and result.get("suggestion"):
+            print(f"  💡 {result['suggestion']}")
+        return
+
     config = None
     if args.config:
         config = load_json(args.config)

@@ -59,6 +59,7 @@ SCENARIO_REGISTRY = {
             "results/economics/{cluster_id}/sensitivity_analysis.json",
             "results/economics/{cluster_id}/stress_tests.json"
         ],
+        "dependencies": ["cha", "dha"],
         "estimated_runtime": "medium"
     },
     "decision": {

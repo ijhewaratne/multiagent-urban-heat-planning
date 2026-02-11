@@ -44,6 +44,33 @@ class LLMRouter:
         if not cluster_id:
             return {"plan": [], "message": "Please select a street cluster first."}
 
+        # 0. Intent-first path (Phase 1: Intent-Aware Architecture)
+        if os.environ.get("UHDC_USE_INTENT_CLASSIFIER", "false").lower() == "true":
+            try:
+                from branitz_heat_decision.nlu import classify_intent, intent_to_plan
+                intent_result = classify_intent(prompt, use_llm=bool(self.model))
+                plan = intent_to_plan(intent_result)
+                if intent_result.get("intent") == "CAPABILITY_QUERY":
+                    return {
+                        "plan": [],
+                        "message": "I can run District Heating (CHA), Heat Pump grid (DHA), Economics, and Decision comparisons. Select a cluster and ask to compare CO₂, costs, or explain a recommendation.",
+                        "intent": intent_result,
+                    }
+                if plan:
+                    return {
+                        "plan": plan,
+                        "message": f"Intent: {intent_result.get('intent', 'unknown')}. Shall we run these simulations?",
+                        "intent": intent_result,
+                    }
+                if intent_result.get("intent") == "UNKNOWN":
+                    return {
+                        "plan": [],
+                        "message": intent_result.get("reasoning", "I couldn't determine what you need. Try: compare CO₂, compare costs, or explain the decision."),
+                        "intent": intent_result,
+                    }
+            except Exception as e:
+                logger.warning(f"Intent classifier failed, falling back to LLM/keywords: {e}")
+
         # 1. Try LLM first
         llm_response = None
         if self.model:

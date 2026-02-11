@@ -19,6 +19,7 @@ from branitz_heat_decision.ui.services import ClusterService, JobService, Result
 from branitz_heat_decision.ui.llm import LLMRouter
 from branitz_heat_decision.ui.registry import SCENARIO_REGISTRY
 from branitz_heat_decision.ui.env import bootstrap_env
+from branitz_heat_decision.config import resolve_cluster_path
 
 # Load environment variables (API keys)
 bootstrap_env()
@@ -161,6 +162,124 @@ if "pending_plan" in st.session_state and st.session_state.pending_plan:
 
 # --- Main Content ---
 
+
+def _get_orchestrator():
+    """Lazy init orchestrator (Phase 1 Intent Chat)."""
+    if "orchestrator" not in st.session_state:
+        from branitz_heat_decision.agents import BranitzOrchestrator
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            try:
+                api_key = st.secrets.get("GOOGLE_API_KEY", "")
+            except Exception:
+                pass
+        st.session_state.orchestrator = BranitzOrchestrator(api_key=api_key)
+    return st.session_state.orchestrator
+
+
+def render_intent_chat(cluster_id: str):
+    """Intent-aware chat + dynamic viz (Phase 1 Step 3)."""
+    key = f"intent_chat_messages_{cluster_id}"
+    if key not in st.session_state:
+        st.session_state[key] = []
+    messages = st.session_state[key]
+    orch = _get_orchestrator()
+    chat_col, viz_col = st.columns([1, 2])
+    with chat_col:
+        st.image("https://api.dicebear.com/7.x/bottts/svg?seed=Branitz", width=80)
+        st.caption("🔧 Branitz Assistant")
+        for msg in messages:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+                if msg.get("execution_plan"):
+                    with st.expander("⚙️ What I calculated"):
+                        for p in msg["execution_plan"]:
+                            st.write(f"- {p}")
+        user_input = st.chat_input("Ask about CO₂, LCOH, violations...")
+        if user_input:
+            messages.append({"role": "user", "content": user_input})
+            context = {
+                "street_id": cluster_id,
+                "history": [m["content"] for m in messages[-5:]],
+            }
+            with st.spinner("Understanding request..."):
+                try:
+                    response = orch.route_request(user_input, cluster_id, context)
+                except Exception as e:
+                    response = {
+                        "type": "fallback",
+                        "answer": str(e),
+                        "suggestion": "Try: Compare CO₂ emissions",
+                    }
+            if response["type"] == "fallback":
+                messages.append({
+                    "role": "assistant",
+                    "content": response["answer"],
+                    "execution_plan": [],
+                    "type": "fallback",
+                    "data": {},
+                })
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "content": response["answer"],
+                    "execution_plan": response.get("execution_plan", []),
+                    "data": response.get("data", {}),
+                    "type": response.get("type", ""),
+                    "sources": response.get("sources", []),
+                })
+            st.rerun()
+    with viz_col:
+        if messages:
+            last_msg = messages[-1]
+            if last_msg.get("role") == "assistant" and last_msg.get("type") != "fallback":
+                resp_type = last_msg.get("type", "")
+                data = last_msg.get("data", {})
+                if resp_type == "co2_comparison":
+                    st.subheader("CO₂ Emissions Comparison")
+                    if data:
+                        import altair as alt
+                        df = pd.DataFrame([
+                            {"Option": "District Heating", "tCO₂/year": data.get("co2_dh_t_per_a", 0)},
+                            {"Option": "Heat Pump", "tCO₂/year": data.get("co2_hp_t_per_a", 0)},
+                        ])
+                        st.altair_chart(alt.Chart(df).mark_bar().encode(x="Option", y="tCO₂/year"), use_container_width=True)
+                    st.caption(f"📊 Based on: {', '.join(last_msg.get('sources', []))}")
+                elif resp_type == "lcoh_comparison":
+                    st.subheader("LCOH Comparison")
+                    if data:
+                        import altair as alt
+                        df = pd.DataFrame([
+                            {"Option": "District Heating", "€/MWh": data.get("lcoh_dh_eur_per_mwh", 0)},
+                            {"Option": "Heat Pump", "€/MWh": data.get("lcoh_hp_eur_per_mwh", 0)},
+                        ])
+                        st.altair_chart(alt.Chart(df).mark_bar().encode(x="Option", y="€/MWh"), use_container_width=True)
+                    st.caption(f"📊 Based on: {', '.join(last_msg.get('sources', []))}")
+                elif resp_type == "violation_analysis":
+                    st.subheader("Network Violations")
+                    v_share = data.get("v_share_within_limits", 0) * 100
+                    dp_max = data.get("dp_max_bar_per_100m", 0)
+                    st.metric("Velocity compliance", f"{v_share:.1f}%")
+                    st.metric("Max Δp (bar/100m)", f"{dp_max:.3f}")
+                    map_path = resolve_cluster_path(cluster_id, "cha") / "interactive_map.html"
+                    if map_path.exists():
+                        st.components.v1.html(open(map_path, encoding="utf-8").read(), height=400)
+                elif resp_type == "explain_decision":
+                    st.subheader("Decision Explanation")
+                    rec = data.get("recommendation", "N/A")
+                    st.info(f"**Recommendation**: {rec}")
+                    if data.get("reason"):
+                        st.write(data["reason"])
+                if data:
+                    with st.expander("Raw Data"):
+                        st.json(data)
+            elif last_msg.get("type") == "fallback":
+                st.warning("⚠️ " + (last_msg.get("content", "")))
+                st.info("💡 Try: Compare CO₂ emissions, Compare costs, or Explain the decision")
+        else:
+            st.info("Select a cluster and ask: Compare CO₂, Compare costs, Explain the decision")
+
+
 def render_stepper(current_stage: str):
     stages = ["Explore", "Feasibility", "Economics", "Decide", "Report"]
     # Simple CSS styled bubbles
@@ -185,26 +304,24 @@ def render_stepper(current_stage: str):
 
 
 if selected_cluster_id:
-    # Load details
     summary = services["cluster"].get_cluster_summary(selected_cluster_id)
-    
-    # Title
     st.title(f"{summary.get('cluster_name', selected_cluster_id)}")
-    
-    # Determine active stage based on artifacts? Or just let user click tabs.
-    # Tabs are the navigation now.
-    
-    tabs = st.tabs(["Overview", "Feasibility", "Economics", "Compare & Decide", "Portfolio", "Jobs"])
-    tab_overview, tab_feasibility, tab_economics, tab_decide, tab_portfolio, tab_jobs = tabs
-    
+
+    tabs = st.tabs(["Overview", "Feasibility", "Economics", "Compare & Decide", "Intent Chat", "Portfolio", "Jobs"])
+    tab_overview, tab_feasibility, tab_economics, tab_decide, tab_intent_chat, tab_portfolio, tab_jobs = tabs
+
     # Pre-loading data for shared use (Overview mostly)
     buildings_gdf = services["cluster"].get_buildings_for_cluster(selected_cluster_id)
     street_geom = services["cluster"].get_cluster_geometry(selected_cluster_id)
-      
+
     # Load profile data for overview
     hourly_profile = services["cluster"].get_hourly_load(selected_cluster_id)
     design_info = services["cluster"].get_design_topn(selected_cluster_id)
-    
+
+    # -- Tab: Intent Chat (Phase 1 Step 3) --
+    with tab_intent_chat:
+        render_intent_chat(selected_cluster_id)
+
     # -- Tab: Overview --
     with tab_overview:
         render_stepper("Explore")
