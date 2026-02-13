@@ -38,6 +38,33 @@ st.markdown("""
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
 
+    /* Global font size increase */
+    html, body, [class*="css"] {
+        font-size: 18px;
+    }
+
+    /* Chat message text */
+    .stChatMessage p, .stChatMessage li, .stChatMessage span {
+        font-size: 1.05rem;
+    }
+
+    /* Metric labels and values */
+    [data-testid="stMetricLabel"] { font-size: 1rem; }
+    [data-testid="stMetricValue"] { font-size: 1.6rem; }
+
+    /* Markdown text */
+    .stMarkdown p { font-size: 1.05rem; line-height: 1.6; }
+    .stMarkdown h3 { font-size: 1.4rem; }
+
+    /* Captions slightly larger */
+    .stCaption, small { font-size: 0.9rem; }
+
+    /* Buttons */
+    .stButton button { font-size: 0.95rem; }
+
+    /* Expander headers */
+    .streamlit-expanderHeader { font-size: 1rem; }
+
     /* Tighter padding for wide layout */
     .block-container { padding-top: 1.5rem; padding-bottom: 0; }
 
@@ -67,8 +94,8 @@ st.markdown("""
         background: #eef2ff;
         border: 1px solid #1e3c72;
         border-radius: 20px;
-        padding: 0.25rem 0.75rem;
-        font-size: 0.85rem;
+        padding: 0.3rem 0.85rem;
+        font-size: 0.95rem;
         color: #1e3c72;
         margin-bottom: 0.5rem;
     }
@@ -82,6 +109,7 @@ st.markdown("""
         margin-bottom: 0.75rem;
         text-align: center;
     }
+    .viz-header h3 { font-size: 1.3rem; }
 </style>
 """, unsafe_allow_html=True)
 
