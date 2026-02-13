@@ -60,6 +60,9 @@ class DynamicExecutor:
         self.cache_dir = Path(cache_dir)
         self.active_cache: Dict[str, SimulationCache] = {}
         self.scenario_counter = 0
+        self._last_cha_error: Optional[str] = None
+        self._last_dha_error: Optional[str] = None
+        self._last_economics_error: Optional[str] = None
 
         # Load persistent cache if exists
         self._load_cache()
@@ -108,7 +111,10 @@ class DynamicExecutor:
         if (cha_dir / "cha_kpis.json").exists() and (cha_dir / "network.pickle").exists():
             return True
         result = run_cha_tool(street_id)
-        return result.get("status") == "success"
+        if result.get("status") == "success":
+            return True
+        self._last_cha_error = result.get("stderr") or result.get("error") or "Unknown error"
+        return False
 
     def _ensure_dha_results(self, street_id: str) -> bool:
         """Run DHA if needed; return True if success."""
@@ -154,7 +160,19 @@ class DynamicExecutor:
 
         if not self._ensure_cha_results(street_id):
             execution_log.append("CHA run failed")
-            return {"error": "CHA simulation failed", "execution_log": execution_log}
+            err_detail = (
+                self._last_cha_error[:500] if self._last_cha_error else ""
+            )
+            hint = (
+                " Run 00_prepare_data.py first if you haven't prepared the data."
+                if err_detail and ("not found" in err_detail.lower() or "filenotfounderror" in err_detail.lower())
+                else ""
+            )
+            return {
+                "error": f"CHA simulation failed.{hint}"
+                + (f" Details: {err_detail[:200]}..." if err_detail else ""),
+                "execution_log": execution_log,
+            }
         execution_log.append("CHA results available")
 
         if not self._ensure_dha_results(street_id):
@@ -258,25 +276,47 @@ class DynamicExecutor:
         }
 
     def _execute_network_design(self, street_id: str, context: Dict) -> Dict:
-        """Network design: CHA topology, pipe sizes, etc."""
+        """Network design: CHA topology, pipe sizes, interactive maps."""
         execution_log = []
 
         if not self._ensure_cha_results(street_id):
             execution_log.append("CHA run failed")
             return {"error": "CHA simulation failed", "execution_log": execution_log}
 
+        execution_log.append("CHA results available")
+
         from branitz_heat_decision.config import resolve_cluster_path
 
-        cha_path = resolve_cluster_path(street_id, "cha") / "cha_kpis.json"
+        cha_dir = resolve_cluster_path(street_id, "cha")
+        cha_path = cha_dir / "cha_kpis.json"
         cha_kpis = {}
         if cha_path.exists():
             with open(cha_path, "r") as f:
                 cha_kpis = json.load(f)
 
+        # Extract detailed pipe/consumer data (lives under "detailed" in cha_kpis)
+        detailed = cha_kpis.get("detailed", {})
+        topology = cha_kpis.get("topology", {})
+        pipes = detailed.get("pipes", cha_kpis.get("pipes", []))
+        heat_consumers = detailed.get("heat_consumers", cha_kpis.get("heat_consumers", []))
+
+        # Collect available interactive map HTML paths
+        map_paths = {}
+        for map_type, filename in [
+            ("velocity", "interactive_map.html"),
+            ("temperature", "interactive_map_temperature.html"),
+            ("pressure", "interactive_map_pressure.html"),
+        ]:
+            p = cha_dir / filename
+            if p.exists():
+                map_paths[map_type] = str(p)
+                execution_log.append(f"Map available: {map_type}")
+
         return {
-            "topology": cha_kpis.get("topology", {}),
-            "pipes": cha_kpis.get("pipes", []),
-            "heat_consumers": cha_kpis.get("heat_consumers", []),
+            "topology": topology,
+            "pipes": pipes,
+            "heat_consumers": heat_consumers,
+            "map_paths": map_paths,
             "execution_log": execution_log,
         }
 

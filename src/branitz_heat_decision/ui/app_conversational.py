@@ -104,6 +104,21 @@ def _display_chat_message(role: str, content: str, metadata: Optional[Dict] = No
                 with st.expander("⚙️ What was calculated"):
                     for log in metadata["execution_log"]:
                         st.caption(f"• {log}")
+            if metadata.get("agent_trace"):
+                with st.expander("🤖 Agent Duty Trace"):
+                    for step in metadata["agent_trace"]:
+                        agent_name = step.get("agent", "?")
+                        duty = step.get("duty", "")
+                        outcome = step.get("outcome", "")
+                        st.markdown(f"**{agent_name}**")
+                        st.caption(f"Duty: {duty}")
+                        if outcome:
+                            st.caption(f"Outcome: {outcome}")
+                        extras = {k: v for k, v in step.items()
+                                  if k not in ("agent", "duty", "outcome") and v}
+                        if extras:
+                            st.json(extras)
+                        st.markdown("---")
             if metadata.get("sources"):
                 st.caption(f"📊 Sources: {', '.join(metadata['sources'])}")
 
@@ -162,6 +177,34 @@ def _render_visualization(response: Dict[str, Any]):
             st.warning("⚠️ Some velocity violations detected")
         else:
             st.success("✅ All velocities within limits")
+
+    elif resp_type == "network_design":
+        st.subheader("🗺️ District Heating Network Layout")
+        map_paths = viz_data.get("map_paths", {})
+        if map_paths:
+            map_types = list(map_paths.keys())
+            selected_map = st.selectbox(
+                "Select map layer",
+                map_types,
+                format_func=lambda x: x.capitalize(),
+                key="network_map_select",
+            )
+            map_file = map_paths.get(selected_map)
+            if map_file:
+                from pathlib import Path as _Path
+                html_content = _Path(map_file).read_text(encoding="utf-8")
+                import streamlit.components.v1 as components
+                components.html(html_content, height=550, scrolling=True)
+        else:
+            st.info("No interactive maps available for this cluster.")
+        # Topology summary
+        topo = viz_data.get("topology", {})
+        if topo:
+            st.markdown("**Network topology**")
+            cols = st.columns(3)
+            cols[0].metric("Trunk edges", topo.get("trunk_edges", "N/A"))
+            cols[1].metric("Buildings connected", topo.get("buildings_connected", "N/A"))
+            cols[2].metric("Service connections", topo.get("service_connections", "N/A"))
 
     elif resp_type == "explain_decision":
         st.subheader("🎯 Decision Recommendation")
@@ -265,7 +308,11 @@ with st.container():
                     st.session_state.conversation_history.append({
                         "role": "assistant",
                         "content": response["answer"],
-                        "metadata": {"execution_log": [], "sources": []},
+                        "metadata": {
+                            "execution_log": [],
+                            "sources": [],
+                            "agent_trace": response.get("agent_trace", []),
+                        },
                     })
                     st.rerun()
                     st.stop()
@@ -280,6 +327,7 @@ with st.container():
                     "execution_log": response.get("execution_log", []),
                     "sources": response.get("sources", []),
                     "type": response.get("type"),
+                    "agent_trace": response.get("agent_trace", []),
                 }
                 st.session_state.conversation_history.append({
                     "role": "assistant",

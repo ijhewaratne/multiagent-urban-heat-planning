@@ -56,11 +56,13 @@ Available intents (return ONLY one):
 - CO2_COMPARISON: User wants carbon emissions comparison (needs DH + HP simulations)
 - LCOH_COMPARISON: User wants cost/LCOH analysis (needs DH + HP simulations)
 - VIOLATION_ANALYSIS: User asks about pressure/velocity/temperature violations (needs DH sim only)
-- NETWORK_DESIGN: User asks about pipe layout, diameters, network topology (needs DH sim only)
+- NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid (needs DH sim only)
 - WHAT_IF_SCENARIO: User asks hypotheticals: "what if we remove houses", "different temperatures"
 - EXPLAIN_DECISION: User asks why a decision was made or wants KPI explanation (needs cached results only)
-- CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities
+- CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities (ONLY when the user is explicitly asking about system capabilities, NOT when they want to see specific data or maps)
 - UNKNOWN: Outside capabilities (adding consumers, changing building geometry, legal advice, etc.)
+
+IMPORTANT: If the user asks to "see", "show", or "view" something specific (maps, network, grid, layout, results), classify based on WHAT they want to see, NOT as CAPABILITY_QUERY.
 
 Return STRICTLY this JSON (no other text):
 {"intent": "ONE_OF_ABOVE", "confidence": 0.0_to_1.0, "entities": {"street_name": null, "metric": "co2|lcoh|pressure|velocity|etc", "modification": "what-if desc or null"}, "reasoning": "brief why"}
@@ -68,6 +70,8 @@ Return STRICTLY this JSON (no other text):
 Examples:
 "Compare CO2" -> {"intent": "CO2_COMPARISON", "confidence": 0.95, "entities": {"metric": "co2"}, "reasoning": "..."}
 "What if we remove 2 houses?" -> {"intent": "WHAT_IF_SCENARIO", "entities": {"modification": "remove 2 houses"}, ...}
+"Can I see the interactive maps" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants to view network maps"}
+"Show me the heating grid layout" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants network visualization"}
 "Add a new consumer" -> {"intent": "UNKNOWN", "confidence": 0.9, "reasoning": "Cannot modify network topology"}
 """
 
@@ -203,7 +207,8 @@ def classify_intent(
             "entities": {},
             "reasoning": "Keyword fallback",
         }
-    if any(w in q for w in ["network", "pipe", "layout", "topology", "diameter"]):
+    if any(w in q for w in ["network", "pipe", "layout", "topology", "diameter",
+                              "map", "grid", "interactive map", "heating grid"]):
         return {
             "intent": "NETWORK_DESIGN",
             "confidence": 0.6,
@@ -258,6 +263,8 @@ def extract_street_entities(user_query: str, available_streets: List[str]) -> Op
         query_lower,
         flags=re.IGNORECASE,
     )
+    # Normalize German ß and Straße for matching
+    query_clean = query_clean.replace("ß", "ss").replace("straße", "strasse")
 
     # Direct substring match (full cluster_id)
     for street in available_streets:
@@ -276,6 +283,14 @@ def extract_street_entities(user_query: str, available_streets: List[str]) -> Op
                 return s
 
     # Partial match (e.g. "Heinrich Zille" in "Heinrich-Zille-Straße")
+    # Generic suffixes that appear in many street names should not count as matches
+    _GENERIC_SUFFIXES = {
+        "strasse", "str", "platz", "allee", "weg", "gasse", "ring", "damm",
+        "siedlung", "park", "hof",
+    }
+    # Score each street by how many distinguishing parts match the query
+    best_street = None
+    best_score = 0
     for street in available_streets:
         street_parts = (
             street.lower()
@@ -284,9 +299,17 @@ def extract_street_entities(user_query: str, available_streets: List[str]) -> Op
             .replace("straße", "strasse")
             .split()
         )
-        meaningful = [p for p in street_parts if len(p) > 2 and p not in ("st", "str")]
-        if any(part in query_clean for part in meaningful):
-            return street
+        meaningful = [
+            p for p in street_parts
+            if len(p) > 2 and p not in ("st", "str") and p not in _GENERIC_SUFFIXES
+            and not re.match(r"^st\d+$", p)  # exclude cluster prefix like "st010"
+        ]
+        matched = [p for p in meaningful if p in query_clean]
+        if matched and len(matched) > best_score:
+            best_score = len(matched)
+            best_street = street
+    if best_street:
+        return best_street
 
     # Fuzzy matching for typos
     words = query_clean.split()

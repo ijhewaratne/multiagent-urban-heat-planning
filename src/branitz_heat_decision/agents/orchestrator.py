@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -217,38 +218,131 @@ class BranitzOrchestrator:
                 "data": {...},
                 "answer": "..."  (human-readable),
                 "sources": ["CHA Simulation", "Cached Data"],
-                "can_proceed": True/False
+                "can_proceed": True/False,
+                "agent_trace": [
+                    {"agent": "NLU Intent Classifier", "duty": "...", "outcome": "..."},
+                    {"agent": "Conversation Manager", "duty": "...", ...},
+                    {"agent": "Street Resolver", "duty": "...", ...},
+                    {"agent": "Execution Planner", "duty": "...", ...},
+                    {"agent": "Dynamic Executor", "duty": "...", "outcome": "..."},
+                ]
             }
         """
         context = context or {}
         classify_intent_fn = _get_classify_intent()
+        from branitz_heat_decision.nlu.intent_mapper import INTENT_TO_PLAN
 
-        # 1. UNDERSTAND (Phase 1)
+        # ── Agent Trace: tracks what each agent did ──
+        agent_trace: List[Dict[str, Any]] = []
+
+        # ── AGENT 1: NLU Intent Classifier ──
+        # Duty: Understand the user's intent and extract entities (metric, street, modification)
         intent_data = classify_intent_fn(
             user_query,
             conversation_history=context.get("history", []),
             use_llm=True,
         )
+        agent_trace.append({
+            "agent": "NLU Intent Classifier",
+            "duty": "Classify user intent and extract entities",
+            "outcome": intent_data.get("intent", "UNKNOWN"),
+            "confidence": intent_data.get("confidence", 0),
+            "entities": intent_data.get("entities", {}),
+            "method": "LLM" if intent_data.get("reasoning", "") != "Keyword fallback" else "keyword",
+        })
 
-        # Phase 3: Resolve references and detect follow-ups
+        # ── AGENT 2: Conversation Manager ──
+        # Duty: Resolve references (follow-ups, same-street), check memory for cached answers
         resolved_query, enriched_intent, is_follow_up = self.conversation.resolve_references(
             user_query, intent_data
         )
-        if enriched_intent.get("entities", {}).get("street_name"):
-            cluster_id = enriched_intent["entities"]["street_name"]
+        # Pick up the raw street hint from NLU entities or conversation memory
+        raw_street_hint = enriched_intent.get("entities", {}).get("street_name")
 
-        # Extract street from query if still missing (conversational UI)
-        if not cluster_id:
-            cluster_id = self._extract_street_from_query(user_query, context)
-            if cluster_id:
-                if "entities" not in enriched_intent:
-                    enriched_intent["entities"] = {}
-                enriched_intent["entities"]["street_name"] = cluster_id
+        agent_trace.append({
+            "agent": "Conversation Manager",
+            "duty": "Resolve references, detect follow-ups, maintain context",
+            "is_follow_up": is_follow_up,
+            "raw_street_hint": raw_street_hint,
+            "current_memory_street": self.conversation.memory.current_street,
+            "available_data": dict(self.conversation.memory.available_data),
+        })
+
+        # ── AGENT 3: Street Resolver ──
+        # Duty: Map raw street mention (display name / partial / cluster ID) → valid cluster_id
+        #
+        # Priority order:
+        #   1. If NLU extracted an explicit street → resolve it (overrides everything)
+        #   2. If follow-up and conversation memory has a street → use memory (overrides UI default)
+        #   3. If cluster_id is a valid ST### from the UI → keep it
+        #   4. Otherwise extract from query text
+        resolver_method = "pending"
+        resolve_input = raw_street_hint or user_query
+        original_cluster_id = cluster_id  # remember the UI/context default
+        memory_street = self.conversation.memory.current_street
+
+        if raw_street_hint:
+            # User explicitly mentioned a street — resolve it even if we already have a cluster_id
+            raw_is_valid = bool(re.match(r"^ST\d{3}", raw_street_hint))
+            if raw_is_valid:
+                cluster_id = raw_street_hint
+                resolver_method = "NLU returned valid cluster_id"
+            else:
+                resolved = self._extract_street_from_query(raw_street_hint, context)
+                if resolved:
+                    cluster_id = resolved
+                    resolver_method = "resolved from NLU entity"
+                else:
+                    resolved = self._extract_street_from_query(user_query, context)
+                    if resolved:
+                        cluster_id = resolved
+                        resolver_method = "resolved from query (NLU hint failed)"
+                    else:
+                        resolver_method = "failed — NLU hint did not match any cluster"
+
+        elif memory_street and re.match(r"^ST\d{3}", memory_street):
+            # No explicit street in query, but conversation memory has one.
+            # The user has been talking about this street — maintain continuity.
+            # This overrides the UI default (the user may have started with ST001
+            # but switched to ST010 mid-conversation).
+            cluster_id = memory_street
+            resolver_method = "conversation memory (street continuity)"
+
+        elif not cluster_id or not re.match(r"^ST\d{3}", cluster_id):
+            # No NLU hint, no memory, no valid cluster_id — extract from query
+            resolved = self._extract_street_from_query(user_query, context)
+            if resolved:
+                cluster_id = resolved
+                resolver_method = "resolved from query"
+            else:
+                resolver_method = "none (not found)"
+        else:
+            # cluster_id is already valid ST### from UI, and no memory yet
+            resolver_method = "pre-validated (UI default)"
+
+        if cluster_id and cluster_id != original_cluster_id:
+            if "entities" not in enriched_intent:
+                enriched_intent["entities"] = {}
+            enriched_intent["entities"]["street_name"] = cluster_id
+
+        agent_trace.append({
+            "agent": "Street Resolver",
+            "duty": "Map display name / partial mention → valid cluster_id (ST###_...)",
+            "input": resolve_input,
+            "original_cluster_id": original_cluster_id,
+            "resolved_cluster_id": cluster_id,
+            "method": resolver_method,
+        })
 
         # Clarification needed when no street and intent requires one
         intent = str(enriched_intent.get("intent", "UNKNOWN")).upper().replace(" ", "_")
         if not cluster_id and intent not in ("UNKNOWN", "CAPABILITY_QUERY"):
             available = context.get("available_streets") or _get_available_streets()
+            agent_trace.append({
+                "agent": "Orchestrator",
+                "duty": "Route request to correct agent",
+                "outcome": "CLARIFICATION_NEEDED — no street identified",
+            })
             return {
                 "type": "CLARIFICATION_NEEDED",
                 "intent_data": enriched_intent,
@@ -261,8 +355,8 @@ class BranitzOrchestrator:
                 "clarification_type": "street_selection",
                 "can_proceed": False,
                 "sources": [],
+                "agent_trace": agent_trace,
             }
-
 
         # Phase 3: Handle follow-ups from memory/cache
         if is_follow_up:
@@ -270,14 +364,25 @@ class BranitzOrchestrator:
                 resolved_query, intent, cluster_id
             )
             if follow_up_response:
+                agent_trace.append({
+                    "agent": "Conversation Manager",
+                    "duty": "Answer from memory/cache (no new simulation)",
+                    "outcome": f"Follow-up answered from cache: {follow_up_response.get('type', '')}",
+                })
                 follow_up_response["intent_data"] = enriched_intent
                 follow_up_response.setdefault("execution_plan", follow_up_response.get("execution_log", []))
                 follow_up_response.setdefault("can_proceed", True)
                 follow_up_response.setdefault("suggestions", self.conversation.get_suggestions())
+                follow_up_response["agent_trace"] = agent_trace
                 return follow_up_response
 
         # 2. UNKNOWN / CAPABILITY → Fallback
         if intent in ("UNKNOWN", "CAPABILITY_QUERY"):
+            agent_trace.append({
+                "agent": "Fallback Agent",
+                "duty": "Explain limitations or list capabilities",
+                "outcome": intent,
+            })
             if intent == "CAPABILITY_QUERY":
                 answer = (
                     "I can run: District Heating (CHA), Heat Pump grid (DHA), "
@@ -295,11 +400,24 @@ class BranitzOrchestrator:
                 "sources": [],
                 "can_proceed": False,
                 "suggestion": "Try: 'Compare CO₂ emissions' or 'What is the LCOH for district heating?'",
+                "agent_trace": agent_trace,
             }
+
+        # ── AGENT 4: Execution Planner ──
+        # Duty: Determine which simulations are needed for this intent
+        required_tools = INTENT_TO_PLAN.get(intent, [])
+        agent_trace.append({
+            "agent": "Execution Planner",
+            "duty": f"Determine required simulations for {intent}",
+            "required_tools": required_tools,
+            "cluster_id": cluster_id,
+        })
 
         # 3. ROUTE by intent
         # Phase 2: Simulation intents → DynamicExecutor
         if intent in _EXECUTOR_INTENTS:
+            # ── AGENT 5: Dynamic Executor ──
+            # Duty: Run only the simulations that are missing, use cache for the rest
             try:
                 results = self.executor.execute(
                     intent=intent,
@@ -310,6 +428,12 @@ class BranitzOrchestrator:
                         "run_missing": run_missing,
                     },
                 )
+                agent_trace.append({
+                    "agent": "Dynamic Executor",
+                    "duty": f"Execute {intent} for {cluster_id} (lazy: skip cached)",
+                    "outcome": "error" if "error" in results else "success",
+                    "execution_log": results.get("execution_log", []),
+                })
                 response = self._format_executor_response(
                     intent=intent,
                     intent_data=enriched_intent,
@@ -324,8 +448,14 @@ class BranitzOrchestrator:
                         execution_log=results.get("execution_log", []),
                     )
                     response["suggestions"] = self.conversation.get_suggestions()
+                response["agent_trace"] = agent_trace
                 return response
             except ValueError as e:
+                agent_trace.append({
+                    "agent": "Dynamic Executor",
+                    "duty": f"Execute {intent}",
+                    "outcome": f"ValueError: {e}",
+                })
                 return {
                     "type": "fallback",
                     "intent_data": enriched_intent,
@@ -334,9 +464,15 @@ class BranitzOrchestrator:
                     "answer": str(e),
                     "sources": [],
                     "can_proceed": False,
+                    "agent_trace": agent_trace,
                 }
             except Exception as e:
                 logger.exception("Executor failed for intent=%s", intent)
+                agent_trace.append({
+                    "agent": "Dynamic Executor",
+                    "duty": f"Execute {intent}",
+                    "outcome": f"Exception: {e}",
+                })
                 return {
                     "type": "ERROR",
                     "intent_data": enriched_intent,
@@ -346,12 +482,25 @@ class BranitzOrchestrator:
                     "sources": [],
                     "can_proceed": False,
                     "suggestion": "Please try a different query or check the street data.",
+                    "agent_trace": agent_trace,
                 }
 
         if intent == "EXPLAIN_DECISION":
-            return self._handle_explain_request(cluster_id, intent_data, run_missing)
+            agent_trace.append({
+                "agent": "Decision Explainer",
+                "duty": "Load decision results and generate explanation",
+                "cluster_id": cluster_id,
+            })
+            resp = self._handle_explain_request(cluster_id, intent_data, run_missing)
+            resp["agent_trace"] = agent_trace
+            return resp
 
         # Unhandled intent
+        agent_trace.append({
+            "agent": "Fallback Agent",
+            "duty": "Handle unrecognized intent",
+            "outcome": f"Unhandled: {intent}",
+        })
         return {
             "type": "fallback",
             "intent_data": enriched_intent,
@@ -360,6 +509,7 @@ class BranitzOrchestrator:
             "answer": _call_fallback_llm(user_query, enriched_intent),
             "sources": [],
             "can_proceed": False,
+            "agent_trace": agent_trace,
         }
 
     def _format_executor_response(
@@ -440,10 +590,15 @@ class BranitzOrchestrator:
         if intent == "NETWORK_DESIGN":
             topo = results.get("topology", {})
             pipes = results.get("pipes", [])
+            map_paths = results.get("map_paths", {})
             n_pipes = len(pipes) if isinstance(pipes, list) else 0
+            n_buildings = topo.get("buildings_connected", "N/A")
+            n_trunk = topo.get("trunk_edges", "N/A")
+            maps_available = ", ".join(map_paths.keys()) if map_paths else "none"
             return (
-                f"Network design: {n_pipes} pipes, topology info available. "
-                "See data for details."
+                f"Here is the district heating network layout: "
+                f"{n_pipes} pipes, {n_trunk} trunk edges, {n_buildings} buildings connected. "
+                f"Interactive maps available: {maps_available}."
             )
         if intent == "WHAT_IF_SCENARIO":
             mod = results.get("modification_applied", "N/A")
