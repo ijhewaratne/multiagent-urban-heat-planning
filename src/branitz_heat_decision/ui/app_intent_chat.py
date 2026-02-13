@@ -242,6 +242,38 @@ def _render_what_if(data: Dict[str, Any]):
                    f"Heat change: {comp.get('heat_delivered_change_mw', 0):.4f} MW")
 
 
+def _render_fallback_ui(response: Dict[str, Any]):
+    """Display fallback response with alternative suggestions (Phase 5)."""
+    st.warning(response.get("answer", "This request is not supported."))
+
+    # Show research context (for thesis demonstration)
+    if response.get("is_research_boundary"):
+        with st.expander("Research Context"):
+            st.info(
+                "This limitation is a **research objective**, not a bug. "
+                "Documenting AI capability boundaries is part of the study."
+            )
+            data = response.get("data", {})
+            if data.get("research_note"):
+                st.caption(f"Note: {data['research_note']}")
+            if data.get("category"):
+                st.caption(f"Category: {data['category']}")
+
+    # Show alternative suggestions as clickable buttons
+    alternatives = response.get("alternative_suggestions", [])
+    if alternatives:
+        st.markdown("**Instead, you can:**")
+        cols = st.columns(min(len(alternatives), 2))
+        for i, suggestion in enumerate(alternatives[:4]):
+            with cols[i % 2]:
+                if st.button(f"{suggestion}", key=f"alt_{id(response)}_{i}", use_container_width=True):
+                    st.session_state._fallback_suggestion = suggestion
+
+    # Escalation path for manual intervention
+    if response.get("escalation_path") == "manual_planning":
+        st.info("This requires manual urban planning expertise.")
+
+
 def _render_visualization(response: Dict[str, Any], result_key: str = ""):
     """Render the right-panel visualization for a response."""
     data = response.get("data", {})
@@ -268,6 +300,8 @@ def _render_visualization(response: Dict[str, Any], result_key: str = ""):
             st.warning("Undecided or tied")
         if data.get("reason"):
             st.write(f"**Reason:** {data['reason']}")
+    elif rtype == "guardrail_blocked":
+        _render_fallback_ui(response)
     else:
         st.markdown(
             '<div class="viz-header"><h3>Ask a question to see results here</h3></div>',
@@ -387,6 +421,13 @@ def main():
                     if st.button(s[:35], key=f"sug_{i}", use_container_width=True):
                         _process_message(s, cluster_id, messages, orch)
                         st.rerun()
+
+        # Handle fallback alternative suggestion clicks (from right panel)
+        if "_fallback_suggestion" in st.session_state:
+            _fb = st.session_state._fallback_suggestion
+            del st.session_state._fallback_suggestion
+            _process_message(_fb, cluster_id, messages, orch)
+            st.rerun()
 
         # Chat input
         user_input = st.chat_input("Ask about CO₂, LCOH, violations, network...")

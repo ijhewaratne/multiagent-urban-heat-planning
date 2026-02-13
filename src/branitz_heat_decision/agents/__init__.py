@@ -1,4 +1,4 @@
-"""Agents module: Dynamic orchestrator, execution engine, and conversation manager."""
+"""Agents module: Dynamic orchestrator, execution engine, conversation manager, and guardrail."""
 from .orchestrator import BranitzOrchestrator
 from .executor import DynamicExecutor, SimulationType, SimulationCache
 from .conversation import (
@@ -6,6 +6,12 @@ from .conversation import (
     ConversationMemory,
     ConversationState,
     CalculationContext,
+)
+from .fallback import (
+    CapabilityGuardrail,
+    CapabilityCategory,
+    CapabilityResponse,
+    FallbackLLM,
 )
 
 __all__ = [
@@ -17,4 +23,8 @@ __all__ = [
     "ConversationMemory",
     "ConversationState",
     "CalculationContext",
+    "CapabilityGuardrail",
+    "CapabilityCategory",
+    "CapabilityResponse",
+    "FallbackLLM",
 ]

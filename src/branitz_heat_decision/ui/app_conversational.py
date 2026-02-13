@@ -218,6 +218,33 @@ def _render_visualization(response: Dict[str, Any]):
         if viz_data.get("reason"):
             st.write(f"**Reason:** {viz_data['reason']}")
 
+    elif resp_type == "guardrail_blocked":
+        st.warning(response.get("answer", "This request is not supported."))
+        # Research context (Phase 5 — for thesis demonstration)
+        if response.get("is_research_boundary"):
+            with st.expander("Research Context"):
+                st.info(
+                    "This limitation is a **research objective**, not a bug. "
+                    "Documenting AI capability boundaries is part of the study."
+                )
+                if viz_data.get("research_note"):
+                    st.caption(f"Note: {viz_data['research_note']}")
+                if viz_data.get("category"):
+                    st.caption(f"Category: {viz_data['category']}")
+        # Alternative suggestions
+        alternatives = response.get("alternative_suggestions", [])
+        if alternatives:
+            st.markdown("**Instead, you can:**")
+            cols = st.columns(min(len(alternatives), 2))
+            for i, suggestion in enumerate(alternatives[:4]):
+                with cols[i % 2]:
+                    if st.button(f"{suggestion}", key=f"conv_alt_{i}", use_container_width=True):
+                        st.session_state.next_prompt = suggestion
+                        st.rerun()
+        # Escalation path
+        if response.get("escalation_path") == "manual_planning":
+            st.info("This requires manual urban planning expertise.")
+
 
 def _render_suggestions(orchestrator):
     suggestions = orchestrator.conversation.get_suggestions()

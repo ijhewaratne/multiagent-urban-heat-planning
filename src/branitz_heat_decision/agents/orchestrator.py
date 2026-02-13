@@ -44,6 +44,11 @@ def _get_conversation():
     return ConversationManager
 
 
+def _get_guardrail():
+    from branitz_heat_decision.agents.fallback import CapabilityGuardrail
+    return CapabilityGuardrail
+
+
 def _get_available_streets() -> List[str]:
     """Load available cluster IDs from cluster index."""
     try:
@@ -193,6 +198,7 @@ class BranitzOrchestrator:
         self._session_cache: Dict[str, Any] = {}
         self.executor = _get_executor()(cache_dir=cache_dir)
         self.conversation = _get_conversation()()
+        self.capability_guardrail = _get_guardrail()()  # Phase 5
 
     def route_request(
         self,
@@ -223,6 +229,7 @@ class BranitzOrchestrator:
                     {"agent": "NLU Intent Classifier", "duty": "...", "outcome": "..."},
                     {"agent": "Conversation Manager", "duty": "...", ...},
                     {"agent": "Street Resolver", "duty": "...", ...},
+                    {"agent": "Capability Guardrail", "duty": "...", "can_handle": True/False},
                     {"agent": "Execution Planner", "duty": "...", ...},
                     {"agent": "Dynamic Executor", "duty": "...", "outcome": "..."},
                 ]
@@ -376,6 +383,34 @@ class BranitzOrchestrator:
                 follow_up_response["agent_trace"] = agent_trace
                 return follow_up_response
 
+        # ── AGENT 4: Capability Guardrail (Phase 5) ──
+        # Duty: Check if the request is within system boundaries BEFORE execution.
+        # Speaker B: "He needs to say 'no, I don't know exactly' instead of going crazy"
+        guardrail_result = self.capability_guardrail.validate_request(
+            intent=intent,
+            entities=enriched_intent.get("entities", {}),
+            user_query=user_query,
+        )
+        agent_trace.append({
+            "agent": "Capability Guardrail",
+            "duty": "Validate request is within system boundaries",
+            "can_handle": guardrail_result.can_handle,
+            "response_type": guardrail_result.response_type,
+            "category": guardrail_result.category.value if guardrail_result.category else None,
+            "research_note": guardrail_result.research_note,
+        })
+
+        if not guardrail_result.can_handle:
+            # Speaker B: "He needs to say 'no, I don't know exactly'"
+            resp = self._handle_capability_fallback(
+                user_query=user_query,
+                intent=intent,
+                capability=guardrail_result,
+                intent_data=enriched_intent,
+            )
+            resp["agent_trace"] = agent_trace
+            return resp
+
         # 2. UNKNOWN / CAPABILITY → Fallback
         if intent in ("UNKNOWN", "CAPABILITY_QUERY"):
             agent_trace.append({
@@ -384,10 +419,14 @@ class BranitzOrchestrator:
                 "outcome": intent,
             })
             if intent == "CAPABILITY_QUERY":
+                caps = self.capability_guardrail.get_capabilities_summary()
+                supported = "; ".join(caps["fully_supported"][:5])
+                not_supported = "; ".join(caps["not_supported"][:3])
                 answer = (
-                    "I can run: District Heating (CHA), Heat Pump grid (DHA), "
-                    "Economics (cost & CO₂), and Decision comparison. Select a cluster and ask "
-                    "'Compare CO₂', 'Compare costs', or 'Explain the decision'."
+                    f"Here's what I can do:\n\n"
+                    f"**Supported:** {supported}.\n\n"
+                    f"**Not supported:** {not_supported}.\n\n"
+                    f"Try: 'Compare CO₂ emissions' or 'Show me the network layout'."
                 )
             else:
                 answer = _call_fallback_llm(user_query, enriched_intent)
@@ -403,7 +442,7 @@ class BranitzOrchestrator:
                 "agent_trace": agent_trace,
             }
 
-        # ── AGENT 4: Execution Planner ──
+        # ── AGENT 5: Execution Planner ──
         # Duty: Determine which simulations are needed for this intent
         required_tools = INTENT_TO_PLAN.get(intent, [])
         agent_trace.append({
@@ -416,7 +455,7 @@ class BranitzOrchestrator:
         # 3. ROUTE by intent
         # Phase 2: Simulation intents → DynamicExecutor
         if intent in _EXECUTOR_INTENTS:
-            # ── AGENT 5: Dynamic Executor ──
+            # ── AGENT 6: Dynamic Executor ──
             # Duty: Run only the simulations that are missing, use cache for the rest
             try:
                 results = self.executor.execute(
@@ -640,6 +679,58 @@ class BranitzOrchestrator:
                 "scenario": results.get("scenario", {}),
             }
         return None
+
+    def _handle_capability_fallback(
+        self,
+        user_query: str,
+        intent: str,
+        capability: Any,  # CapabilityResponse
+        intent_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Handle unsupported requests gracefully (Speaker B requirement).
+
+        Phase 5: Instead of crashing or hallucinating, return a structured
+        explanation of why the request cannot be fulfilled, with alternatives.
+        """
+        from branitz_heat_decision.agents.fallback import CapabilityGuardrail
+
+        # Use LLM to generate contextual fallback if needed
+        if capability.response_type == "fallback":
+            message = self.capability_guardrail.fallback_llm.generate_fallback_response(
+                user_query, intent, capability.message
+            )
+        else:
+            message = capability.message
+
+        # Look up research note from registry
+        unsupported_info = CapabilityGuardrail.UNSUPPORTED_INTENTS.get(intent.lower(), {})
+
+        return {
+            "type": "guardrail_blocked",
+            "subtype": "capability_limitation",
+            "intent_data": intent_data,
+            "execution_plan": [],
+            "data": {
+                "limitation": intent,
+                "guardrail_reason": capability.message,
+                "category": capability.category.value if capability.category else "unknown",
+                "research_note": capability.research_note or unsupported_info.get("research_note"),
+                "alternatives": capability.alternative_suggestions,
+            },
+            "answer": message,
+            "alternative_suggestions": capability.alternative_suggestions,
+            "suggestions": capability.alternative_suggestions[:3],
+            "sources": ["Capability Guardrail"],
+            "can_proceed": False,
+            "escalation_path": capability.escalation_path,
+            # Important for thesis: document this as research objective
+            "is_research_boundary": True,
+        }
+
+    def get_system_capabilities(self) -> Dict[str, List[str]]:
+        """Public API to show what the system can/cannot do."""
+        return self.capability_guardrail.get_capabilities_summary()
 
     def _extract_street_from_query(self, user_query: str, context: Dict[str, Any]) -> Optional[str]:
         """Extract street/cluster from query using NLU and available streets."""
