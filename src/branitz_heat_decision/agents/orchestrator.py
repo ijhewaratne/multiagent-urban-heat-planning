@@ -3,6 +3,7 @@ Dynamic Orchestrator – State-Aware Router for Branitz Heat Decision.
 
 Phase 1: Intent-based tool selection.
 Phase 2: DynamicExecutor for lazy, context-aware simulation execution.
+Phase 3: ConversationManager for multi-turn context and follow-ups.
 
 Implements: "Try to achieve it with tools" – runs only the simulations needed
 for the user's intent, using file-based cache to avoid redundant runs.
@@ -35,6 +36,38 @@ def _get_classify_intent():
 def _get_executor():
     from branitz_heat_decision.agents.executor import DynamicExecutor
     return DynamicExecutor
+
+
+def _get_conversation():
+    from branitz_heat_decision.agents.conversation import ConversationManager
+    return ConversationManager
+
+
+def _get_available_streets() -> List[str]:
+    """Load available cluster IDs from cluster index."""
+    try:
+        from branitz_heat_decision.ui.services import ClusterService
+
+        svc = ClusterService()
+        idx = svc.get_cluster_index()
+        if not idx.empty:
+            col = "cluster_id" if "cluster_id" in idx.columns else idx.columns[0]
+            return idx[col].astype(str).tolist()
+    except Exception:
+        pass
+    try:
+        from branitz_heat_decision.config import DATA_PROCESSED
+
+        sc = DATA_PROCESSED / "street_clusters.parquet"
+        if sc.exists():
+            import pandas as pd
+
+            df = pd.read_parquet(sc)
+            if not df.empty and "street_id" in df.columns:
+                return df["street_id"].astype(str).tolist()
+    except Exception:
+        pass
+    return []
 
 
 def _get_adk_tools():
@@ -145,7 +178,7 @@ def _fallback_template(user_query: str, intent_data: Dict[str, Any]) -> str:
 class BranitzOrchestrator:
     """
     Central orchestrator: dynamically selects which tools to run based on intent,
-    not a fixed sequence. Phase 2: delegates simulation execution to DynamicExecutor.
+    not a fixed sequence. Phase 2: DynamicExecutor. Phase 3: ConversationManager.
     """
 
     def __init__(self, api_key: Optional[str] = None, cache_dir: str = "./cache"):
@@ -158,11 +191,12 @@ class BranitzOrchestrator:
             os.environ["GOOGLE_API_KEY"] = api_key
         self._session_cache: Dict[str, Any] = {}
         self.executor = _get_executor()(cache_dir=cache_dir)
+        self.conversation = _get_conversation()()
 
     def route_request(
         self,
         user_query: str,
-        cluster_id: str,
+        cluster_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
         run_missing: bool = True,
     ) -> Dict[str, Any]:
@@ -171,13 +205,13 @@ class BranitzOrchestrator:
 
         Args:
             user_query: Natural language request
-            cluster_id: Street cluster ID (e.g. ST010_HEINRICH_ZILLE_STRASSE)
-            context: Optional {"history": [...]}
+            cluster_id: Street cluster ID (optional; extracted from query or context if None)
+            context: Optional {"history": [...], "available_streets": [...]}
             run_missing: If True, run simulations that are not yet cached; else only use cache
 
         Returns:
             {
-                "type": "co2_comparison" | "lcoh_comparison" | "violation_analysis" | ...,
+                "type": "co2_comparison" | "lcoh_comparison" | "CLARIFICATION_NEEDED" | ...,
                 "intent_data": {...},
                 "execution_plan": ["cha", "dha", "economics"],
                 "data": {...},
@@ -195,7 +229,52 @@ class BranitzOrchestrator:
             conversation_history=context.get("history", []),
             use_llm=True,
         )
-        intent = str(intent_data.get("intent", "UNKNOWN")).upper().replace(" ", "_")
+
+        # Phase 3: Resolve references and detect follow-ups
+        resolved_query, enriched_intent, is_follow_up = self.conversation.resolve_references(
+            user_query, intent_data
+        )
+        if enriched_intent.get("entities", {}).get("street_name"):
+            cluster_id = enriched_intent["entities"]["street_name"]
+
+        # Extract street from query if still missing (conversational UI)
+        if not cluster_id:
+            cluster_id = self._extract_street_from_query(user_query, context)
+            if cluster_id:
+                if "entities" not in enriched_intent:
+                    enriched_intent["entities"] = {}
+                enriched_intent["entities"]["street_name"] = cluster_id
+
+        # Clarification needed when no street and intent requires one
+        intent = str(enriched_intent.get("intent", "UNKNOWN")).upper().replace(" ", "_")
+        if not cluster_id and intent not in ("UNKNOWN", "CAPABILITY_QUERY"):
+            available = context.get("available_streets") or _get_available_streets()
+            return {
+                "type": "CLARIFICATION_NEEDED",
+                "intent_data": enriched_intent,
+                "execution_plan": [],
+                "data": {"available_streets": available[:20]},
+                "answer": (
+                    "I'd be happy to help! Could you please specify which street you'd like to analyze? "
+                    "You can mention the street name in your question (e.g. 'Compare CO2 for Heinrich-Zille-Straße')."
+                ),
+                "clarification_type": "street_selection",
+                "can_proceed": False,
+                "sources": [],
+            }
+
+
+        # Phase 3: Handle follow-ups from memory/cache
+        if is_follow_up:
+            follow_up_response = self.conversation.handle_follow_up(
+                resolved_query, intent, cluster_id
+            )
+            if follow_up_response:
+                follow_up_response["intent_data"] = enriched_intent
+                follow_up_response.setdefault("execution_plan", follow_up_response.get("execution_log", []))
+                follow_up_response.setdefault("can_proceed", True)
+                follow_up_response.setdefault("suggestions", self.conversation.get_suggestions())
+                return follow_up_response
 
         # 2. UNKNOWN / CAPABILITY → Fallback
         if intent in ("UNKNOWN", "CAPABILITY_QUERY"):
@@ -206,10 +285,10 @@ class BranitzOrchestrator:
                     "'Compare CO₂', 'Compare costs', or 'Explain the decision'."
                 )
             else:
-                answer = _call_fallback_llm(user_query, intent_data)
+                answer = _call_fallback_llm(user_query, enriched_intent)
             return {
                 "type": "fallback",
-                "intent_data": intent_data,
+                "intent_data": enriched_intent,
                 "execution_plan": [],
                 "data": {},
                 "answer": answer,
@@ -226,20 +305,30 @@ class BranitzOrchestrator:
                     intent=intent,
                     street_id=cluster_id,
                     context={
-                        "modification": (intent_data.get("entities") or {}).get("modification"),
+                        "modification": (enriched_intent.get("entities") or {}).get("modification"),
                         "history": context.get("history", []),
                         "run_missing": run_missing,
                     },
                 )
-                return self._format_executor_response(
+                response = self._format_executor_response(
                     intent=intent,
-                    intent_data=intent_data,
+                    intent_data=enriched_intent,
                     results=results,
                 )
+                # Phase 3: Update conversation memory and add suggestions
+                if "error" not in results:
+                    self.conversation.update_memory(
+                        intent=intent,
+                        street_id=cluster_id,
+                        results=results,
+                        execution_log=results.get("execution_log", []),
+                    )
+                    response["suggestions"] = self.conversation.get_suggestions()
+                return response
             except ValueError as e:
                 return {
                     "type": "fallback",
-                    "intent_data": intent_data,
+                    "intent_data": enriched_intent,
                     "execution_plan": [],
                     "data": {},
                     "answer": str(e),
@@ -250,7 +339,7 @@ class BranitzOrchestrator:
                 logger.exception("Executor failed for intent=%s", intent)
                 return {
                     "type": "ERROR",
-                    "intent_data": intent_data,
+                    "intent_data": enriched_intent,
                     "execution_plan": [],
                     "data": {},
                     "answer": f"Simulation failed: {str(e)}",
@@ -265,10 +354,10 @@ class BranitzOrchestrator:
         # Unhandled intent
         return {
             "type": "fallback",
-            "intent_data": intent_data,
+            "intent_data": enriched_intent,
             "execution_plan": [],
             "data": {},
-            "answer": _call_fallback_llm(user_query, intent_data),
+            "answer": _call_fallback_llm(user_query, enriched_intent),
             "sources": [],
             "can_proceed": False,
         }
@@ -396,6 +485,13 @@ class BranitzOrchestrator:
                 "scenario": results.get("scenario", {}),
             }
         return None
+
+    def _extract_street_from_query(self, user_query: str, context: Dict[str, Any]) -> Optional[str]:
+        """Extract street/cluster from query using NLU and available streets."""
+        from branitz_heat_decision.nlu import extract_street_entities
+
+        available = context.get("available_streets") or _get_available_streets()
+        return extract_street_entities(user_query, available)
 
     def _compute_execution_plan(
         self,

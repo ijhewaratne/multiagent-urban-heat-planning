@@ -195,6 +195,49 @@ def render_intent_chat(cluster_id: str):
                     with st.expander("⚙️ What I calculated"):
                         for p in msg["execution_plan"]:
                             st.write(f"- {p}")
+
+        # Phase 3: Contextual suggestions from conversation memory
+        suggestions = orch.conversation.get_suggestions()
+        if suggestions:
+            st.caption("💡 Try asking:")
+            cols = st.columns(min(len(suggestions), 3))
+            for i, suggestion in enumerate(suggestions[:3]):
+                with cols[i % 3]:
+                    if st.button(suggestion[:40], key=f"suggest_{cluster_id}_{i}"):
+                        user_input = suggestion
+                        messages.append({"role": "user", "content": user_input})
+                        context = {
+                            "street_id": cluster_id,
+                            "history": [m["content"] for m in messages[-5:]],
+                        }
+                        with st.spinner("Understanding request..."):
+                            try:
+                                response = orch.route_request(user_input, cluster_id, context)
+                            except Exception as e:
+                                response = {
+                                    "type": "fallback",
+                                    "answer": str(e),
+                                    "suggestion": "Try: Compare CO₂ emissions",
+                                }
+                        if response["type"] == "fallback":
+                            messages.append({
+                                "role": "assistant",
+                                "content": response["answer"],
+                                "execution_plan": [],
+                                "type": "fallback",
+                                "data": {},
+                            })
+                        else:
+                            messages.append({
+                                "role": "assistant",
+                                "content": response["answer"],
+                                "execution_plan": response.get("execution_plan", []),
+                                "data": response.get("data", {}),
+                                "type": response.get("type", ""),
+                                "sources": response.get("sources", []),
+                            })
+                        st.rerun()
+
         user_input = st.chat_input("Ask about CO₂, LCOH, violations...")
         if user_input:
             messages.append({"role": "user", "content": user_input})

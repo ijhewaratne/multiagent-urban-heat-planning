@@ -323,6 +323,22 @@ cd src/branitz_heat_decision/ui
 streamlit run app.py
 ```
 
+### Standalone Intent Chat (chat-only, no street selection)
+```bash
+# From project root – minimal chat interface
+PYTHONPATH=src streamlit run src/branitz_heat_decision/ui/app_intent_chat.py
+```
+No sidebar or street dropdown. Specify street in your message (e.g. "Compare CO2 for ST010") or in the optional "Street" expander.
+
+### Conversational UI (chat-first, natural language)
+```bash
+# From project root – chat-first, street extracted from query
+PYTHONPATH=src streamlit run src/branitz_heat_decision/ui/app_conversational.py
+```
+Or: `PYTHONPATH=src python src/scripts/run_chat_ui.py`
+
+No pre-selection. Just type e.g. "Compare CO2 for Heinrich-Zille-Straße". Street is extracted from the query or the system asks for clarification.
+
 ### Environment Setup
 Create a `.env` file in the project root:
 ```bash

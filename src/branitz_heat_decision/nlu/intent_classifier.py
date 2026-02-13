@@ -238,3 +238,72 @@ def classify_intent(
         "entities": {},
         "reasoning": "No match",
     }
+
+
+def extract_street_entities(user_query: str, available_streets: List[str]) -> Optional[str]:
+    """
+    Extract street name from natural language query.
+    Uses direct and fuzzy matching for flexibility.
+    """
+    import re
+    from difflib import get_close_matches
+
+    if not available_streets:
+        return None
+
+    query_lower = user_query.lower()
+    query_clean = re.sub(
+        r"\b(compare|show|analyze|calculate|what is|what are|the|for|in|on)\b",
+        " ",
+        query_lower,
+        flags=re.IGNORECASE,
+    )
+
+    # Direct substring match (full cluster_id)
+    for street in available_streets:
+        street_clean = street.lower().replace("_", " ").replace("-", " ")
+        if street_clean in query_clean or street.lower() in query_lower:
+            return street
+
+    # ST### pattern match
+    st_match = re.search(r"ST\d{3}_[\w\-]+", user_query, re.I)
+    if st_match:
+        candidate = st_match.group(0)
+        if candidate in available_streets:
+            return candidate
+        for s in available_streets:
+            if s.upper().startswith(candidate.upper()[:10]):
+                return s
+
+    # Partial match (e.g. "Heinrich Zille" in "Heinrich-Zille-Straße")
+    for street in available_streets:
+        street_parts = (
+            street.lower()
+            .replace("-", " ")
+            .replace("_", " ")
+            .replace("straße", "strasse")
+            .split()
+        )
+        meaningful = [p for p in street_parts if len(p) > 2 and p not in ("st", "str")]
+        if any(part in query_clean for part in meaningful):
+            return street
+
+    # Fuzzy matching for typos
+    words = query_clean.split()
+    for i in range(len(words)):
+        for j in range(i + 1, min(i + 5, len(words) + 1)):
+            phrase = " ".join(words[i:j])
+            if len(phrase) < 4:
+                continue
+            matches = get_close_matches(
+                phrase,
+                [s.lower().replace("_", " ") for s in available_streets],
+                n=1,
+                cutoff=0.5,
+            )
+            if matches:
+                for s in available_streets:
+                    if s.lower().replace("_", " ") == matches[0]:
+                        return s
+
+    return None
