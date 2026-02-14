@@ -191,9 +191,9 @@ class DynamicExecutor:
 
         result = {
             "dh_tons_co2": float(co2_dh),
-            "cha_tons_co2": float(co2_cha),
+            "hp_tons_co2": float(co2_cha),
             "difference": float(co2_dh - co2_cha),
-            "winner": "DH" if co2_dh < co2_cha else "CHA",
+            "winner": "DH" if co2_dh < co2_cha else "HP",
             "execution_log": execution_log,
         }
         return result

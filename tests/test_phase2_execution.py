@@ -56,10 +56,10 @@ def test_executor_co2_result_structure():
     if "error" in result:
         pytest.skip(f"No cluster results for {TEST_CLUSTER}")
     assert "dh_tons_co2" in result
-    assert "cha_tons_co2" in result
+    assert "hp_tons_co2" in result
     assert "winner" in result
     assert "execution_log" in result
-    assert result["winner"] in ("DH", "CHA")
+    assert result["winner"] in ("DH", "HP")
     assert isinstance(result["execution_log"], list)
 
 
@@ -91,7 +91,7 @@ def test_lazy_execution():
 
     # Consistency: same values
     assert result1["dh_tons_co2"] == result2["dh_tons_co2"]
-    assert result1["cha_tons_co2"] == result2["cha_tons_co2"]
+    assert result1["hp_tons_co2"] == result2["hp_tons_co2"]
 
     # When first actually ran simulations, second should be faster
     # (Skip speed check if both were fast e.g. cached)

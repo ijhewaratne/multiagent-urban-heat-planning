@@ -18,6 +18,9 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
 ]
 
+[project.scripts]
+branitz-validate-bundle = "branitz_heat_decision.cli.validate_bundle:main"
+
 [project.urls]
 Homepage = "https://github.com/ieg-fraunhofer/branitz-heat-decision"
 Repository = "https://github.com/ieg-fraunhofer/branitz-heat-decision"

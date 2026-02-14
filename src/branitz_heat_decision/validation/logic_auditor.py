@@ -3,6 +3,8 @@ Logic Auditor - validates LLM-generated rationales using TNLI.
 
 Edit C: Fixed scoring semantics (verified/unverified/contradiction)
 Edit D: Wired feedback loop for automatic regeneration
+Edit E: ClaimExtractor for quantitative regex-based claim extraction
+        Golden fixtures for deterministic regression testing
 
 Checks if natural language explanations are consistent with KPI data tables.
 """
@@ -10,9 +12,12 @@ Checks if natural language explanations are consistent with KPI data tables.
 from __future__ import annotations
 
 import logging
+import math
+import re
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .tnli_model import TNLIModel, LightweightResult as EntailmentResult, EntailmentLabel
 from .config import ValidationConfig
@@ -134,11 +139,311 @@ class ValidationReport:
         }
 
 
+# ---------------------------------------------------------------------------
+# Edit E: Quantitative Claim Extractor (regex-based)
+# ---------------------------------------------------------------------------
+
+class ClaimExtractor:
+    """
+    Extract quantitative claims from free-text LLM explanations.
+
+    Bridges the gap between unstructured explanation text and structured
+    validation: regex patterns pull out numbers that can be cross-checked
+    against the canonical KPI dictionary.
+    """
+
+    PATTERNS: Dict[str, str] = {
+        # ---- CO2 variants ----
+        "co2_dh_median": (
+            r"(?:DH|District\s+Heating).{0,40}?"
+            r"(\d+\.?\d*)\s*(?:tCO2|tons?|t)\s*/\s*(?:year|yr|a)"
+        ),
+        "co2_hp_median": (
+            r"(?:HP|Heat\s+Pump).{0,40}?"
+            r"(\d+\.?\d*)\s*(?:tCO2|tons?|t)\s*/\s*(?:year|yr|a)"
+        ),
+        "co2_delta": (
+            r"(?:less|more|lower|higher).{0,30}?"
+            r"(\d+\.?\d*)\s*%\s*.{0,20}?"
+            r"(?:CO2|emissions?)"
+        ),
+
+        # ---- LCOH variants ----
+        # Handles both "DH is 85.4 €/MWh" and "85.4 €/MWh for DH"
+        "lcoh_dh_median": (
+            r"(?:"
+            r"(?:DH|District\s+Heating).{0,40}?(\d+\.?\d*)\s*\u20ac/MWh"
+            r"|"
+            r"(\d+\.?\d*)\s*\u20ac/MWh\s+(?:for\s+)?(?:DH|District\s+Heating)"
+            r")"
+        ),
+        "lcoh_hp_median": (
+            r"(?:"
+            r"(?:HP|Heat\s+Pump).{0,40}?(\d+\.?\d*)\s*\u20ac/MWh"
+            r"|"
+            r"(\d+\.?\d*)\s*\u20ac/MWh\s+(?:for\s+)?(?:HP|Heat\s+Pump)"
+            r")"
+        ),
+        "lcoh_delta_pct": (
+            r"(?:cheaper|expensive|more\s+costly).{0,30}?"
+            r"(\d+\.?\d*)\s*%"
+        ),
+
+        # ---- Network / losses ----
+        "loss_share_pct": r"(?:loss|losses).{0,30}?(\d+\.?\d*)\s*%",
+        "pump_power_kw": r"(?:pump|pumping).{0,30}?(\d+\.?\d*)\s*kW",
+
+        # ---- Pressure ----
+        "dp_per_100m_max": (
+            r"(?:pressure\s+drop|\u0394p|dp).{0,40}?"
+            r"(\d+\.?\d*)\s*(?:bar|mbar)"
+        ),
+        "en_threshold": (
+            r"(?:EN\s*13941|threshold).{0,40}?"
+            r"(\d+\.?\d*)"
+        ),
+
+        # ---- Monte Carlo ----
+        "mc_win_fraction": (
+            r"(?:win|probability|wins\s+in).{0,30}?"
+            r"(\d+\.?\d*)\s*%"
+        ),
+        "mc_n_samples": (
+            r"(?:Monte\s+Carlo|simulations?).{0,40}?"
+            r"(\d+)\s*(?:samples?|runs?|iterations?)"
+        ),
+        "robustness": (
+            r"(?:robust|sensitive).{0,30}?"
+            r"(\d+\.?\d*)\s*%"
+        ),
+    }
+
+    # Maps extractor keys → canonical KPI dict keys for cross-validation.
+    KPI_KEY_MAP: Dict[str, List[str]] = {
+        "co2_dh_median": ["co2_dh_t_per_a", "co2_dh_median"],
+        "co2_hp_median": ["co2_hp_t_per_a", "co2_hp_median"],
+        "lcoh_dh_median": ["lcoh_dh_eur_per_mwh", "lcoh_dh_median", "lcoh_dh"],
+        "lcoh_hp_median": ["lcoh_hp_eur_per_mwh", "lcoh_hp_median", "lcoh_hp"],
+        "loss_share_pct": ["loss_share_pct", "heat_loss_pct"],
+        "pump_power_kw": ["pump_power_kw", "pump_kw"],
+        "dp_per_100m_max": ["dp_per_100m_max", "dp_max_bar_per_100m"],
+        "mc_win_fraction": ["dh_win_fraction", "dh_wins_fraction", "mc_win_fraction"],
+        "mc_n_samples": ["mc_n_samples", "n_samples"],
+    }
+
+    # Relative tolerance for numeric comparison (10 % by default).
+    DEFAULT_TOLERANCE = 0.10
+
+    @classmethod
+    def extract_all(cls, text: str) -> Dict[str, List[float]]:
+        """
+        Extract all quantitative claims from explanation text.
+
+        Returns a dict mapping claim key → list of extracted float values.
+        Handles alternation patterns that produce tuple groups by picking
+        the first non-empty group from each match.
+        """
+        claims: Dict[str, List[float]] = {}
+        for key, pattern in cls.PATTERNS.items():
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                values: List[float] = []
+                for m in matches:
+                    if isinstance(m, tuple):
+                        # Alternation pattern — pick first non-empty group
+                        val = next((g for g in m if g), None)
+                    else:
+                        val = m
+                    if val:
+                        values.append(float(val))
+                if values:
+                    claims[key] = values
+        return claims
+
+    @classmethod
+    def cross_validate(
+        cls,
+        extracted: Dict[str, List[float]],
+        kpis: Dict[str, Any],
+        tolerance: float | None = None,
+    ) -> List[Tuple[str, float, float, bool, str]]:
+        """
+        Cross-validate extracted claims against canonical KPIs.
+
+        Returns list of (claim_key, extracted_val, kpi_val, is_match, reason).
+        """
+        tol = tolerance if tolerance is not None else cls.DEFAULT_TOLERANCE
+        results: List[Tuple[str, float, float, bool, str]] = []
+
+        for claim_key, values in extracted.items():
+            kpi_candidates = cls.KPI_KEY_MAP.get(claim_key, [claim_key])
+            kpi_val: Optional[float] = None
+            for cand in kpi_candidates:
+                if cand in kpis and kpis[cand] is not None:
+                    try:
+                        kpi_val = float(kpis[cand])
+                    except (ValueError, TypeError):
+                        continue
+                    break
+
+            if kpi_val is None:
+                # No reference KPI available — skip (can't validate)
+                continue
+
+            # mc_win_fraction is often stated as % in text but stored as fraction
+            if claim_key == "mc_win_fraction" and kpi_val < 1.0:
+                kpi_val = kpi_val * 100.0  # normalise to %
+
+            for val in values:
+                if kpi_val == 0:
+                    is_match = val == 0
+                else:
+                    is_match = math.isclose(val, kpi_val, rel_tol=tol)
+
+                reason = (
+                    f"{claim_key}: text says {val}, KPI says {kpi_val} "
+                    f"-> {'MATCH' if is_match else 'MISMATCH'} "
+                    f"(tol={tol*100:.0f}%)"
+                )
+                results.append((claim_key, val, kpi_val, is_match, reason))
+
+        return results
+
+
+# ---------------------------------------------------------------------------
+# Edit E: Golden Fixtures for deterministic regression testing
+# ---------------------------------------------------------------------------
+
+GOLDEN_FIXTURES: List[Dict[str, Any]] = [
+    {
+        "name": "ST010_CO2_correct",
+        "explanation": (
+            "District Heating emits 45.2 tCO2/year vs "
+            "Heat Pumps 67.3 tCO2/year. DH has 33% lower emissions."
+        ),
+        "expected_claims": {
+            "co2_dh_median": [45.2],
+            "co2_hp_median": [67.3],
+        },
+        "should_pass": True,
+    },
+    {
+        "name": "ST010_LCOH_correct",
+        "explanation": (
+            "LCOH for DH is 85.4 \u20ac/MWh compared to "
+            "92.1 \u20ac/MWh for HP. DH is 7.3% cheaper."
+        ),
+        "expected_claims": {
+            "lcoh_dh_median": [85.4],
+            "lcoh_hp_median": [92.1],
+        },
+        "should_pass": True,
+    },
+    {
+        "name": "ST010_wrong_numbers",
+        "explanation": "District Heating emits 30 tCO2/year.",
+        "expected_claims": {
+            "co2_dh_median": [30.0],
+        },
+        "should_pass": False,  # Should be caught as contradiction against actual 45.2
+    },
+    {
+        "name": "ST010_loss_share",
+        "explanation": (
+            "Network heat losses are 8.5% of total heat delivered. "
+            "Pump power is 12.3 kW."
+        ),
+        "expected_claims": {
+            "loss_share_pct": [8.5],
+            "pump_power_kw": [12.3],
+        },
+        "should_pass": True,
+    },
+    {
+        "name": "ST010_mc_robust",
+        "explanation": (
+            "Monte Carlo analysis with 1000 samples shows DH wins "
+            "in 78% of scenarios, making this a robust decision."
+        ),
+        "expected_claims": {
+            "mc_n_samples": [1000],
+            "mc_win_fraction": [78.0],
+        },
+        "should_pass": True,
+    },
+]
+
+# Reference KPIs used for golden fixture validation.
+GOLDEN_REFERENCE_KPIS: Dict[str, Any] = {
+    "co2_dh_t_per_a": 45.2,
+    "co2_hp_t_per_a": 67.3,
+    "lcoh_dh_eur_per_mwh": 85.4,
+    "lcoh_hp_eur_per_mwh": 92.1,
+    "loss_share_pct": 8.5,
+    "pump_power_kw": 12.3,
+    "mc_n_samples": 1000,
+    "dh_win_fraction": 0.78,
+}
+
+
+def test_golden_fixtures() -> List[Dict[str, Any]]:
+    """
+    Run all golden fixtures through ClaimExtractor + cross-validation.
+
+    Can be invoked as a standalone self-test:
+        python -m branitz_heat_decision.validation.logic_auditor
+    """
+    results: List[Dict[str, Any]] = []
+
+    for fixture in GOLDEN_FIXTURES:
+        # Step 1: Extract claims from explanation text
+        extracted = ClaimExtractor.extract_all(fixture["explanation"])
+
+        # Step 2: Verify expected claims were found
+        extraction_ok = True
+        for key, expected_vals in fixture["expected_claims"].items():
+            if key not in extracted:
+                extraction_ok = False
+                break
+            for ev in expected_vals:
+                if not any(math.isclose(ev, av, rel_tol=0.01) for av in extracted[key]):
+                    extraction_ok = False
+                    break
+
+        # Step 3: Cross-validate against reference KPIs
+        xval = ClaimExtractor.cross_validate(extracted, GOLDEN_REFERENCE_KPIS)
+        all_match = all(ok for (_, _, _, ok, _) in xval) if xval else True
+        passed = all_match  # True → no mismatches with reference KPIs
+
+        expected = fixture["should_pass"]
+        correct = passed == expected
+
+        results.append({
+            "name": fixture["name"],
+            "correct": correct,  # True if result matches expectation
+            "expected_pass": expected,
+            "actual_pass": passed,
+            "extraction_ok": extraction_ok,
+            "extracted_claims": extracted,
+            "cross_validation": [
+                {"key": k, "text": tv, "kpi": kv, "match": m, "reason": r}
+                for k, tv, kv, m, r in xval
+            ],
+        })
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# LogicAuditor
+# ---------------------------------------------------------------------------
+
 class LogicAuditor:
     """
     Validates LLM-generated decision rationales against KPI tables.
     
     Edit D: Includes optional feedback loop for automatic regeneration.
+    Edit E: Integrates ClaimExtractor for quantitative cross-validation.
     """
     
     def __init__(self, config: Optional[ValidationConfig] = None):
@@ -211,6 +516,114 @@ class LogicAuditor:
         
         return report
     
+    # ------------------------------------------------------------------
+    # Edit E: Standalone free-text validation with ClaimExtractor
+    # ------------------------------------------------------------------
+
+    def validate_explanation(
+        self,
+        explanation: str,
+        kpis: Dict[str, Any],
+        cluster_id: str = "unknown",
+        tolerance: float | None = None,
+    ) -> ValidationReport:
+        """
+        Validate a free-text explanation against reference KPIs.
+
+        Combines:
+        1. **ClaimExtractor** — regex-based quantitative cross-validation
+        2. **TNLI** — semantic entailment for non-numeric statements
+
+        This is the primary entry point for validating LLM-generated
+        explanations where no structured claims are available.
+
+        Args:
+            explanation: Free-text explanation to validate.
+            kpis: Reference KPI dictionary.
+            cluster_id: Cluster identifier for the report.
+            tolerance: Relative tolerance for numeric comparison (default 10 %).
+
+        Returns:
+            ValidationReport with combined results.
+        """
+        # --- Phase 1: Quantitative claim extraction + cross-validation ---
+        extracted = ClaimExtractor.extract_all(explanation)
+        xval_results = ClaimExtractor.cross_validate(extracted, kpis, tolerance)
+
+        quant_contradictions: List[Contradiction] = []
+        quant_verified = 0
+        quant_total = len(xval_results)
+
+        for claim_key, text_val, kpi_val, is_match, reason in xval_results:
+            if is_match:
+                quant_verified += 1
+            else:
+                quant_contradictions.append(Contradiction(
+                    statement=f"{claim_key}: text says {text_val}",
+                    context=f"KPI {claim_key} = {kpi_val}",
+                    confidence=1.0,  # Deterministic check
+                    evidence={
+                        "claim_key": claim_key,
+                        "text_value": text_val,
+                        "kpi_value": kpi_val,
+                        "reason": reason,
+                    },
+                ))
+
+        # --- Phase 2: TNLI semantic validation on full sentences ---
+        tnli_report = self._validate_once(kpis, explanation, cluster_id)
+
+        # --- Merge results ---
+        # Quantitative mismatches always count as contradictions
+        all_contradictions = quant_contradictions + tnli_report.contradictions
+        total_verified = quant_verified + tnli_report.verified_count
+        total_unverified = tnli_report.unverified_count
+        total_contradiction = len(all_contradictions)
+        total_statements = quant_total + tnli_report.statements_validated
+
+        if all_contradictions:
+            status = "fail"
+        elif total_unverified > total_statements * 0.5:
+            status = "warning"
+        elif tnli_report.warnings:
+            status = "warning"
+        else:
+            status = "pass"
+
+        avg_conf = (
+            tnli_report.overall_confidence
+            if tnli_report.statements_validated
+            else 1.0
+        )
+
+        return ValidationReport(
+            cluster_id=cluster_id,
+            timestamp=datetime.now(),
+            validation_status=status,
+            overall_confidence=avg_conf,
+            statements_validated=total_statements,
+            contradictions=all_contradictions,
+            warnings=tnli_report.warnings,
+            entailment_results=tnli_report.entailment_results,
+            verified_count=total_verified,
+            unverified_count=total_unverified,
+            contradiction_count=total_contradiction,
+            evidence={
+                "kpis": {k: str(v) for k, v in kpis.items()},
+                "quantitative_extraction": {
+                    k: v for k, v in extracted.items()
+                },
+                "cross_validation": [
+                    {"key": k, "text": tv, "kpi": kv, "match": m, "reason": r}
+                    for k, tv, kv, m, r in xval_results
+                ],
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Internal: single TNLI validation pass
+    # ------------------------------------------------------------------
+
     def _validate_once(
         self,
         kpis: Dict[str, Any],
@@ -470,3 +883,28 @@ class LogicAuditor:
         ])
         
         return "\n".join(context_parts)
+
+
+# ---------------------------------------------------------------------------
+# Self-test entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import json as _json
+
+    print("Running golden fixture self-test...\n")
+    fixture_results = test_golden_fixtures()
+
+    all_correct = True
+    for r in fixture_results:
+        icon = "PASS" if r["correct"] else "FAIL"
+        all_correct = all_correct and r["correct"]
+        print(f"  [{icon}] {r['name']}")
+        if not r["correct"]:
+            print(f"         expected_pass={r['expected_pass']}, actual_pass={r['actual_pass']}")
+        for xv in r["cross_validation"]:
+            m_icon = "ok" if xv["match"] else "MISMATCH"
+            print(f"         {m_icon}: {xv['reason']}")
+
+    print(f"\n{'All golden fixtures passed!' if all_correct else 'Some fixtures FAILED.'}")
+    sys.exit(0 if all_correct else 1)

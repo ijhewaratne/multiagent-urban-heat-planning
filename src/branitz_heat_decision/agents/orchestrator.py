@@ -580,7 +580,7 @@ class BranitzOrchestrator:
         data = dict(results)
         if intent == "CO2_COMPARISON":
             data["co2_dh_t_per_a"] = results.get("dh_tons_co2", 0)
-            data["co2_hp_t_per_a"] = results.get("cha_tons_co2", 0)
+            data["co2_hp_t_per_a"] = results.get("hp_tons_co2", 0)
         elif intent == "LCOH_COMPARISON":
             data["lcoh_dh_eur_per_mwh"] = results.get("lcoh_dh_eur_per_mwh", 0)
             data["lcoh_hp_eur_per_mwh"] = results.get("lcoh_hp_eur_per_mwh", 0)
@@ -601,10 +601,10 @@ class BranitzOrchestrator:
         """Convert executor results to human-readable answer."""
         if intent == "CO2_COMPARISON":
             dh = results.get("dh_tons_co2", 0)
-            cha = results.get("cha_tons_co2", 0)
+            hp = results.get("hp_tons_co2", 0)
             winner = results.get("winner", "")
             return (
-                f"District Heating: {dh:.1f} tCO₂/year vs Heat Pumps: {cha:.1f} tCO₂/year. "
+                f"District Heating: {dh:.1f} tCO₂/year vs Heat Pumps: {hp:.1f} tCO₂/year. "
                 f"{winner} has lower emissions."
             )
         if intent == "LCOH_COMPARISON":
@@ -657,7 +657,7 @@ class BranitzOrchestrator:
                 "chart_type": "bar",
                 "series": [
                     {"name": "District Heating", "value": results.get("dh_tons_co2", 0)},
-                    {"name": "Heat Pump", "value": results.get("cha_tons_co2", 0)},
+                    {"name": "Heat Pump", "value": results.get("hp_tons_co2", 0)},
                 ],
                 "x_label": "Option",
                 "y_label": "tCO₂/year",
@@ -706,6 +706,9 @@ class BranitzOrchestrator:
         # Look up research note from registry
         unsupported_info = CapabilityGuardrail.UNSUPPORTED_INTENTS.get(intent.lower(), {})
 
+        cat_value = capability.category.value if capability.category else "unknown"
+        research_note = capability.research_note or unsupported_info.get("research_note")
+
         return {
             "type": "guardrail_blocked",
             "subtype": "capability_limitation",
@@ -714,15 +717,19 @@ class BranitzOrchestrator:
             "data": {
                 "limitation": intent,
                 "guardrail_reason": capability.message,
-                "category": capability.category.value if capability.category else "unknown",
-                "research_note": capability.research_note or unsupported_info.get("research_note"),
+                "category": cat_value,
+                "research_note": research_note,
                 "alternatives": capability.alternative_suggestions,
+                "escalation_path": capability.escalation_path,
             },
             "answer": message,
             "alternative_suggestions": capability.alternative_suggestions,
             "suggestions": capability.alternative_suggestions[:3],
             "sources": ["Capability Guardrail"],
             "can_proceed": False,
+            # Top-level fields for easy UI/CLI access
+            "category": cat_value,
+            "research_note": research_note,
             "escalation_path": capability.escalation_path,
             # Important for thesis: document this as research objective
             "is_research_boundary": True,

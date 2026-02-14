@@ -361,7 +361,7 @@ class ConversationManager:
         if intent == "CO2_COMPARISON":
             return {
                 "dh_co2": results.get("dh_tons_co2"),
-                "hp_co2": results.get("cha_tons_co2"),
+                "hp_co2": results.get("hp_tons_co2"),
                 "winner": results.get("winner"),
             }
         if intent == "LCOH_COMPARISON":

@@ -271,34 +271,87 @@ def _render_what_if(data: Dict[str, Any]):
 
 
 def _render_fallback_ui(response: Dict[str, Any]):
-    """Display fallback response with alternative suggestions (Phase 5)."""
+    """Display fallback with structured capability information (Phase 5)."""
+    data = response.get("data", {})
+    category = data.get("category", response.get("category", "unknown"))
+
+    # ── Main warning ──
     st.warning(response.get("answer", "This request is not supported."))
 
-    # Show research context (for thesis demonstration)
+    # ── Capability category badge ──
+    if category == "unsupported":
+        st.error("**Not Supported** — This operation is outside the research scope")
+    elif category == "partial":
+        st.info("**Partially Supported** — Limited functionality available")
+    elif category == "future":
+        st.caption("**Future Work** — Planned for Phase 2 research")
+
+    # ── Research context expander ──
     if response.get("is_research_boundary"):
         with st.expander("Research Context"):
             st.info(
                 "This limitation is a **research objective**, not a bug. "
                 "Documenting AI capability boundaries is part of the study."
             )
-            data = response.get("data", {})
-            if data.get("research_note"):
-                st.caption(f"Note: {data['research_note']}")
-            if data.get("category"):
-                st.caption(f"Category: {data['category']}")
+            research_note = data.get("research_note") or response.get("research_note")
+            if research_note:
+                st.caption(f"**Note**: {research_note}")
 
-    # Show alternative suggestions as clickable buttons
+    # ── Alternative suggestions with icons ──
     alternatives = response.get("alternative_suggestions", [])
+    if not alternatives:
+        alternatives = data.get("alternatives", [])
     if alternatives:
-        st.markdown("**Instead, you can:**")
-        cols = st.columns(min(len(alternatives), 2))
-        for i, suggestion in enumerate(alternatives[:4]):
-            with cols[i % 2]:
-                if st.button(f"{suggestion}", key=f"alt_{id(response)}_{i}", use_container_width=True):
-                    st.session_state._fallback_suggestion = suggestion
+        st.markdown("### What you CAN do instead:")
+        for i, alt in enumerate(alternatives[:4]):
+            if st.button(
+                f"  {alt}",
+                key=f"alt_{hash(str(alt))}_{i}",
+                use_container_width=True,
+            ):
+                st.session_state._fallback_suggestion = alt
+                st.rerun()
 
-    # Escalation path for manual intervention
-    if response.get("escalation_path") == "manual_planning":
+    # ── Full capabilities panel ──
+    with st.expander("Full Capability List"):
+        try:
+            caps = _get_orchestrator().get_system_capabilities()
+        except Exception:
+            caps = {}
+
+        supported = caps.get("fully_supported", [
+            "Simulate DH networks (pandapipes)",
+            "Analyze HP grid feasibility (pandapower)",
+            "Compare LCOH and CO\u2082 emissions",
+            "Check pressure/velocity violations",
+            "Run what-if scenarios (remove houses)",
+            "Generate decision explanations",
+        ])
+        partial = caps.get("partially_supported", [
+            "Custom load profiles (BDEW only)",
+        ])
+        unsupported = caps.get("not_supported", [
+            "Add/remove network components",
+            "Real-time SCADA integration",
+            "Legal compliance verification",
+            "Multi-street optimization",
+        ])
+
+        st.markdown("**Fully Supported**")
+        for item in supported:
+            st.caption(f"  \u2022 {item}")
+
+        st.markdown("**Partially Supported**")
+        for item in partial:
+            st.caption(f"  \u2022 {item}")
+
+        st.markdown("**Not Supported**")
+        for item in unsupported:
+            st.caption(f"  \u2022 {item}")
+
+    # ── Escalation path for manual intervention ──
+    escalation = response.get("escalation_path") or data.get("escalation_path")
+    if escalation == "manual_planning":
         st.info("This requires manual urban planning expertise.")
 
 
@@ -376,7 +429,7 @@ def _process_message(user_input: str, cluster_id: str, messages: list, orch) -> 
                 "answer": str(e),
                 "suggestion": "Try: Compare CO₂ emissions",
             }
-    messages.append({
+    msg: Dict[str, Any] = {
         "role": "assistant",
         "content": response.get("answer", ""),
         "execution_plan": response.get("execution_plan", []),
@@ -384,7 +437,15 @@ def _process_message(user_input: str, cluster_id: str, messages: list, orch) -> 
         "type": response.get("type", "fallback"),
         "sources": response.get("sources", []),
         "agent_trace": response.get("agent_trace", []),
-    })
+    }
+    # Preserve guardrail-specific fields for _render_fallback_ui
+    if response.get("type") == "guardrail_blocked":
+        msg["is_research_boundary"] = response.get("is_research_boundary", False)
+        msg["alternative_suggestions"] = response.get("alternative_suggestions", [])
+        msg["escalation_path"] = response.get("escalation_path")
+        msg["category"] = response.get("category", "unknown")
+        msg["research_note"] = response.get("research_note")
+    messages.append(msg)
 
 
 # ── Main Layout ──

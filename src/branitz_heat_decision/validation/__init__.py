@@ -5,7 +5,15 @@ Provides logic auditing using Tabular Natural Language Inference (TNLI)
 to validate LLM-generated decision rationales against KPI data.
 """
 
-from .logic_auditor import LogicAuditor, ValidationReport, Contradiction
+from .logic_auditor import (
+    LogicAuditor,
+    ValidationReport,
+    Contradiction,
+    ClaimExtractor,
+    GOLDEN_FIXTURES,
+    GOLDEN_REFERENCE_KPIS,
+    test_golden_fixtures,
+)
 from .tnli_model import TNLIModel, LightweightResult as EntailmentResult, EntailmentLabel
 from .config import ValidationConfig
 from .feedback_loop import FeedbackLoop
@@ -18,6 +26,10 @@ __all__ = [
     "LogicAuditor",
     "ValidationReport",
     "Contradiction",
+    "ClaimExtractor",
+    "GOLDEN_FIXTURES",
+    "GOLDEN_REFERENCE_KPIS",
+    "test_golden_fixtures",
     "TNLIModel",
     "EntailmentResult",
     "EntailmentLabel",
