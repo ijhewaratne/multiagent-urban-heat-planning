@@ -1,6 +1,19 @@
 """Agents module: Dynamic orchestrator, execution engine, conversation manager, and guardrail."""
 from .orchestrator import BranitzOrchestrator
-from .executor import DynamicExecutor, SimulationType, SimulationCache
+from .executor import DynamicExecutor
+from .domain_agents import (
+    AgentResult,
+    BaseDomainAgent,
+    DataPrepAgent,
+    CHAAgent,
+    DHAAgent,
+    EconomicsAgent,
+    DecisionAgent,
+    ValidationAgent,
+    UHDCAgent,
+    WhatIfAgent,
+    get_agent,
+)
 from .conversation import (
     ConversationManager,
     ConversationMemory,
@@ -17,8 +30,17 @@ from .fallback import (
 __all__ = [
     "BranitzOrchestrator",
     "DynamicExecutor",
-    "SimulationType",
-    "SimulationCache",
+    "AgentResult",
+    "BaseDomainAgent",
+    "DataPrepAgent",
+    "CHAAgent",
+    "DHAAgent",
+    "EconomicsAgent",
+    "DecisionAgent",
+    "ValidationAgent",
+    "UHDCAgent",
+    "WhatIfAgent",
+    "get_agent",
     "ConversationManager",
     "ConversationMemory",
     "ConversationState",

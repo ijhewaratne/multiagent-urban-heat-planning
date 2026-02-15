@@ -7,6 +7,7 @@ Root ADK agent/team definition for Branitz Heat Decision pipeline orchestration.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
@@ -35,6 +36,7 @@ class AgentAction:
     status: str = "pending"  # pending, success, error
     error: Optional[str] = None
     timestamp: Optional[str] = None
+    duration_seconds: Optional[float] = None  # wall-clock seconds for tool execution
 
 
 @dataclass
@@ -101,6 +103,8 @@ class BaseADKAgent:
         """
         from datetime import datetime
         
+        start = time.perf_counter()
+        
         # Validate action against policies
         if self.enforce_policies:
             context = {
@@ -110,6 +114,7 @@ class BaseADKAgent:
             try:
                 enforce_guardrails(tool_name, context)
             except PolicyViolation as e:
+                duration = time.perf_counter() - start
                 logger.error(f"[ADK Agent] Policy violation: {e}")
                 return AgentAction(
                     name=tool_name,
@@ -118,10 +123,12 @@ class BaseADKAgent:
                     status="error",
                     error=str(e),
                     timestamp=datetime.now().isoformat(),
+                    duration_seconds=duration,
                 )
         
         # Execute tool
         if tool_name not in self.tools:
+            duration = time.perf_counter() - start
             return AgentAction(
                 name=tool_name,
                 phase=phase,
@@ -129,6 +136,7 @@ class BaseADKAgent:
                 status="error",
                 error=f"Tool '{tool_name}' not found",
                 timestamp=datetime.now().isoformat(),
+                duration_seconds=duration,
             )
         
         tool_func = self.tools[tool_name]
@@ -136,6 +144,7 @@ class BaseADKAgent:
         
         try:
             result = tool_func(**kwargs)
+            duration = time.perf_counter() - start
             
             # Determine status from result
             status = result.get("status", "error")
@@ -149,13 +158,18 @@ class BaseADKAgent:
                 status=status,
                 error=error,
                 timestamp=datetime.now().isoformat(),
+                duration_seconds=duration,
             )
             
-            logger.info(f"[ADK Agent] Tool '{tool_name}' completed with status: {status}")
+            logger.info(
+                f"[ADK Agent] Tool '{tool_name}' completed with status: {status} "
+                f"in {duration:.2f}s"
+            )
             return action
         
         except Exception as e:
-            logger.error(f"[ADK Agent] Tool '{tool_name}' failed: {e}")
+            duration = time.perf_counter() - start
+            logger.error(f"[ADK Agent] Tool '{tool_name}' failed in {duration:.2f}s: {e}")
             return AgentAction(
                 name=tool_name,
                 phase=phase,
@@ -163,6 +177,7 @@ class BaseADKAgent:
                 status="error",
                 error=str(e),
                 timestamp=datetime.now().isoformat(),
+                duration_seconds=duration,
             )
 
 

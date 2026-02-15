@@ -4,27 +4,19 @@ Dynamic Execution Engine — Head Chef that delegates to Station Agents.
 Refactored to use domain agents (domain_agents.py) instead of calling
 ADK tools directly.  Backward-compatible: the orchestrator and UI still
 receive the same response dictionaries they always did.
+
+ALL intents — including WHAT_IF_SCENARIO — are now delegated to domain
+agents.  No inline tool calls or pandapipes manipulation remain here.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import pickle
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
-
-# Lazy imports for heavy optional deps (needed only for what-if)
-def _get_pp():
-    try:
-        import pandapipes as pp
-        return pp
-    except ImportError:
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +32,7 @@ def _import_agents():
         DecisionAgent,
         ValidationAgent,
         UHDCAgent,
+        WhatIfAgent,
     )
     return {
         "AgentResult": AgentResult,
@@ -50,6 +43,7 @@ def _import_agents():
         "DecisionAgent": DecisionAgent,
         "ValidationAgent": ValidationAgent,
         "UHDCAgent": UHDCAgent,
+        "WhatIfAgent": WhatIfAgent,
     }
 
 
@@ -57,7 +51,7 @@ class DynamicExecutor:
     """
     Head Chef: Coordinates domain agents to fulfill user requests.
 
-    Instead of directly calling ADK tools, the executor now:
+    Instead of directly calling ADK tools, the executor:
     1. Determines which agents are needed  (_create_agent_plan)
     2. Delegates to appropriate agents      (execute → _run_agent_plan)
     3. Integrates their results             (_integrate_results)
@@ -67,12 +61,11 @@ class DynamicExecutor:
     • Lazy execution — only runs what's needed
     • Cache-first   — agents check result files before running tools
     • Timed logs    — every step shows "✓ Used cached CHA (0.002s)"
-    • What-if       — still handled inline (pandapipes network manipulation)
+    • What-if       — delegated to WhatIfAgent (pandapipes manipulation)
     """
 
     def __init__(self, cache_dir: str = "./cache"):
         self.cache_dir = Path(cache_dir)
-        self.scenario_counter = 0
 
         # Initialise domain agents lazily on first use
         self._agents: Optional[Dict[str, Any]] = None
@@ -93,6 +86,7 @@ class DynamicExecutor:
             "decision":   cls["DecisionAgent"](cache),
             "validation": cls["ValidationAgent"](cache),
             "uhdc":       cls["UHDCAgent"](cache),
+            "what_if":    cls["WhatIfAgent"](cache),
         }
 
     # -----------------------------------------------------------------------
@@ -118,12 +112,7 @@ class DynamicExecutor:
         start = time.perf_counter()
         logger.info("[DynamicExecutor] Received order: %s for %s", intent, street_id)
 
-        # What-if is special: it manipulates pandapipes networks directly,
-        # so we keep it as an inline method rather than an agent.
-        if intent == "WHAT_IF_SCENARIO":
-            return self._execute_what_if(street_id, context)
-
-        # For everything else, build and run an agent plan
+        # Build and run an agent plan (what-if is now an agent too)
         plan = self._create_agent_plan(intent, context)
         logger.info("[DynamicExecutor] Agent plan: %s", plan)
 
@@ -156,14 +145,15 @@ class DynamicExecutor:
     def _create_agent_plan(self, intent: str, context: Dict) -> List[str]:
         """Dependency-ordered list of agents required for *intent*."""
         plans = {
-            "CO2_COMPARISON":    ["cha", "dha", "economics"],
-            "LCOH_COMPARISON":   ["cha", "dha", "economics"],
+            "CO2_COMPARISON":     ["cha", "dha", "economics"],
+            "LCOH_COMPARISON":    ["cha", "dha", "economics"],
             "VIOLATION_ANALYSIS": ["cha", "dha"],
-            "NETWORK_DESIGN":    ["cha"],
-            "DECISION":          ["cha", "dha", "economics", "decision"],
-            "EXPLAIN_DECISION":  ["cha", "dha", "economics", "decision"],
-            "FULL_REPORT":       ["cha", "dha", "economics", "decision", "uhdc"],
-            "DATA_PREPARATION":  ["data_prep"],
+            "NETWORK_DESIGN":     ["cha"],
+            "WHAT_IF_SCENARIO":   ["what_if"],
+            "DECISION":           ["cha", "dha", "economics", "decision"],
+            "EXPLAIN_DECISION":   ["cha", "dha", "economics", "decision"],
+            "FULL_REPORT":        ["cha", "dha", "economics", "decision", "uhdc"],
+            "DATA_PREPARATION":   ["data_prep"],
         }
         base = plans.get(intent, ["cha", "dha", "economics"])
 
@@ -220,6 +210,10 @@ class DynamicExecutor:
                 else f"{status} {cache_tag} {label} ({duration:.1f}s)"
             )
 
+            # Append agent-specific sub-log entries (e.g. WhatIfAgent modification log)
+            for entry in result.metadata.get("modification_log", []):
+                execution_log.append(f"  → {entry}")
+
             if not result.success:
                 logger.error("[%s] Failed: %s", agent_name, result.errors)
                 # If a critical agent fails, stop early for this plan
@@ -248,6 +242,11 @@ class DynamicExecutor:
                 errors = results[critical].errors or ["Unknown error"]
                 return {"error": f"{critical.upper()} failed: {'; '.join(errors)}"}
 
+        # WhatIfAgent failure
+        if "what_if" in results and not results["what_if"].success:
+            errors = results["what_if"].errors or ["Unknown error"]
+            return {"error": f"What-if failed: {'; '.join(errors)}"}
+
         # Dispatch to intent-specific formatter
         if intent == "CO2_COMPARISON":
             return self._format_co2(results, street_id)
@@ -259,6 +258,8 @@ class DynamicExecutor:
             return self._format_network_design(results, street_id)
         if intent in ("DECISION", "EXPLAIN_DECISION"):
             return self._format_decision(results, street_id)
+        if intent == "WHAT_IF_SCENARIO":
+            return self._format_what_if(results, street_id)
 
         # Generic fallback — return raw agent data
         return {
@@ -358,6 +359,20 @@ class DynamicExecutor:
             }
         return {}
 
+    # -- What-if ------------------------------------------------------------
+    @staticmethod
+    def _format_what_if(results: Dict, street_id: str) -> Dict[str, Any]:
+        """Flatten WhatIfAgent result into the dict the orchestrator expects."""
+        if "what_if" in results and results["what_if"].success:
+            data = results["what_if"].data
+            return {
+                "baseline": data.get("baseline", {}),
+                "scenario": data.get("scenario", {}),
+                "comparison": data.get("comparison", {}),
+                "modification_applied": data.get("modification_applied", ""),
+            }
+        return {}
+
     # -- helpers to pull structured data out of AgentResult -------------------
     @staticmethod
     def _extract_economics(results: Dict) -> Dict[str, Any]:
@@ -381,177 +396,3 @@ class DynamicExecutor:
             kpis = data.get("kpis", data) if isinstance(data, dict) else {}
             return kpis.get("kpis", kpis) if isinstance(kpis, dict) else kpis
         return {}
-
-    # -----------------------------------------------------------------------
-    # What-if scenario  (kept inline — needs pandapipes network manipulation)
-    # -----------------------------------------------------------------------
-    def _execute_what_if(self, street_id: str, context: Dict) -> Dict[str, Any]:
-        """
-        Speaker B's example: "What if we leave out 2 houses?"
-
-        This is the one intent that cannot be fully delegated to agents
-        because it clones + mutates the pandapipes network object.
-        """
-        pp = _get_pp()
-        if pp is None:
-            return {"error": "pandapipes not installed", "execution_log": []}
-
-        modification = context.get("modification", "")
-        execution_log: List[str] = []
-
-        # 1. Ensure baseline CHA exists (via the CHA agent)
-        self._ensure_agents()
-        cha_agent = self._agents["cha"]
-        cha_start = time.perf_counter()
-        cha_result = cha_agent.execute(street_id, context)
-        cha_dur = cha_result.execution_time
-        cache_tag = "Used cached" if cha_result.cache_hit else "Calculated"
-        execution_log.append(
-            f"✓ {cache_tag} CHA ({cha_dur:.3f}s)"
-            if cha_result.cache_hit
-            else f"✓ {cache_tag} CHA ({cha_dur:.1f}s)"
-        )
-
-        if not cha_result.success:
-            execution_log[-1] = execution_log[-1].replace("✓", "✗")
-            return {"error": "CHA baseline failed", "execution_log": execution_log}
-
-        # 2. Load baseline network
-        from branitz_heat_decision.config import resolve_cluster_path
-
-        network_path = resolve_cluster_path(street_id, "cha") / "network.pickle"
-        if not network_path.exists():
-            return {"error": "network.pickle not found", "execution_log": execution_log}
-
-        with open(network_path, "rb") as f:
-            baseline_net = pickle.load(f)
-        execution_log.append("Using baseline CHA network")
-
-        # 3. Clone + modify
-        scenario_id = f"scenario_{self.scenario_counter}"
-        self.scenario_counter += 1
-        scenario_net = pickle.loads(pickle.dumps(baseline_net))
-
-        n_houses = 0
-        mod_lower = modification.lower().replace(" ", "_")
-        if "remove" in mod_lower and ("house" in mod_lower or "building" in mod_lower):
-            for p in modification.replace(" ", "_").split("_"):
-                if p.isdigit():
-                    n_houses = int(p)
-                    break
-
-        if n_houses > 0:
-            try:
-                scenario_net = self._exclude_houses(scenario_net, n_houses)
-                execution_log.append(f"Modified network: excluded {n_houses} houses")
-            except ValueError as e:
-                return {"error": str(e), "execution_log": execution_log}
-
-        # 4. Re-run pipeflow
-        try:
-            pp.pipeflow(scenario_net, mode="all", iter=100, tol_p=1e-4, tol_v=1e-4)
-        except Exception as e:
-            return {"error": f"Scenario pipeflow failed: {e}", "execution_log": execution_log}
-
-        execution_log.append(f"Ran scenario pipeflow: {scenario_id}")
-
-        # 5. Compare
-        comparison = self._compare_scenarios(baseline_net, scenario_net)
-
-        return {
-            "baseline": {
-                "co2_tons": self._calculate_dh_co2(baseline_net),
-                "lcoh_eur_mwh": self._calculate_dh_lcoh(baseline_net),
-                "max_pressure_bar": self._get_max_pressure(baseline_net),
-            },
-            "scenario": {
-                "co2_tons": self._calculate_dh_co2(scenario_net),
-                "lcoh_eur_mwh": self._calculate_dh_lcoh(scenario_net),
-                "max_pressure_bar": self._get_max_pressure(scenario_net),
-            },
-            "comparison": comparison,
-            "execution_log": execution_log,
-            "modification_applied": modification,
-        }
-
-    # -----------------------------------------------------------------------
-    # Network helpers (for what-if)
-    # -----------------------------------------------------------------------
-    @staticmethod
-    def _exclude_houses(net: Any, n_houses: int) -> Any:
-        """Disable the last *n_houses* heat consumers in the network."""
-        if not hasattr(net, "heat_consumer") or net.heat_consumer is None or net.heat_consumer.empty:
-            raise ValueError("Network has no heat_consumer table")
-
-        consumers = (
-            net.heat_consumer[net.heat_consumer["in_service"] == True]
-            if "in_service" in net.heat_consumer.columns
-            else net.heat_consumer
-        )
-        if len(consumers) <= n_houses:
-            raise ValueError(f"Cannot remove {n_houses} houses, only {len(consumers)} available")
-
-        for idx in consumers.index[-n_houses:].tolist():
-            if "in_service" in net.heat_consumer.columns:
-                net.heat_consumer.loc[idx, "in_service"] = False
-            if "qext_w" in net.heat_consumer.columns:
-                net.heat_consumer.loc[idx, "qext_w"] = 0.0
-        return net
-
-    @staticmethod
-    def _calculate_dh_co2(net: Any) -> float:
-        """Approximate annual CO₂ from DH network (design hour → annual)."""
-        try:
-            if hasattr(net, "res_heat_consumer") and net.res_heat_consumer is not None and not net.res_heat_consumer.empty:
-                col = "qext_w" if "qext_w" in net.res_heat_consumer.columns else None
-                total_w = net.res_heat_consumer[col].sum() if col else 0.0
-            elif hasattr(net, "heat_consumer") and net.heat_consumer is not None and not net.heat_consumer.empty:
-                total_w = net.heat_consumer["qext_w"].sum() if "qext_w" in net.heat_consumer.columns else 0.0
-            else:
-                return 0.0
-            load_factor = 0.15
-            annual_mwh = total_w * 1e-6 * 8760 * load_factor
-            return float(annual_mwh * 0.2)
-        except Exception:
-            return 0.0
-
-    @staticmethod
-    def _calculate_dh_lcoh(net: Any) -> float:  # noqa: ARG004
-        """LCOH from network alone is complex; return 0 (use economics for baseline)."""
-        return 0.0
-
-    @staticmethod
-    def _get_max_pressure(net: Any) -> float:
-        try:
-            if hasattr(net, "res_junction") and net.res_junction is not None and not net.res_junction.empty:
-                if "p_bar" in net.res_junction.columns:
-                    return float(net.res_junction["p_bar"].max())
-        except Exception:
-            pass
-        return 0.0
-
-    def _compare_scenarios(self, baseline: Any, scenario: Any) -> Dict[str, Any]:
-        base_p = self._get_max_pressure(baseline)
-        scen_p = self._get_max_pressure(scenario)
-
-        def _heat_mw(net: Any) -> float:
-            if hasattr(net, "res_heat_consumer") and net.res_heat_consumer is not None:
-                col = "qext_w" if "qext_w" in net.res_heat_consumer.columns else None
-                return net.res_heat_consumer[col].sum() * 1e-6 if col else 0.0
-            return 0.0
-
-        return {
-            "pressure_change_bar": scen_p - base_p,
-            "heat_delivered_change_mw": _heat_mw(scenario) - _heat_mw(baseline),
-            "violation_reduction": self._count_violations(baseline) - self._count_violations(scenario),
-        }
-
-    @staticmethod
-    def _count_violations(net: Any) -> int:
-        try:
-            if hasattr(net, "res_junction") and net.res_junction is not None:
-                if "p_bar" in net.res_junction.columns:
-                    return int((net.res_junction["p_bar"] > 6).sum())
-        except Exception:
-            pass
-        return 0
