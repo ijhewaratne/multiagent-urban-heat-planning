@@ -1,6 +1,9 @@
 """
-Dynamic Execution Engine for Branitz Heat Decision AI
-Replaces static pipeline with lazy, context-aware simulation execution
+Dynamic Execution Engine — Head Chef that delegates to Station Agents.
+
+Refactored to use domain agents (domain_agents.py) instead of calling
+ADK tools directly.  Backward-compatible: the orchestrator and UI still
+receive the same response dictionaries they always did.
 """
 
 from __future__ import annotations
@@ -8,18 +11,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import pickle
-from dataclasses import dataclass
-from enum import Enum
+import time
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Lazy imports for heavy optional deps
+# Lazy imports for heavy optional deps (needed only for what-if)
 def _get_pp():
     try:
         import pandapipes as pp
@@ -28,241 +27,279 @@ def _get_pp():
         return None
 
 
-class SimulationType(Enum):
-    """Simulation types in Branitz: DH=CHA, CHA_electrical=DHA (Heat Pumps)."""
-    DH_HYDRAULIC = "dh_hydraulic"           # Pandapipes pipeflow (CHA)
-    DH_THERMAL = "dh_thermal"              # Heat transfer (bundled in DH_HYDRAULIC)
-    CHA_ELECTRICAL = "cha_electrical"        # DHA: pandapower power flow / HP hosting
-    CHA_THERMAL = "cha_thermal"             # HP performance (handled by economics)
-
-
-@dataclass
-class SimulationCache:
-    """Cache entry for simulation results."""
-    network: Any              # pandapipes net or DHA result dict
-    results_hash: str         # Hash of inputs to detect stale cache
-    timestamp: float          # For cache invalidation
-    derived_metrics: Dict     # CO2, LCOH calculated from this simulation
+# ---------------------------------------------------------------------------
+# Domain-agent imports (deferred so module loads even if agents aren't used)
+# ---------------------------------------------------------------------------
+def _import_agents():
+    from branitz_heat_decision.agents.domain_agents import (
+        AgentResult,
+        DataPrepAgent,
+        CHAAgent,
+        DHAAgent,
+        EconomicsAgent,
+        DecisionAgent,
+        ValidationAgent,
+        UHDCAgent,
+    )
+    return {
+        "AgentResult": AgentResult,
+        "DataPrepAgent": DataPrepAgent,
+        "CHAAgent": CHAAgent,
+        "DHAAgent": DHAAgent,
+        "EconomicsAgent": EconomicsAgent,
+        "DecisionAgent": DecisionAgent,
+        "ValidationAgent": ValidationAgent,
+        "UHDCAgent": UHDCAgent,
+    }
 
 
 class DynamicExecutor:
     """
-    Speaker B's requirement: "Try to achieve it with tools"
+    Head Chef: Coordinates domain agents to fulfill user requests.
 
-    This class:
-    1. Maintains simulation cache (avoid re-running)
-    2. Executes only required simulations based on intent
-    3. Handles "what-if" scenarios (network modifications)
-    4. Provides comparison capabilities (baseline vs scenario)
+    Instead of directly calling ADK tools, the executor now:
+    1. Determines which agents are needed  (_create_agent_plan)
+    2. Delegates to appropriate agents      (execute → _run_agent_plan)
+    3. Integrates their results             (_integrate_results)
+    4. Returns the **same dict format** the orchestrator / UI expects
+
+    Speaker B's requirements are preserved:
+    • Lazy execution — only runs what's needed
+    • Cache-first   — agents check result files before running tools
+    • Timed logs    — every step shows "✓ Used cached CHA (0.002s)"
+    • What-if       — still handled inline (pandapipes network manipulation)
     """
 
     def __init__(self, cache_dir: str = "./cache"):
         self.cache_dir = Path(cache_dir)
-        self.active_cache: Dict[str, SimulationCache] = {}
         self.scenario_counter = 0
-        self._last_cha_error: Optional[str] = None
-        self._last_dha_error: Optional[str] = None
-        self._last_economics_error: Optional[str] = None
 
-        # Load persistent cache if exists
-        self._load_cache()
+        # Initialise domain agents lazily on first use
+        self._agents: Optional[Dict[str, Any]] = None
+        self._agent_classes: Optional[Dict[str, Any]] = None
 
-    def _get_cache_key(self, street_id: str, sim_type: SimulationType,
-                       scenario: str = "baseline") -> str:
-        """Generate unique cache key for simulation state."""
-        key_string = f"{street_id}_{sim_type.value}_{scenario}"
-        return hashlib.md5(key_string.encode()).hexdigest()
+    # -- lazy init so import cost is zero until first execute() call ---------
+    def _ensure_agents(self):
+        if self._agents is not None:
+            return
+        cls = _import_agents()
+        self._agent_classes = cls
+        cache = str(self.cache_dir)
+        self._agents = {
+            "data_prep":  cls["DataPrepAgent"](cache),
+            "cha":        cls["CHAAgent"](cache),
+            "dha":        cls["DHAAgent"](cache),
+            "economics":  cls["EconomicsAgent"](cache),
+            "decision":   cls["DecisionAgent"](cache),
+            "validation": cls["ValidationAgent"](cache),
+            "uhdc":       cls["UHDCAgent"](cache),
+        }
 
-    def execute(self, intent: str, street_id: str,
-                context: Optional[Dict] = None) -> Dict[str, Any]:
+    # -----------------------------------------------------------------------
+    # Public API — same signature as before
+    # -----------------------------------------------------------------------
+    def execute(
+        self,
+        intent: str,
+        street_id: str,
+        context: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
         """
-        Main entry point – executes only simulations needed for intent.
+        Main entry point — like a head chef receiving an order ticket.
 
-        Args:
-            intent: From Phase 1 IntentClassifier (CO2_COMPARISON, etc.)
-            street_id: Street cluster identifier
-            context: Additional parameters (modifications, etc.)
+        Returns a dict with at least:
+            execution_log:  List[str]   — timed log of what ran
+            error:          str | None  — set only on failure
+            ...plus intent-specific data keys the UI expects
         """
         context = context or {}
+        self._ensure_agents()
 
-        # Route to specific execution strategy
-        if intent == "CO2_COMPARISON":
-            return self._execute_co2_comparison(street_id, context)
-        elif intent == "LCOH_COMPARISON":
-            return self._execute_lcoh_comparison(street_id, context)
-        elif intent == "VIOLATION_ANALYSIS":
-            return self._execute_violation_check(street_id, context)
-        elif intent == "WHAT_IF_SCENARIO":
+        start = time.perf_counter()
+        logger.info("[DynamicExecutor] Received order: %s for %s", intent, street_id)
+
+        # What-if is special: it manipulates pandapipes networks directly,
+        # so we keep it as an inline method rather than an agent.
+        if intent == "WHAT_IF_SCENARIO":
             return self._execute_what_if(street_id, context)
-        elif intent == "NETWORK_DESIGN":
-            return self._execute_network_design(street_id, context)
-        else:
-            raise ValueError(
-                f"Unknown or non-simulation intent: {intent}. "
-                "Use orchestrator for EXPLAIN_DECISION, CAPABILITY_QUERY."
-            )
 
-    def _ensure_cha_results(self, street_id: str) -> bool:
-        """Run CHA if needed; return True if success."""
-        from branitz_heat_decision.adk.tools import run_cha_tool
-        from branitz_heat_decision.config import resolve_cluster_path
+        # For everything else, build and run an agent plan
+        plan = self._create_agent_plan(intent, context)
+        logger.info("[DynamicExecutor] Agent plan: %s", plan)
 
-        cha_dir = resolve_cluster_path(street_id, "cha")
-        if (cha_dir / "cha_kpis.json").exists() and (cha_dir / "network.pickle").exists():
-            return True
-        result = run_cha_tool(street_id)
-        if result.get("status") == "success":
-            return True
-        self._last_cha_error = result.get("stderr") or result.get("error") or "Unknown error"
-        return False
+        agent_results, execution_log = self._run_agent_plan(
+            plan, intent, street_id, context,
+        )
 
-    def _ensure_dha_results(self, street_id: str) -> bool:
-        """Run DHA if needed; return True if success."""
-        from branitz_heat_decision.adk.tools import run_dha_tool
-        from branitz_heat_decision.config import resolve_cluster_path
+        # Integrate agent outputs into the flat dict the UI needs
+        integrated = self._integrate_results(agent_results, intent, street_id)
+        integrated["execution_log"] = execution_log
 
-        dha_dir = resolve_cluster_path(street_id, "dha")
-        if (dha_dir / "dha_kpis.json").exists():
-            return True
-        result = run_dha_tool(street_id)
-        return result.get("status") == "success"
-
-    def _ensure_economics_results(self, street_id: str) -> bool:
-        """Run Economics if needed; return True if success."""
-        from branitz_heat_decision.adk.tools import run_economics_tool
-        from branitz_heat_decision.config import resolve_cluster_path
-
-        econ_dir = resolve_cluster_path(street_id, "economics")
-        if (econ_dir / "economics_deterministic.json").exists():
-            return True
-        result = run_economics_tool(street_id)
-        return result.get("status") == "success"
-
-    def _load_economics(self, street_id: str) -> Dict[str, Any]:
-        """Load economics_deterministic.json."""
-        from branitz_heat_decision.config import resolve_cluster_path
-
-        path = resolve_cluster_path(street_id, "economics") / "economics_deterministic.json"
-        if not path.exists():
-            return {}
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-    def _execute_co2_comparison(self, street_id: str, context: Dict) -> Dict:
-        """
-        Example: User asks "What's the CO2 impact?"
-
-        Execution Plan:
-        1. Run CHA, DHA, Economics if not cached
-        2. Load economics_deterministic.json for canonical CO2 values
-        """
-        execution_log = []
-
-        if not self._ensure_cha_results(street_id):
-            execution_log.append("CHA run failed")
-            err_detail = (
-                self._last_cha_error[:500] if self._last_cha_error else ""
-            )
-            hint = (
-                " Run 00_prepare_data.py first if you haven't prepared the data."
-                if err_detail and ("not found" in err_detail.lower() or "filenotfounderror" in err_detail.lower())
-                else ""
-            )
-            return {
-                "error": f"CHA simulation failed.{hint}"
-                + (f" Details: {err_detail[:200]}..." if err_detail else ""),
-                "execution_log": execution_log,
+        total = time.perf_counter() - start
+        integrated.setdefault("agent_results", {
+            name: {
+                "success": r.success,
+                "execution_time": r.execution_time,
+                "cache_hit": r.cache_hit,
+                "metadata": r.metadata,
             }
-        execution_log.append("CHA results available")
+            for name, r in agent_results.items()
+        })
+        integrated["total_execution_time"] = total
 
-        if not self._ensure_dha_results(street_id):
-            execution_log.append("DHA run failed")
-            return {"error": "DHA simulation failed", "execution_log": execution_log}
-        execution_log.append("DHA results available")
+        logger.info("[DynamicExecutor] Order completed in %.2fs", total)
+        return integrated
 
-        if not self._ensure_economics_results(street_id):
-            execution_log.append("Economics run failed")
-            return {"error": "Economics simulation failed", "execution_log": execution_log}
-        execution_log.append("Economics results available")
-
-        econ = self._load_economics(street_id)
-        co2_dh = econ.get("co2_dh_t_per_a") or econ.get("co2", {}).get("dh") or 0.0
-        co2_cha = econ.get("co2_hp_t_per_a") or econ.get("co2", {}).get("hp") or 0.0
-
-        result = {
-            "dh_tons_co2": float(co2_dh),
-            "hp_tons_co2": float(co2_cha),
-            "difference": float(co2_dh - co2_cha),
-            "winner": "DH" if co2_dh < co2_cha else "HP",
-            "execution_log": execution_log,
+    # -----------------------------------------------------------------------
+    # Agent plan
+    # -----------------------------------------------------------------------
+    def _create_agent_plan(self, intent: str, context: Dict) -> List[str]:
+        """Dependency-ordered list of agents required for *intent*."""
+        plans = {
+            "CO2_COMPARISON":    ["cha", "dha", "economics"],
+            "LCOH_COMPARISON":   ["cha", "dha", "economics"],
+            "VIOLATION_ANALYSIS": ["cha", "dha"],
+            "NETWORK_DESIGN":    ["cha"],
+            "DECISION":          ["cha", "dha", "economics", "decision"],
+            "EXPLAIN_DECISION":  ["cha", "dha", "economics", "decision"],
+            "FULL_REPORT":       ["cha", "dha", "economics", "decision", "uhdc"],
+            "DATA_PREPARATION":  ["data_prep"],
         }
-        return result
+        base = plans.get(intent, ["cha", "dha", "economics"])
 
-    def _execute_lcoh_comparison(self, street_id: str, context: Dict) -> Dict:
-        """LCOH comparison: run CHA, DHA, Economics; use economics_deterministic.json."""
-        execution_log = []
+        if context.get("needs_data_prep"):
+            base = ["data_prep"] + base
 
-        if not self._ensure_cha_results(street_id):
-            execution_log.append("CHA run failed")
-            return {"error": "CHA simulation failed", "execution_log": execution_log}
-        execution_log.append("CHA results available")
+        return base
 
-        if not self._ensure_dha_results(street_id):
-            execution_log.append("DHA run failed")
-            return {"error": "DHA simulation failed", "execution_log": execution_log}
-        execution_log.append("DHA results available")
+    # -----------------------------------------------------------------------
+    # Run agents
+    # -----------------------------------------------------------------------
+    def _run_agent_plan(
+        self,
+        plan: List[str],
+        intent: str,
+        street_id: str,
+        context: Dict,
+    ) -> Tuple[Dict[str, Any], List[str]]:
+        """Execute every agent in *plan* in order, collecting results + log."""
+        AgentResult = self._agent_classes["AgentResult"]
+        results: Dict[str, Any] = {}
+        execution_log: List[str] = []
 
-        if not self._ensure_economics_results(street_id):
-            execution_log.append("Economics run failed")
-            return {"error": "Economics simulation failed", "execution_log": execution_log}
-        execution_log.append("Economics results available")
+        for agent_name in plan:
+            agent = self._agents.get(agent_name)
+            if agent is None:
+                continue
 
-        econ = self._load_economics(street_id)
-        lcoh_dh = econ.get("lcoh_dh_eur_per_mwh") or econ.get("lcoh", {}).get("dh") or 0.0
-        lcoh_hp = econ.get("lcoh_hp_eur_per_mwh") or econ.get("lcoh", {}).get("hp") or 0.0
+            agent_start = time.perf_counter()
+            try:
+                result = agent.execute(street_id, context)
+            except Exception as exc:
+                logger.exception("[%s] Exception: %s", agent_name, exc)
+                result = AgentResult(
+                    success=False,
+                    data={},
+                    execution_time=time.perf_counter() - agent_start,
+                    cache_hit=False,
+                    agent_name=agent_name,
+                    metadata={},
+                    errors=[str(exc)],
+                )
 
+            results[agent_name] = result
+            duration = result.execution_time
+
+            # Build a timed log line consistent with the UI's "What was calculated" panel
+            status = "✓" if result.success else "✗"
+            cache_tag = "Used cached" if result.cache_hit else "Calculated"
+            label = agent_name.upper().replace("_", " ")
+            execution_log.append(
+                f"{status} {cache_tag} {label} ({duration:.3f}s)"
+                if result.cache_hit
+                else f"{status} {cache_tag} {label} ({duration:.1f}s)"
+            )
+
+            if not result.success:
+                logger.error("[%s] Failed: %s", agent_name, result.errors)
+                # If a critical agent fails, stop early for this plan
+                if agent_name in ("cha", "dha", "economics"):
+                    execution_log.append(
+                        f"Pipeline stopped: {agent_name} is a prerequisite"
+                    )
+                    break
+
+        return results, execution_log
+
+    # -----------------------------------------------------------------------
+    # Integrate agent results → flat dict the orchestrator / UI expect
+    # -----------------------------------------------------------------------
+    def _integrate_results(
+        self,
+        results: Dict[str, Any],
+        intent: str,
+        street_id: str,
+    ) -> Dict[str, Any]:
+        """Merge agent outputs into the response shape the UI renderers need."""
+
+        # Check for critical failures first
+        for critical in ("cha", "dha", "economics"):
+            if critical in results and not results[critical].success:
+                errors = results[critical].errors or ["Unknown error"]
+                return {"error": f"{critical.upper()} failed: {'; '.join(errors)}"}
+
+        # Dispatch to intent-specific formatter
+        if intent == "CO2_COMPARISON":
+            return self._format_co2(results, street_id)
+        if intent == "LCOH_COMPARISON":
+            return self._format_lcoh(results, street_id)
+        if intent == "VIOLATION_ANALYSIS":
+            return self._format_violations(results, street_id)
+        if intent == "NETWORK_DESIGN":
+            return self._format_network_design(results, street_id)
+        if intent in ("DECISION", "EXPLAIN_DECISION"):
+            return self._format_decision(results, street_id)
+
+        # Generic fallback — return raw agent data
         return {
-            "lcoh_dh_eur_per_mwh": float(lcoh_dh),
-            "lcoh_hp_eur_per_mwh": float(lcoh_hp),
-            "difference": float(lcoh_hp - lcoh_dh),
-            "winner": "DH" if lcoh_dh < lcoh_hp else "CHA",
-            "execution_log": execution_log,
+            name: r.data for name, r in results.items() if r.success
         }
 
-    def _execute_violation_check(self, street_id: str, context: Dict) -> Dict:
-        """Violation analysis: CHA (pressure/velocity) + DHA (voltage/line)."""
-        execution_log = []
+    # -- CO2 ----------------------------------------------------------------
+    def _format_co2(self, results: Dict, street_id: str) -> Dict[str, Any]:
+        econ = self._extract_economics(results)
+        co2_dh = econ.get("co2_dh_t_per_a") or econ.get("co2", {}).get("dh") or 0.0
+        co2_hp = econ.get("co2_hp_t_per_a") or econ.get("co2", {}).get("hp") or 0.0
+        return {
+            "dh_tons_co2": float(co2_dh),
+            "hp_tons_co2": float(co2_hp),
+            "difference": float(co2_dh - co2_hp),
+            "winner": "DH" if co2_dh < co2_hp else "HP",
+        }
 
-        if not self._ensure_cha_results(street_id):
-            execution_log.append("CHA run failed")
-            return {"error": "CHA simulation failed", "execution_log": execution_log}
+    # -- LCOH ---------------------------------------------------------------
+    def _format_lcoh(self, results: Dict, street_id: str) -> Dict[str, Any]:
+        econ = self._extract_economics(results)
+        dh = econ.get("lcoh_dh_eur_per_mwh") or econ.get("lcoh", {}).get("dh") or 0.0
+        hp = econ.get("lcoh_hp_eur_per_mwh") or econ.get("lcoh", {}).get("hp") or 0.0
+        return {
+            "lcoh_dh_eur_per_mwh": float(dh),
+            "lcoh_hp_eur_per_mwh": float(hp),
+            "difference": float(hp - dh),
+            "winner": "DH" if dh < hp else "HP",
+        }
 
-        if not self._ensure_dha_results(street_id):
-            execution_log.append("DHA run failed")
-            return {"error": "DHA simulation failed", "execution_log": execution_log}
-
-        from branitz_heat_decision.config import resolve_cluster_path
-
-        cha_path = resolve_cluster_path(street_id, "cha") / "cha_kpis.json"
-        dha_path = resolve_cluster_path(street_id, "dha") / "dha_kpis.json"
-
-        cha_kpis = {}
-        if cha_path.exists():
-            with open(cha_path, "r") as f:
-                cha_kpis = json.load(f)
-
-        dha_kpis = {}
-        if dha_path.exists():
-            with open(dha_path, "r") as f:
-                dha_data = json.load(f)
-                dha_kpis = dha_data.get("kpis", dha_data)
+    # -- Violations ---------------------------------------------------------
+    def _format_violations(self, results: Dict, street_id: str) -> Dict[str, Any]:
+        cha_kpis = self._extract_cha_kpis(results)
+        dha_kpis = self._extract_dha_kpis(results)
 
         agg = cha_kpis.get("aggregate", {})
         hyd = cha_kpis.get("hydraulics", {})
 
         return {
             "cha": {
-                "converged": cha_kpis.get("convergence", {}).get("converged", None),
+                "converged": cha_kpis.get("convergence", {}).get("converged"),
                 "pressure_bar_max": cha_kpis.get("pressure_bar_max"),
                 "velocity_ms_max": agg.get("v_max_ms") or hyd.get("max_velocity_ms"),
             },
@@ -270,38 +307,27 @@ class DynamicExecutor:
                 "voltage_violations": dha_kpis.get("voltage_violations_total", 0),
                 "line_violations": dha_kpis.get("line_violations_total", 0),
             },
-            "v_share_within_limits": agg.get("v_share_within_limits") or hyd.get("velocity_share_within_limits"),
-            "dp_max_bar_per_100m": agg.get("dp_max_bar_per_100m") or hyd.get("dp_per_100m_max"),
-            "execution_log": execution_log,
+            "v_share_within_limits": (
+                agg.get("v_share_within_limits")
+                or hyd.get("velocity_share_within_limits")
+            ),
+            "dp_max_bar_per_100m": (
+                agg.get("dp_max_bar_per_100m") or hyd.get("dp_per_100m_max")
+            ),
         }
 
-    def _execute_network_design(self, street_id: str, context: Dict) -> Dict:
-        """Network design: CHA topology, pipe sizes, interactive maps."""
-        execution_log = []
-
-        if not self._ensure_cha_results(street_id):
-            execution_log.append("CHA run failed")
-            return {"error": "CHA simulation failed", "execution_log": execution_log}
-
-        execution_log.append("CHA results available")
-
-        from branitz_heat_decision.config import resolve_cluster_path
-
-        cha_dir = resolve_cluster_path(street_id, "cha")
-        cha_path = cha_dir / "cha_kpis.json"
-        cha_kpis = {}
-        if cha_path.exists():
-            with open(cha_path, "r") as f:
-                cha_kpis = json.load(f)
-
-        # Extract detailed pipe/consumer data (lives under "detailed" in cha_kpis)
+    # -- Network design -----------------------------------------------------
+    def _format_network_design(self, results: Dict, street_id: str) -> Dict[str, Any]:
+        cha_kpis = self._extract_cha_kpis(results)
         detailed = cha_kpis.get("detailed", {})
         topology = cha_kpis.get("topology", {})
         pipes = detailed.get("pipes", cha_kpis.get("pipes", []))
         heat_consumers = detailed.get("heat_consumers", cha_kpis.get("heat_consumers", []))
 
-        # Collect available interactive map HTML paths
-        map_paths = {}
+        from branitz_heat_decision.config import resolve_cluster_path
+
+        cha_dir = resolve_cluster_path(street_id, "cha")
+        map_paths: Dict[str, str] = {}
         for map_type, filename in [
             ("velocity", "interactive_map.html"),
             ("temperature", "interactive_map_temperature.html"),
@@ -310,37 +336,87 @@ class DynamicExecutor:
             p = cha_dir / filename
             if p.exists():
                 map_paths[map_type] = str(p)
-                execution_log.append(f"Map available: {map_type}")
 
         return {
             "topology": topology,
             "pipes": pipes,
             "heat_consumers": heat_consumers,
             "map_paths": map_paths,
-            "execution_log": execution_log,
         }
 
-    def _execute_what_if(self, street_id: str, context: Dict) -> Dict:
+    # -- Decision -----------------------------------------------------------
+    def _format_decision(self, results: Dict, street_id: str) -> Dict[str, Any]:
+        if "decision" in results and results["decision"].success:
+            dec_data = results["decision"].data.get("decision", {})
+            return {
+                "choice": dec_data.get("recommendation") or dec_data.get("choice"),
+                "recommendation": dec_data.get("recommendation") or dec_data.get("choice"),
+                "robust": dec_data.get("robust", False),
+                "reason": dec_data.get("reason", ""),
+                "reason_codes": dec_data.get("reason_codes", []),
+                "metrics_used": dec_data.get("metrics_used", {}),
+            }
+        return {}
+
+    # -- helpers to pull structured data out of AgentResult -------------------
+    @staticmethod
+    def _extract_economics(results: Dict) -> Dict[str, Any]:
+        if "economics" in results and results["economics"].success:
+            data = results["economics"].data
+            # Agent stores economics under "economics" key; fall back to raw data
+            return data.get("economics", data)
+        return {}
+
+    @staticmethod
+    def _extract_cha_kpis(results: Dict) -> Dict[str, Any]:
+        if "cha" in results and results["cha"].success:
+            data = results["cha"].data
+            return data.get("kpis", data) if isinstance(data, dict) else {}
+        return {}
+
+    @staticmethod
+    def _extract_dha_kpis(results: Dict) -> Dict[str, Any]:
+        if "dha" in results and results["dha"].success:
+            data = results["dha"].data
+            kpis = data.get("kpis", data) if isinstance(data, dict) else {}
+            return kpis.get("kpis", kpis) if isinstance(kpis, dict) else kpis
+        return {}
+
+    # -----------------------------------------------------------------------
+    # What-if scenario  (kept inline — needs pandapipes network manipulation)
+    # -----------------------------------------------------------------------
+    def _execute_what_if(self, street_id: str, context: Dict) -> Dict[str, Any]:
         """
         Speaker B's example: "What if we leave out 2 houses?"
 
-        Execution Plan:
-        1. Load baseline network from cache or disk
-        2. Clone and modify network (remove houses)
-        3. Re-run pipeflow for scenario
-        4. Compare with baseline
+        This is the one intent that cannot be fully delegated to agents
+        because it clones + mutates the pandapipes network object.
         """
         pp = _get_pp()
         if pp is None:
             return {"error": "pandapipes not installed", "execution_log": []}
 
         modification = context.get("modification", "")
-        execution_log = []
+        execution_log: List[str] = []
 
-        # 1. Load baseline network (run CHA if needed)
-        if not self._ensure_cha_results(street_id):
+        # 1. Ensure baseline CHA exists (via the CHA agent)
+        self._ensure_agents()
+        cha_agent = self._agents["cha"]
+        cha_start = time.perf_counter()
+        cha_result = cha_agent.execute(street_id, context)
+        cha_dur = cha_result.execution_time
+        cache_tag = "Used cached" if cha_result.cache_hit else "Calculated"
+        execution_log.append(
+            f"✓ {cache_tag} CHA ({cha_dur:.3f}s)"
+            if cha_result.cache_hit
+            else f"✓ {cache_tag} CHA ({cha_dur:.1f}s)"
+        )
+
+        if not cha_result.success:
+            execution_log[-1] = execution_log[-1].replace("✓", "✗")
             return {"error": "CHA baseline failed", "execution_log": execution_log}
 
+        # 2. Load baseline network
         from branitz_heat_decision.config import resolve_cluster_path
 
         network_path = resolve_cluster_path(street_id, "cha") / "network.pickle"
@@ -349,21 +425,17 @@ class DynamicExecutor:
 
         with open(network_path, "rb") as f:
             baseline_net = pickle.load(f)
-
         execution_log.append("Using baseline CHA network")
 
-        # 2. Create scenario network (clone + modify)
+        # 3. Clone + modify
         scenario_id = f"scenario_{self.scenario_counter}"
         self.scenario_counter += 1
-
         scenario_net = pickle.loads(pickle.dumps(baseline_net))
 
-        # Parse modification (e.g. "remove 2 houses", "remove_2_houses")
         n_houses = 0
         mod_lower = modification.lower().replace(" ", "_")
         if "remove" in mod_lower and ("house" in mod_lower or "building" in mod_lower):
-            parts = modification.replace(" ", "_").split("_")
-            for p in parts:
+            for p in modification.replace(" ", "_").split("_"):
                 if p.isdigit():
                     n_houses = int(p)
                     break
@@ -375,21 +447,15 @@ class DynamicExecutor:
             except ValueError as e:
                 return {"error": str(e), "execution_log": execution_log}
 
-        # 3. Re-run pipeflow for scenario
+        # 4. Re-run pipeflow
         try:
-            pp.pipeflow(
-                scenario_net,
-                mode="all",
-                iter=100,
-                tol_p=1e-4,
-                tol_v=1e-4,
-            )
+            pp.pipeflow(scenario_net, mode="all", iter=100, tol_p=1e-4, tol_v=1e-4)
         except Exception as e:
             return {"error": f"Scenario pipeflow failed: {e}", "execution_log": execution_log}
 
         execution_log.append(f"Ran scenario pipeflow: {scenario_id}")
 
-        # 4. Compare baseline vs scenario
+        # 5. Compare
         comparison = self._compare_scenarios(baseline_net, scenario_net)
 
         return {
@@ -408,94 +474,54 @@ class DynamicExecutor:
             "modification_applied": modification,
         }
 
-    def _run_dh_simulation(self, street_id: str) -> Any:
-        """
-        Load CHA network from results (CHA already run by _ensure_cha_results).
-        Returns pandapipes net.
-        """
-        from branitz_heat_decision.config import resolve_cluster_path
-
-        network_path = resolve_cluster_path(street_id, "cha") / "network.pickle"
-        if not network_path.exists():
-            from branitz_heat_decision.adk.tools import run_cha_tool
-
-            result = run_cha_tool(street_id)
-            if result.get("status") != "success":
-                raise RuntimeError(f"CHA run failed: {result.get('error', 'unknown')}")
-
-        with open(network_path, "rb") as f:
-            return pickle.load(f)
-
-    def _run_cha_simulation(self, street_id: str) -> Dict[str, Any]:
-        """
-        Run DHA (Heat Pump grid analysis); returns DHA result dict.
-        CO2/LCOH for HP come from economics, not from this directly.
-        """
-        from branitz_heat_decision.adk.tools import run_dha_tool
-
-        result = run_dha_tool(street_id)
-        if result.get("status") != "success":
-            raise RuntimeError(f"DHA run failed: {result.get('error', 'unknown')}")
-        return result
-
-    def _exclude_houses(self, net: Any, n_houses: int) -> Any:
-        """
-        Modify network for "what-if" scenarios.
-        Disables heat consumers by setting in_service=False or qext_w=0.
-        """
+    # -----------------------------------------------------------------------
+    # Network helpers (for what-if)
+    # -----------------------------------------------------------------------
+    @staticmethod
+    def _exclude_houses(net: Any, n_houses: int) -> Any:
+        """Disable the last *n_houses* heat consumers in the network."""
         if not hasattr(net, "heat_consumer") or net.heat_consumer is None or net.heat_consumer.empty:
             raise ValueError("Network has no heat_consumer table")
 
-        if "in_service" in net.heat_consumer.columns:
-            consumers = net.heat_consumer[net.heat_consumer["in_service"] == True]
-        else:
-            consumers = net.heat_consumer
-
+        consumers = (
+            net.heat_consumer[net.heat_consumer["in_service"] == True]
+            if "in_service" in net.heat_consumer.columns
+            else net.heat_consumer
+        )
         if len(consumers) <= n_houses:
-            raise ValueError(
-                f"Cannot remove {n_houses} houses, only {len(consumers)} available"
-            )
+            raise ValueError(f"Cannot remove {n_houses} houses, only {len(consumers)} available")
 
-        # Disable last N consumers
-        indices_to_remove = consumers.index[-n_houses:].tolist()
-
-        for idx in indices_to_remove:
+        for idx in consumers.index[-n_houses:].tolist():
             if "in_service" in net.heat_consumer.columns:
                 net.heat_consumer.loc[idx, "in_service"] = False
             if "qext_w" in net.heat_consumer.columns:
                 net.heat_consumer.loc[idx, "qext_w"] = 0.0
-
         return net
 
-    def _calculate_dh_co2(self, net: Any) -> float:
-        """Approximate CO2 from DH simulation results (annual heat * emission factor)."""
+    @staticmethod
+    def _calculate_dh_co2(net: Any) -> float:
+        """Approximate annual CO₂ from DH network (design hour → annual)."""
         try:
             if hasattr(net, "res_heat_consumer") and net.res_heat_consumer is not None and not net.res_heat_consumer.empty:
                 col = "qext_w" if "qext_w" in net.res_heat_consumer.columns else None
-                if col:
-                    total_w = net.res_heat_consumer[col].sum()
-                else:
-                    total_w = 0.0
+                total_w = net.res_heat_consumer[col].sum() if col else 0.0
             elif hasattr(net, "heat_consumer") and net.heat_consumer is not None and not net.heat_consumer.empty:
                 total_w = net.heat_consumer["qext_w"].sum() if "qext_w" in net.heat_consumer.columns else 0.0
             else:
                 return 0.0
-
-            # Design hour power -> annual MWh (simplified: * 8760 * load factor)
             load_factor = 0.15
             annual_mwh = total_w * 1e-6 * 8760 * load_factor
-            emission_factor = 0.2
-            return float(annual_mwh * emission_factor)
+            return float(annual_mwh * 0.2)
         except Exception:
             return 0.0
 
-    def _calculate_dh_lcoh(self, net: Any) -> float:
-        """LCOH from network is complex; return 0 for what-if (use economics for baseline)."""
-        # Full LCOH requires economics; for what-if we approximate or return N/A
+    @staticmethod
+    def _calculate_dh_lcoh(net: Any) -> float:  # noqa: ARG004
+        """LCOH from network alone is complex; return 0 (use economics for baseline)."""
         return 0.0
 
-    def _get_max_pressure(self, net: Any) -> float:
-        """Max pressure from res_junction."""
+    @staticmethod
+    def _get_max_pressure(net: Any) -> float:
         try:
             if hasattr(net, "res_junction") and net.res_junction is not None and not net.res_junction.empty:
                 if "p_bar" in net.res_junction.columns:
@@ -504,73 +530,28 @@ class DynamicExecutor:
             pass
         return 0.0
 
-    def _compare_scenarios(
-        self, baseline: Any, scenario: Any
-    ) -> Dict[str, Any]:
-        """Compare two network states for what-if analysis."""
+    def _compare_scenarios(self, baseline: Any, scenario: Any) -> Dict[str, Any]:
         base_p = self._get_max_pressure(baseline)
         scen_p = self._get_max_pressure(scenario)
 
-        base_heat = 0.0
-        scen_heat = 0.0
-        if hasattr(baseline, "res_heat_consumer") and baseline.res_heat_consumer is not None:
-            col = "qext_w" if "qext_w" in baseline.res_heat_consumer.columns else None
-            if col:
-                base_heat = baseline.res_heat_consumer[col].sum() * 1e-6
-        if hasattr(scenario, "res_heat_consumer") and scenario.res_heat_consumer is not None:
-            col = "qext_w" if "qext_w" in scenario.res_heat_consumer.columns else None
-            if col:
-                scen_heat = scenario.res_heat_consumer[col].sum() * 1e-6
+        def _heat_mw(net: Any) -> float:
+            if hasattr(net, "res_heat_consumer") and net.res_heat_consumer is not None:
+                col = "qext_w" if "qext_w" in net.res_heat_consumer.columns else None
+                return net.res_heat_consumer[col].sum() * 1e-6 if col else 0.0
+            return 0.0
 
         return {
             "pressure_change_bar": scen_p - base_p,
-            "heat_delivered_change_mw": scen_heat - base_heat,
+            "heat_delivered_change_mw": _heat_mw(scenario) - _heat_mw(baseline),
             "violation_reduction": self._count_violations(baseline) - self._count_violations(scenario),
         }
 
-    def _count_violations(self, net: Any) -> int:
-        """Count pressure/temperature violations."""
-        violations = 0
+    @staticmethod
+    def _count_violations(net: Any) -> int:
         try:
             if hasattr(net, "res_junction") and net.res_junction is not None:
                 if "p_bar" in net.res_junction.columns:
-                    violations += int((net.res_junction["p_bar"] > 6).sum())
+                    return int((net.res_junction["p_bar"] > 6).sum())
         except Exception:
             pass
-        return violations
-
-    def _hash_network_state(self, net: Any) -> str:
-        """Create hash of network state for cache validation."""
-        try:
-            n_j = len(net.junction) if hasattr(net, "junction") else 0
-            n_p = len(net.pipe) if hasattr(net, "pipe") else 0
-            hc_sum = 0.0
-            if hasattr(net, "heat_consumer") and net.heat_consumer is not None and not net.heat_consumer.empty:
-                if "qext_w" in net.heat_consumer.columns:
-                    hc_sum = net.heat_consumer["qext_w"].sum()
-            state_str = f"{n_j}_{n_p}_{hc_sum}"
-            return hashlib.md5(state_str.encode()).hexdigest()
-        except Exception:
-            return ""
-
-    def _load_cache(self) -> None:
-        """Load persistent cache from disk."""
-        cache_file = self.cache_dir / "simulation_cache.pkl"
-        if cache_file.exists():
-            try:
-                with open(cache_file, "rb") as f:
-                    self.active_cache = pickle.load(f)
-                logger.info("Loaded simulation cache from %s", cache_file)
-            except Exception as e:
-                logger.warning("Could not load cache: %s", e)
-
-    def save_cache(self) -> None:
-        """Save cache to disk for persistence."""
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = self.cache_dir / "simulation_cache.pkl"
-        try:
-            with open(cache_file, "wb") as f:
-                pickle.dump(self.active_cache, f)
-            logger.info("Saved simulation cache to %s", cache_file)
-        except Exception as e:
-            logger.warning("Could not save cache: %s", e)
+        return 0

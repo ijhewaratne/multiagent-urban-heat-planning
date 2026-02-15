@@ -321,6 +321,174 @@ User: "Can I see the interactive maps?" (follow-up detected)
 
 ---
 
+## Complete Agent Inventory
+
+The system contains **15 agents** organized into three tiers: the main request pipeline, on-demand simulation agents, and specialized agents.
+
+### Tier 1: Request Pipeline Agents (execute on every query)
+
+These 6 agents run sequentially inside `BranitzOrchestrator.route_request()` for every user query. Each agent logs its duty and outcome to the **agent trace**, which is visible in the UI for full transparency.
+
+#### Agent 1: NLU Intent Classifier
+
+| | |
+|---|---|
+| **File** | `nlu/intent_classifier.py` |
+| **Class/Function** | `classify_intent()` |
+| **Duty** | Classify the user's natural language query into a structured intent and extract entities (street names, parameters) |
+| **How it works** | Sends the query to Google Gemini LLM with a constrained system prompt that defines the 7 supported intents. If the LLM is unavailable, falls back to keyword matching against known patterns. Street entities are extracted using fuzzy matching with German name normalization (handles `ss`/`ß`, `Straße`/`Strasse` variants). |
+| **Input** | Raw user query string + conversation history |
+| **Output** | `{ intent: "CO2_COMPARISON", confidence: 0.95, method: "LLM", entities: { street_name: "Heinrich-Zille-Straße" } }` |
+
+#### Agent 2: Conversation Manager
+
+| | |
+|---|---|
+| **File** | `agents/conversation.py` |
+| **Class** | `ConversationManager` |
+| **Duty** | Maintain multi-turn conversation state, detect follow-up queries, resolve anaphora (implicit references), and track available cached data |
+| **How it works** | Checks if the current query is a follow-up using linguistic patterns ("what about", "how about", "also show", short queries without street mentions). If it is a follow-up, enriches the intent with the current street from memory, detects metric switching ("What about LCOH?" after a CO2 query), and checks if cached data can answer without re-running simulations. Tracks `ConversationMemory` with `current_street`, `last_calculation`, `calculation_history`, and `available_data` per street. |
+| **Input** | Classified intent + conversation history + memory state |
+| **Output** | `{ is_follow_up: true, memory_street: "ST010_HEINRICH_ZILLE_STRASSE", available_data: ["cha", "dha", "economics"] }` |
+
+#### Agent 3: Street Resolver
+
+| | |
+|---|---|
+| **File** | Logic in `agents/orchestrator.py` |
+| **Duty** | Map a display name, partial mention, or German street name to a valid cluster ID (`ST###_STREET_NAME`) |
+| **How it works** | Resolves the street using a strict priority order: **(1)** NLU-extracted `raw_street_hint` — always resolve even if the UI has a pre-set default; **(2)** Conversation `memory_street` — for follow-up queries where no new street is mentioned; **(3)** UI default `cluster_id` — the street currently shown in the interface; **(4)** Full query text extraction — last resort fuzzy match. Uses `extract_street_entities()` with scoring based on distinguishing word parts (excluding generic suffixes like "strasse", "platz", "allee"). |
+| **Input** | NLU street hint + conversation memory + UI default + available streets list |
+| **Output** | `{ resolved_cluster_id: "ST010_HEINRICH_ZILLE_STRASSE", method: "NLU street extraction" }` |
+
+#### Agent 4: Capability Guardrail
+
+| | |
+|---|---|
+| **File** | `agents/fallback.py` |
+| **Class** | `CapabilityGuardrail` |
+| **Duty** | Validate whether the system can handle the request before any execution begins. If not, return a structured fallback with alternatives and research context. |
+| **How it works** | Checks the intent against an explicit registry of `UNSUPPORTED_INTENTS` (add_consumer, remove_pipe, real_time_scada, legal_compliance_check, multi_street_optimization). Also scans the query text for unsupported keywords. For `WHAT_IF_SCENARIO`, checks if the specific modification type is supported (removing houses = yes, changing pipe material = no). When blocking, generates a response with alternative suggestions, a research note explaining why this is a thesis boundary, and an escalation path. Uses `FallbackLLM` (Gemini) for context-aware explanations. |
+| **Input** | Intent + entities + raw user query |
+| **Output (if blocked)** | `{ can_handle: false, category: "unsupported", message: "...", alternative_suggestions: [...], research_note: "...", escalation_path: "manual_planning" }` |
+
+#### Agent 5: Execution Planner
+
+| | |
+|---|---|
+| **File** | `nlu/intent_mapper.py` |
+| **Data** | `INTENT_TO_PLAN` dictionary |
+| **Duty** | Determine which simulation tools are required for the given intent |
+| **How it works** | Pure mapping lookup: each intent maps to a list of required tools. Then checks which tools already have cached results on disk (e.g., `cha_kpis.json` exists?) and returns only the missing ones. Respects dependency order: CHA before DHA before Economics before Decision. |
+| **Input** | Intent + cluster_id |
+| **Output** | `{ required_tools: ["cha", "dha", "economics"], already_cached: ["cha"], to_run: ["dha", "economics"] }` |
+
+#### Agent 6: Dynamic Executor
+
+| | |
+|---|---|
+| **File** | `agents/executor.py` |
+| **Class** | `DynamicExecutor` |
+| **Duty** | Execute only the required simulations lazily, using file-based caching to avoid redundant runs |
+| **How it works** | For each tool in the execution plan: checks if result files exist on disk (JSON, pickle). If cached, loads and returns them. If missing, calls the ADK tool wrapper which launches the simulation script as a subprocess. Collects KPIs, interactive map paths, violation data, and topology information. For `WHAT_IF_SCENARIO`, clones the baseline network, applies modifications (e.g., disable heat consumers), re-runs only the modified simulation, and compares against the cached baseline. |
+| **Input** | Tool plan + cluster_id + context (modification parameters) |
+| **Output** | `{ dh_tons_co2: 45.2, hp_tons_co2: 67.3, winner: "DH", execution_log: ["CHA results available", "DHA ran (cache miss)"], map_paths: {...} }` |
+
+### Tier 2: Simulation Agents (called on demand by the Executor)
+
+These agents are invoked by the Dynamic Executor when their results are not cached.
+
+| # | Agent | File | How It Works |
+|---|-------|------|-------------|
+| 7 | **CHA Simulation Agent** | `adk/tools.py` → `01_run_cha.py` | Builds a pandapipes hydraulic-thermal network from GIS building data using trunk-spur topology. Runs pipeflow with convergence optimization. Extracts EN 13941-1 KPIs (velocity compliance, pressure drop). Generates 3 interactive Folium maps (velocity, temperature, pressure layers). |
+| 8 | **DHA Simulation Agent** | `adk/tools.py` → `02_run_dha.py` | Builds a pandapower LV grid from geodata. Models heat pump loads (balanced 3-phase, COP-based). Runs power flow analysis. Extracts hosting capacity KPIs (voltage violations, line loading). Generates grid violation map. |
+| 9 | **Economics Agent** | `adk/tools.py` → `03_run_economics.py` | Calculates LCOH using the Capital Recovery Factor method for both DH and HP. Computes CO2 emissions with fuel-specific emission factors. Runs Monte Carlo uncertainty propagation (N=1000 samples) for robustness. Performs sensitivity analysis (±5% parameter variations). |
+| 10 | **Decision Agent** | `adk/tools.py` → `cli/decision.py` | Builds a unified KPI contract from CHA + DHA + Economics results. Applies deterministic decision rules: (1) feasibility gate, (2) cost dominance (>5% LCOH difference), (3) CO2 tiebreaker, (4) Monte Carlo robustness check. Produces `decision_{cluster_id}.json`. |
+| 11 | **UHDC Explainer Agent** | `adk/tools.py` → `cli/uhdc.py` | Assembles all artifacts (maps, KPIs, decision). Generates a natural language explanation via Google Gemini (temperature=0.0 for determinism). Falls back to template if LLM unavailable. Validates the explanation against the KPI contract using TNLI. Produces HTML/Markdown reports. |
+
+### Tier 3: Specialized Agents
+
+| # | Agent | File | How It Works |
+|---|-------|------|-------------|
+| 12 | **Fallback LLM** | `agents/fallback.py` (`FallbackLLM`) | Generates context-aware natural language explanations for unsupported requests. Uses Gemini to explain *why* a request cannot be fulfilled and suggests what the user can do instead. Falls back to templates if the API is unavailable. |
+| 13 | **TNLI Logic Auditor** | `validation/logic_auditor.py` | Validates LLM-generated explanations against numerical KPI data using Textual Natural Language Inference. Splits explanations into individual sentences, checks each for entailment/contradiction against the KPI table. Reports verified, unverified, and contradicted statements. Includes `ClaimExtractor` for regex-based quantitative claim cross-validation. |
+| 14 | **Claim Extractor** | `validation/logic_auditor.py` (`ClaimExtractor`) | Extracts quantitative claims from free-text explanations using 13 regex patterns (CO2, LCOH, losses, pressure, Monte Carlo metrics). Cross-validates extracted numbers against reference KPIs with configurable tolerance (default 10%). Catches hallucinated numbers that TNLI alone might miss. |
+| 15 | **Data Preparation Agent** | `adk/tools.py` → `00_prepare_data.py` | Ingests raw GIS data (GeoJSON buildings, streets). Generates BDEW standard hourly heat demand profiles. Estimates building typology (envelope U-values). Clusters buildings into street-level groups with design hour calculations. Produces pipeline-ready Parquet files. |
+
+### Agent Communication Flow
+
+```
+User Query
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│           PIPELINE AGENTS (sequential)               │
+│                                                       │
+│  [1] NLU ──► [2] Conversation ──► [3] Street Resolver│
+│                                          │            │
+│                                          ▼            │
+│  [4] Guardrail ──► [5] Planner ──► [6] Executor     │
+│       │                                  │            │
+│       │ (if blocked)                     │ (on demand)│
+│       ▼                                  ▼            │
+│  [12] Fallback LLM          [7-11] Simulation Agents │
+│                                          │            │
+│                                          ▼            │
+│                               [13-14] Validation      │
+└─────────────────────────────────────────────────────┘
+    │
+    ▼
+Structured Response
+{ type, answer, data, agent_trace, suggestions }
+```
+
+### Agent Trace Example
+
+Every request produces a full agent trace visible in the UI. Example for "Compare CO2 for Heinrich-Zille-Straße":
+
+```json
+[
+  {
+    "agent": "NLU Intent Classifier",
+    "duty": "Classify user intent and extract entities",
+    "outcome": "CO2_COMPARISON",
+    "confidence": 0.95,
+    "method": "LLM",
+    "entities": { "street_name": "Heinrich-Zille-Straße" }
+  },
+  {
+    "agent": "Conversation Manager",
+    "duty": "Resolve references, detect follow-ups, maintain context",
+    "is_follow_up": false,
+    "current_memory_street": null
+  },
+  {
+    "agent": "Street Resolver",
+    "duty": "Map display name → valid cluster_id",
+    "resolved_cluster_id": "ST010_HEINRICH_ZILLE_STRASSE",
+    "method": "NLU street extraction"
+  },
+  {
+    "agent": "Capability Guardrail",
+    "duty": "Validate request is within system boundaries",
+    "can_handle": true
+  },
+  {
+    "agent": "Execution Planner",
+    "duty": "Determine required simulations",
+    "required_tools": ["cha", "dha", "economics"]
+  },
+  {
+    "agent": "Dynamic Executor",
+    "duty": "Execute CO2_COMPARISON for ST010 (lazy: skip cached)",
+    "outcome": "success",
+    "execution_log": ["CHA results available", "DHA results available", "Economics ran"]
+  }
+]
+```
+
+---
+
 ## End-to-End Data Flow
 
 ```

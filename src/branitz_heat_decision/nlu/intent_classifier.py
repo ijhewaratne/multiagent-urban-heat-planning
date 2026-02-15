@@ -56,10 +56,10 @@ Available intents (return ONLY one):
 - CO2_COMPARISON: User wants carbon emissions comparison (needs DH + HP simulations)
 - LCOH_COMPARISON: User wants cost/LCOH analysis (needs DH + HP simulations)
 - VIOLATION_ANALYSIS: User asks about pressure/velocity/temperature violations (needs DH sim only)
-- NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid (needs DH sim only)
+- NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid, how many buildings/houses, building count, network statistics (needs DH sim only)
 - WHAT_IF_SCENARIO: User asks hypotheticals: "what if we remove houses", "different temperatures"
-- EXPLAIN_DECISION: User asks why a decision was made or wants KPI explanation (needs cached results only)
-- CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities (ONLY when the user is explicitly asking about system capabilities, NOT when they want to see specific data or maps)
+- EXPLAIN_DECISION: User asks why a decision was made, wants KPI explanation, asks "what is recommended", "what's the recommendation", or asks for decision summary (needs cached results only)
+- CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities, OR asks "what streets", "which streets are available", "list the streets", "how many streets" (ONLY when the user is explicitly asking about system capabilities or available data, NOT when they want to see specific data or maps)
 - UNKNOWN: Outside capabilities (adding consumers, changing building geometry, legal advice, etc.)
 
 IMPORTANT: If the user asks to "see", "show", or "view" something specific (maps, network, grid, layout, results), classify based on WHAT they want to see, NOT as CAPABILITY_QUERY.
@@ -166,6 +166,17 @@ def classify_intent(
                 result["reasoning"] = (
                     str(result.get("reasoning", "")) + " [Low confidence]"
                 )
+
+            # Safety net: if LLM returned UNKNOWN, try keyword fallback
+            if result["intent"] == "UNKNOWN":
+                keyword_result = _keyword_fallback(user_query)
+                if keyword_result["intent"] != "UNKNOWN":
+                    keyword_result["reasoning"] = (
+                        f"LLM returned UNKNOWN ({result.get('reasoning', '')}); "
+                        f"keyword override: {keyword_result['reasoning']}"
+                    )
+                    return keyword_result
+
             return result
         except json.JSONDecodeError as e:
             logger.warning(f"Intent classifier: JSON parse error: {e}")
@@ -185,6 +196,11 @@ def classify_intent(
             }
 
     # Non-LLM fallback: simple keyword heuristics
+    return _keyword_fallback(user_query)
+
+
+def _keyword_fallback(user_query: str) -> Dict[str, Any]:
+    """Keyword-based intent classification as fallback when LLM is unavailable or returns UNKNOWN."""
     q = user_query.lower()
     if any(w in q for w in ["co2", "carbon", "emission", "emissions"]):
         return {
@@ -208,7 +224,9 @@ def classify_intent(
             "reasoning": "Keyword fallback",
         }
     if any(w in q for w in ["network", "pipe", "layout", "topology", "diameter",
-                              "map", "grid", "interactive map", "heating grid"]):
+                              "map", "grid", "interactive map", "heating grid",
+                              "how many building", "how many house", "building count",
+                              "number of building", "number of house"]):
         return {
             "intent": "NETWORK_DESIGN",
             "confidence": 0.6,
@@ -228,6 +246,15 @@ def classify_intent(
             "confidence": 0.6,
             "entities": {},
             "reasoning": "Keyword fallback",
+        }
+    if any(w in q for w in ["which street", "what street", "list street", "available street",
+                              "streets in the", "all streets", "show street",
+                              "streets and", "street and house", "street and building"]):
+        return {
+            "intent": "CAPABILITY_QUERY",
+            "confidence": 0.7,
+            "entities": {"sub_query": "list_streets"},
+            "reasoning": "Keyword fallback: street listing query",
         }
     if any(w in q for w in ["help", "what can you", "capabilities"]):
         return {

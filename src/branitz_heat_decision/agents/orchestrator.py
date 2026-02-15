@@ -2,11 +2,15 @@
 Dynamic Orchestrator – State-Aware Router for Branitz Heat Decision.
 
 Phase 1: Intent-based tool selection.
-Phase 2: DynamicExecutor for lazy, context-aware simulation execution.
+Phase 2: DynamicExecutor (agent-based) for lazy, context-aware simulation execution.
 Phase 3: ConversationManager for multi-turn context and follow-ups.
 
 Implements: "Try to achieve it with tools" – runs only the simulations needed
 for the user's intent, using file-based cache to avoid redundant runs.
+
+The executor now delegates to domain agents (domain_agents.py) instead of
+calling ADK tools directly.  Results include per-agent timing, cache status,
+and metadata alongside the same flat-dict format the UI expects.
 """
 
 from __future__ import annotations
@@ -23,9 +27,10 @@ from branitz_heat_decision.config import resolve_cluster_path
 logger = logging.getLogger(__name__)
 
 # Simulation intents delegated to DynamicExecutor (Phase 2)
+# EXPLAIN_DECISION now routed through executor — DecisionAgent handles it
 _EXECUTOR_INTENTS = frozenset({
     "CO2_COMPARISON", "LCOH_COMPARISON", "VIOLATION_ANALYSIS",
-    "WHAT_IF_SCENARIO", "NETWORK_DESIGN",
+    "WHAT_IF_SCENARIO", "NETWORK_DESIGN", "EXPLAIN_DECISION",
 })
 
 # Lazy imports to avoid circular deps and optional deps
@@ -76,14 +81,25 @@ def _get_available_streets() -> List[str]:
     return []
 
 
-def _get_adk_tools():
-    from branitz_heat_decision.adk.tools import (
-        run_cha_tool,
-        run_dha_tool,
-        run_economics_tool,
-        run_decision_tool,
-    )
-    return run_cha_tool, run_dha_tool, run_economics_tool, run_decision_tool
+def _get_building_count(cluster_id: str) -> int:
+    """Get building count for a cluster from CHA topology (spurs = buildings)."""
+    import json as _json
+
+    cha_path = resolve_cluster_path(cluster_id, "cha") / "cha_kpis.json"
+    if not cha_path.exists():
+        return 0
+    try:
+        with open(cha_path, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        topo = data.get("topology", {})
+        return (
+            topo.get("spurs")
+            or topo.get("buildings_connected")
+            or len(data.get("detailed", {}).get("heat_consumers", []))
+            or 0
+        )
+    except Exception:
+        return 0
 
 
 def _has_cha_results(cluster_id: str) -> bool:
@@ -419,15 +435,50 @@ class BranitzOrchestrator:
                 "outcome": intent,
             })
             if intent == "CAPABILITY_QUERY":
-                caps = self.capability_guardrail.get_capabilities_summary()
-                supported = "; ".join(caps["fully_supported"][:5])
-                not_supported = "; ".join(caps["not_supported"][:3])
-                answer = (
-                    f"Here's what I can do:\n\n"
-                    f"**Supported:** {supported}.\n\n"
-                    f"**Not supported:** {not_supported}.\n\n"
-                    f"Try: 'Compare CO₂ emissions' or 'Show me the network layout'."
-                )
+                sub_query = enriched_intent.get("entities", {}).get("sub_query", "")
+
+                # Street listing sub-query
+                if sub_query == "list_streets" or any(
+                    w in user_query.lower()
+                    for w in ["which street", "what street", "list street",
+                              "available street", "streets in", "all streets",
+                              "list street", "number of house", "number of building"]
+                ):
+                    streets = _get_available_streets()
+                    if streets:
+                        # Gather building counts from CHA topology
+                        street_lines = []
+                        total_buildings = 0
+                        for s in streets:
+                            n_buildings = _get_building_count(s)
+                            total_buildings += n_buildings if isinstance(n_buildings, int) else 0
+                            label = s.replace("_", " ")
+                            street_lines.append(
+                                f"- **{label}** — {n_buildings} buildings"
+                            )
+                        street_list = "\n".join(street_lines)
+                        answer = (
+                            f"There are **{len(streets)} streets** in the Branitz district "
+                            f"with a total of **{total_buildings} buildings**:\n\n"
+                            f"{street_list}\n\n"
+                            f"You can ask about any of these, e.g. "
+                            f"'Compare CO₂ for {streets[0].replace('_', ' ')}'"
+                        )
+                    else:
+                        answer = (
+                            "I couldn't find the street cluster index. "
+                            "Please ensure the data has been prepared with `00_prepare_data.py`."
+                        )
+                else:
+                    caps = self.capability_guardrail.get_capabilities_summary()
+                    supported = "; ".join(caps["fully_supported"][:5])
+                    not_supported = "; ".join(caps["not_supported"][:3])
+                    answer = (
+                        f"Here's what I can do:\n\n"
+                        f"**Supported:** {supported}.\n\n"
+                        f"**Not supported:** {not_supported}.\n\n"
+                        f"Try: 'Compare CO₂ emissions' or 'Show me the network layout'."
+                    )
             else:
                 answer = _call_fallback_llm(user_query, enriched_intent)
             return {
@@ -455,8 +506,8 @@ class BranitzOrchestrator:
         # 3. ROUTE by intent
         # Phase 2: Simulation intents → DynamicExecutor
         if intent in _EXECUTOR_INTENTS:
-            # ── AGENT 6: Dynamic Executor ──
-            # Duty: Run only the simulations that are missing, use cache for the rest
+            # ── AGENT 6: Dynamic Executor (agent-based) ──
+            # Duty: Delegate to domain agents, run only what's missing, use cache
             try:
                 results = self.executor.execute(
                     intent=intent,
@@ -467,17 +518,31 @@ class BranitzOrchestrator:
                         "run_missing": run_missing,
                     },
                 )
+
+                # Richer agent trace — per-agent success/cache/timing
+                per_agent = results.get("agent_results", {})
                 agent_trace.append({
                     "agent": "Dynamic Executor",
-                    "duty": f"Execute {intent} for {cluster_id} (lazy: skip cached)",
+                    "duty": f"Execute {intent} for {cluster_id} (agent-based, lazy)",
                     "outcome": "error" if "error" in results else "success",
                     "execution_log": results.get("execution_log", []),
+                    "total_execution_time": results.get("total_execution_time"),
+                    "agents_invoked": {
+                        name: {
+                            "success": info.get("success"),
+                            "cache_hit": info.get("cache_hit"),
+                            "execution_time": info.get("execution_time"),
+                        }
+                        for name, info in per_agent.items()
+                    },
                 })
+
                 response = self._format_executor_response(
                     intent=intent,
                     intent_data=enriched_intent,
                     results=results,
                 )
+
                 # Phase 3: Update conversation memory and add suggestions
                 if "error" not in results:
                     self.conversation.update_memory(
@@ -489,6 +554,7 @@ class BranitzOrchestrator:
                     response["suggestions"] = self.conversation.get_suggestions()
                 response["agent_trace"] = agent_trace
                 return response
+
             except ValueError as e:
                 agent_trace.append({
                     "agent": "Dynamic Executor",
@@ -524,16 +590,6 @@ class BranitzOrchestrator:
                     "agent_trace": agent_trace,
                 }
 
-        if intent == "EXPLAIN_DECISION":
-            agent_trace.append({
-                "agent": "Decision Explainer",
-                "duty": "Load decision results and generate explanation",
-                "cluster_id": cluster_id,
-            })
-            resp = self._handle_explain_request(cluster_id, intent_data, run_missing)
-            resp["agent_trace"] = agent_trace
-            return resp
-
         # Unhandled intent
         agent_trace.append({
             "agent": "Fallback Agent",
@@ -559,6 +615,11 @@ class BranitzOrchestrator:
     ) -> Dict[str, Any]:
         """
         Transform DynamicExecutor results to orchestrator response format.
+
+        The executor now returns richer results including:
+          - agent_results: per-agent success/cache/timing
+          - total_execution_time: end-to-end duration
+        These are passed through to the UI for transparency.
         """
         if "error" in results:
             return {
@@ -584,6 +645,9 @@ class BranitzOrchestrator:
         elif intent == "LCOH_COMPARISON":
             data["lcoh_dh_eur_per_mwh"] = results.get("lcoh_dh_eur_per_mwh", 0)
             data["lcoh_hp_eur_per_mwh"] = results.get("lcoh_hp_eur_per_mwh", 0)
+        elif intent == "EXPLAIN_DECISION":
+            # Enrich with full decision JSON from disk for UI rendering
+            self._enrich_decision_data(data, intent_data)
 
         return {
             "type": intent.lower(),
@@ -595,6 +659,9 @@ class BranitzOrchestrator:
             "can_proceed": True,
             "execution_log": results.get("execution_log", []),
             "visualization": viz,
+            # New: agent-level performance metadata
+            "agent_results": results.get("agent_results", {}),
+            "total_execution_time": results.get("total_execution_time"),
         }
 
     def _format_answer(self, results: Dict[str, Any], intent: str) -> str:
@@ -631,12 +698,18 @@ class BranitzOrchestrator:
             pipes = results.get("pipes", [])
             map_paths = results.get("map_paths", {})
             n_pipes = len(pipes) if isinstance(pipes, list) else 0
-            n_buildings = topo.get("buildings_connected", "N/A")
+            n_buildings = (
+                topo.get("spurs")
+                or topo.get("buildings_connected")
+                or len(results.get("heat_consumers", []))
+                or "N/A"
+            )
             n_trunk = topo.get("trunk_edges", "N/A")
+            n_nodes = topo.get("trunk_nodes", "N/A")
             maps_available = ", ".join(map_paths.keys()) if map_paths else "none"
             return (
-                f"Here is the district heating network layout: "
-                f"{n_pipes} pipes, {n_trunk} trunk edges, {n_buildings} buildings connected. "
+                f"The district heating network has {n_buildings} buildings connected, "
+                f"{n_pipes} pipes, {n_trunk} trunk edges, and {n_nodes} trunk nodes. "
                 f"Interactive maps available: {maps_available}."
             )
         if intent == "WHAT_IF_SCENARIO":
@@ -648,7 +721,87 @@ class BranitzOrchestrator:
                 f"What-if ({mod}): pressure change {dp:.4f} bar, "
                 f"heat delivered change {dq:.4f} MW."
             )
+        if intent == "EXPLAIN_DECISION":
+            return self._format_decision_answer(results)
         return str(results)
+
+    def _format_decision_answer(self, results: Dict[str, Any]) -> str:
+        """Build rich human-readable answer for EXPLAIN_DECISION."""
+        rec = (
+            results.get("choice")
+            or results.get("recommendation", "UNKNOWN")
+        )
+        reason_codes = results.get("reason_codes", [])
+        reason = results.get("reason", "") or (
+            ", ".join(reason_codes) if reason_codes else ""
+        )
+        robust = results.get("robust", False)
+        metrics = results.get("metrics_used", {})
+
+        reason_display = reason.replace("_", " ").lower() if reason else ""
+
+        if rec == "DH":
+            answer = (
+                f"Recommendation: District Heating (DH). "
+                f"Reason: {reason_display}."
+            )
+        elif rec == "HP":
+            answer = (
+                f"Recommendation: Heat Pumps (HP). "
+                f"Reason: {reason_display}."
+            )
+        else:
+            answer = f"Recommendation: {rec}. {reason_display}."
+
+        # Append LCOH detail if available
+        lcoh_dh = metrics.get("lcoh_dh_median")
+        lcoh_hp = metrics.get("lcoh_hp_median")
+        if lcoh_dh and lcoh_hp:
+            answer += f" LCOH: DH = {lcoh_dh:.1f} €/MWh vs HP = {lcoh_hp:.1f} €/MWh."
+
+        if not robust:
+            answer += (
+                " Note: this result is not robust "
+                "(Monte Carlo analysis missing or inconclusive)."
+            )
+        return answer
+
+    def _enrich_decision_data(
+        self, data: Dict[str, Any], intent_data: Dict[str, Any]
+    ) -> None:
+        """
+        Enrich executor result with full decision JSON from disk.
+
+        The executor returns a compact dict from the DecisionAgent.  The UI
+        needs the complete decision JSON (choice, reason_codes, metrics_used,
+        robustness, etc.) so we load it here and merge into *data* in-place.
+        """
+        cluster_id = (
+            (intent_data.get("entities") or {}).get("street_name")
+            or data.get("street_id")
+        )
+        if not cluster_id:
+            return
+
+        dec_path = (
+            resolve_cluster_path(cluster_id, "decision")
+            / f"decision_{cluster_id}.json"
+        )
+        dec = _load_json(dec_path)
+        if not dec:
+            return
+
+        # Normalise keys so UI can always read "recommendation" and "reason"
+        rec = dec.get("choice") or dec.get("recommendation", "UNKNOWN")
+        reason_codes = dec.get("reason_codes", [])
+        dec["recommendation"] = rec
+        dec["reason"] = dec.get("reason", "") or (
+            ", ".join(reason_codes) if reason_codes else ""
+        )
+
+        # Merge full decision fields into data (executor fields win on conflict)
+        for key, val in dec.items():
+            data.setdefault(key, val)
 
     def _create_viz(self, results: Dict[str, Any], intent: str) -> Optional[Dict[str, Any]]:
         """Create visualization hint for UI (chart type, series, etc.)."""
@@ -677,6 +830,21 @@ class BranitzOrchestrator:
                 "chart_type": "comparison",
                 "baseline": results.get("baseline", {}),
                 "scenario": results.get("scenario", {}),
+            }
+        if intent == "EXPLAIN_DECISION":
+            metrics = results.get("metrics_used", {})
+            rec = results.get("choice") or results.get("recommendation", "UNKNOWN")
+            return {
+                "chart_type": "decision",
+                "recommendation": rec,
+                "robust": results.get("robust", False),
+                "reason_codes": results.get("reason_codes", []),
+                "metrics": {
+                    "lcoh_dh": metrics.get("lcoh_dh_median"),
+                    "lcoh_hp": metrics.get("lcoh_hp_median"),
+                    "co2_dh": metrics.get("co2_dh_median"),
+                    "co2_hp": metrics.get("co2_hp_median"),
+                },
             }
         return None
 
@@ -765,43 +933,6 @@ class BranitzOrchestrator:
                 missing.append(phase)
         return [p for p in order if p in missing]
 
-    def _handle_explain_request(
-        self,
-        cluster_id: str,
-        intent_data: Dict[str, Any],
-        run_missing: bool,
-    ) -> Dict[str, Any]:
-        """Explain decision requires Decision (which needs CHA, DHA, Economics)."""
-        required = ["cha", "dha", "economics", "decision"]
-        execution_plan = self._compute_execution_plan(cluster_id, required)
-        sources = []
-        if execution_plan and run_missing:
-            run_cha, run_dha, run_economics, run_decision = _get_adk_tools()
-            for phase in execution_plan:
-                if phase == "cha":
-                    run_cha(cluster_id)
-                elif phase == "dha":
-                    run_dha(cluster_id)
-                elif phase == "economics":
-                    run_economics(cluster_id)
-                elif phase == "decision":
-                    run_decision(cluster_id)
-            sources = ["CHA", "DHA", "Economics", "Decision"]
-        else:
-            sources = ["Cached Data"] if not execution_plan else ["Partial Cache"]
-
-        dec_path = resolve_cluster_path(cluster_id, "decision") / f"decision_{cluster_id}.json"
-        dec = _load_json(dec_path)
-        rec = dec.get("recommendation", "UNKNOWN")
-        reason = dec.get("reason", "") or dec.get("reason_codes", [""])[0] if dec.get("reason_codes") else ""
-
-        answer = f"Recommendation: {rec}. {reason}"
-        return {
-            "type": "explain_decision",
-            "intent_data": intent_data,
-            "execution_plan": execution_plan if run_missing else required,
-            "data": dec,
-            "answer": answer,
-            "sources": sources,
-            "can_proceed": True,
-        }
+    # NOTE: _handle_explain_request removed — EXPLAIN_DECISION is now routed
+    # through the DynamicExecutor (DecisionAgent) with _enrich_decision_data
+    # and _format_decision_answer handling the rich formatting.

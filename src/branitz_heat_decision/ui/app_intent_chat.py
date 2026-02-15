@@ -114,6 +114,206 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# ── AI Orb Avatar ──
+
+AVATAR_CSS = """
+<style>
+.ai-orb-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+}
+
+.ai-orb {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #1e3a5f 0%, #0d1f33 50%, #050a10 100%);
+    position: relative;
+    box-shadow:
+        0 0 20px rgba(64, 224, 208, 0.3),
+        0 0 40px rgba(64, 224, 208, 0.1),
+        inset 0 0 20px rgba(255, 255, 255, 0.05);
+    animation: orb-breathe 4s ease-in-out infinite;
+    overflow: hidden;
+}
+
+/* Inner neural network pattern */
+.ai-orb::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    height: 60%;
+    background-image:
+        radial-gradient(circle at 20% 30%, rgba(64, 224, 208, 0.8) 1.5px, transparent 1.5px),
+        radial-gradient(circle at 50% 20%, rgba(64, 224, 208, 0.6) 1px, transparent 1px),
+        radial-gradient(circle at 80% 40%, rgba(64, 224, 208, 0.7) 1.2px, transparent 1.2px),
+        radial-gradient(circle at 30% 70%, rgba(64, 224, 208, 0.5) 1px, transparent 1px),
+        radial-gradient(circle at 70% 80%, rgba(64, 224, 208, 0.6) 1.3px, transparent 1.3px),
+        radial-gradient(circle at 50% 50%, rgba(64, 224, 208, 0.4) 0.8px, transparent 0.8px);
+    background-size: 100% 100%;
+    opacity: 0.7;
+    animation: nodes-pulse 3s ease-in-out infinite;
+}
+
+/* Connection lines */
+.ai-orb::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50%;
+    height: 50%;
+    background:
+        linear-gradient(45deg, transparent 48%, rgba(64, 224, 208, 0.3) 49%, rgba(64, 224, 208, 0.3) 51%, transparent 52%),
+        linear-gradient(-45deg, transparent 48%, rgba(64, 224, 208, 0.2) 49%, rgba(64, 224, 208, 0.2) 51%, transparent 52%),
+        linear-gradient(90deg, transparent 48%, rgba(64, 224, 208, 0.25) 49%, rgba(64, 224, 208, 0.25) 51%, transparent 52%);
+    opacity: 0.5;
+    animation: connections-fade 4s ease-in-out infinite;
+}
+
+/* Waveform ring */
+.orb-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    height: 90%;
+    border: 1px solid rgba(64, 224, 208, 0.2);
+    border-radius: 50%;
+    animation: ring-rotate 8s linear infinite;
+}
+
+.orb-ring::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    background: rgba(64, 224, 208, 0.8);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(64, 224, 208, 0.8);
+}
+
+/* Specular highlight */
+.orb-highlight {
+    position: absolute;
+    top: 15%;
+    left: 20%;
+    width: 25%;
+    height: 15%;
+    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    transform: rotate(-45deg);
+}
+
+/* Animations */
+@keyframes orb-breathe {
+    0%, 100% {
+        box-shadow:
+            0 0 20px rgba(64, 224, 208, 0.3),
+            0 0 40px rgba(64, 224, 208, 0.1),
+            inset 0 0 20px rgba(255, 255, 255, 0.05);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow:
+            0 0 30px rgba(64, 224, 208, 0.4),
+            0 0 60px rgba(64, 224, 208, 0.15),
+            inset 0 0 30px rgba(255, 255, 255, 0.08);
+        transform: scale(1.02);
+    }
+}
+
+@keyframes nodes-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 0.9; }
+}
+
+@keyframes connections-fade {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes ring-rotate {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Light variant */
+.ai-orb.light {
+    background: radial-gradient(circle at 30% 30%, #e8f4f8 0%, #d0e8f0 50%, #b8dce8 100%);
+    box-shadow:
+        0 0 20px rgba(64, 224, 208, 0.2),
+        0 0 40px rgba(64, 224, 208, 0.1),
+        inset 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.ai-orb.light::before {
+    background-image:
+        radial-gradient(circle at 20% 30%, rgba(30, 58, 95, 0.8) 1.5px, transparent 1.5px),
+        radial-gradient(circle at 50% 20%, rgba(30, 58, 95, 0.6) 1px, transparent 1px),
+        radial-gradient(circle at 80% 40%, rgba(30, 58, 95, 0.7) 1.2px, transparent 1.2px),
+        radial-gradient(circle at 30% 70%, rgba(30, 58, 95, 0.5) 1px, transparent 1px),
+        radial-gradient(circle at 70% 80%, rgba(30, 58, 95, 0.6) 1.3px, transparent 1.3px),
+        radial-gradient(circle at 50% 50%, rgba(30, 58, 95, 0.4) 0.8px, transparent 0.8px);
+}
+
+.ai-orb.light .orb-ring {
+    border-color: rgba(30, 58, 95, 0.2);
+}
+
+.ai-orb.light .orb-ring::before {
+    background: rgba(30, 58, 95, 0.8);
+    box-shadow: 0 0 10px rgba(30, 58, 95, 0.8);
+}
+
+.ai-orb.light .orb-highlight {
+    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.6) 0%, transparent 70%);
+}
+
+/* Title styling */
+.orb-title {
+    margin-top: 0.8rem;
+    font-weight: 600;
+    color: #1e3c72;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.orb-subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    text-align: center;
+    margin-top: 0.2rem;
+}
+</style>
+"""
+
+
+def render_ai_orb(variant: str = "dark") -> str:
+    """Render the AI Orb Avatar HTML."""
+    orb_class = "ai-orb" if variant == "dark" else "ai-orb light"
+    return f"""
+    <div class="ai-orb-container">
+        <div class="{orb_class}">
+            <div class="orb-ring"></div>
+            <div class="orb-highlight"></div>
+        </div>
+        <div class="orb-title">Branitz Assistant</div>
+        <div class="orb-subtitle">District Heating &amp; Heat Pump Specialist</div>
+    </div>
+    """
+
+
 # ── Helpers ──
 
 def _get_orchestrator():
@@ -152,13 +352,15 @@ def _get_available_streets() -> List[str]:
 
 
 def _get_default_cluster() -> str:
+    """Return first available street as fallback (used only when query needs a street)."""
     streets = _get_available_streets()
     return streets[0] if streets else ""
 
 
 def _get_cluster_id() -> str:
+    """Get current cluster — starts empty, set from query text or street selector."""
     if "intent_chat_cluster" not in st.session_state:
-        st.session_state.intent_chat_cluster = _get_default_cluster()
+        st.session_state.intent_chat_cluster = ""
     return st.session_state.intent_chat_cluster or ""
 
 
@@ -372,15 +574,53 @@ def _render_visualization(response: Dict[str, Any], result_key: str = ""):
         _render_what_if(data)
     elif rtype == "explain_decision" and data:
         st.subheader("Decision Recommendation")
-        rec = data.get("recommendation", "UNKNOWN")
+        rec = data.get("choice") or data.get("recommendation", "UNKNOWN")
+        reason_codes = data.get("reason_codes", [])
+        reason = data.get("reason", "") or (", ".join(reason_codes) if reason_codes else "")
+        robust = data.get("robust", False)
+        metrics = data.get("metrics_used", {})
+
         if rec == "DH":
-            st.success("Recommended: District Heating")
+            st.success("Recommended: **District Heating (DH)**")
         elif rec == "HP":
-            st.info("Recommended: Heat Pumps")
+            st.info("Recommended: **Heat Pumps (HP)**")
         else:
             st.warning("Undecided or tied")
-        if data.get("reason"):
-            st.write(f"**Reason:** {data['reason']}")
+
+        if reason:
+            st.write(f"**Reason:** {reason.replace('_', ' ')}")
+
+        # Show key metrics if available
+        if metrics:
+            m1, m2 = st.columns(2)
+            lcoh_dh = metrics.get("lcoh_dh_median")
+            lcoh_hp = metrics.get("lcoh_hp_median")
+            co2_dh = metrics.get("co2_dh_median")
+            co2_hp = metrics.get("co2_hp_median")
+            if lcoh_dh is not None:
+                m1.metric("LCOH District Heating", f"{lcoh_dh:.1f} €/MWh")
+            if lcoh_hp is not None:
+                m2.metric("LCOH Heat Pumps", f"{lcoh_hp:.1f} €/MWh")
+            if co2_dh is not None:
+                m1.metric("CO₂ District Heating", f"{co2_dh:.1f} t/year")
+            if co2_hp is not None:
+                m2.metric("CO₂ Heat Pumps", f"{co2_hp:.1f} t/year")
+
+        if not robust:
+            st.caption("⚠️ Not robust — Monte Carlo analysis missing or inconclusive")
+
+        # Validation summary
+        val = data.get("validation", {})
+        if val:
+            val_status = val.get("validation_status", "")
+            verified = val.get("verified_count", 0)
+            total = val.get("statements_validated", 0)
+            if val_status == "pass":
+                st.success(f"Validation: **PASS** ({verified}/{total} statements verified)")
+            elif val_status == "fail":
+                st.error(f"Validation: **FAIL** ({val.get('contradiction_count', 0)} contradictions)")
+            else:
+                st.warning(f"Validation: {val_status}")
     elif rtype == "guardrail_blocked":
         _render_fallback_ui(response)
     else:
@@ -463,6 +703,10 @@ def main():
 
     # ===== LEFT PANEL: Chat =====
     with col_chat:
+        # AI Orb Avatar
+        st.markdown(AVATAR_CSS, unsafe_allow_html=True)
+        st.markdown(render_ai_orb("dark"), unsafe_allow_html=True)
+
         # Header
         hdr1, hdr2 = st.columns([3, 1])
         with hdr1:
