@@ -12,6 +12,7 @@ from .domain_agents import (
     ValidationAgent,
     UHDCAgent,
     WhatIfAgent,
+    AGENT_REGISTRY,
     get_agent,
 )
 from .conversation import (
@@ -40,6 +41,7 @@ __all__ = [
     "ValidationAgent",
     "UHDCAgent",
     "WhatIfAgent",
+    "AGENT_REGISTRY",
     "get_agent",
     "ConversationManager",
     "ConversationMemory",
