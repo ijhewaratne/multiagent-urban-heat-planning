@@ -1,3 +1,315 @@
+# Agent Definitions (Updated Architecture)
+
+This document reflects the **current** Branitz Heat Decision architecture after the executor/domain-agent refactor.
+
+---
+
+## 1) Executive Summary
+
+The project no longer uses a single flat set of 6 agents.  
+It now uses a **hierarchical multi-agent stack**:
+
+1. **Orchestration layer** (`agents/orchestrator.py`)
+2. **Execution layer** (`agents/executor.py`)
+3. **Domain-agent layer** (`agents/domain_agents.py`)
+4. **ADK-agent layer** (`adk/agent.py`)
+5. **Tool layer** (`adk/tools.py`)
+6. **Simulation/analysis modules** (`cha/`, `dha/`, `economics/`, `decision/`, `uhdc/`, `validation/`)
+
+This improves modularity, policy enforcement, traceability, and cache-aware execution.
+
+---
+
+## 2) Layer-by-Layer Definitions
+
+## Layer A — Orchestration (request-level agents)
+
+**File**: `src/branitz_heat_decision/agents/orchestrator.py`
+
+- `BranitzOrchestrator` (class)
+  - Main routing entry point: `route_request(...)`
+  - Runs a 6-step pipeline:
+    1. NLU Intent Classifier
+    2. Conversation Manager
+    3. Street Resolver
+    4. Capability Guardrail
+    5. Execution Planner
+    6. Dynamic Executor
+  - Returns:
+    - `answer`
+    - `data`
+    - `execution_log`
+    - `agent_trace`
+    - `agent_results`
+    - `visualization`
+
+**Key symbols**
+- `_EXECUTOR_INTENTS`
+- `_get_executor()`
+- `_format_executor_response()`
+
+---
+
+## Layer B — Dynamic Execution (meta-agent)
+
+**File**: `src/branitz_heat_decision/agents/executor.py`
+
+- `DynamicExecutor` (class)
+  - Lazy-initializes domain agents
+  - Creates dependency-ordered plans by intent
+  - Executes agents in sequence
+  - Integrates outputs into UI-compatible response dictionaries
+  - Produces timed execution logs and per-agent metadata
+
+**Key methods**
+- `_import_agents()`
+- `_create_agent_plan(...)`
+- `_run_agent_plan(...)`
+- `_integrate_results(...)`
+
+---
+
+## Layer C — Domain Agents (specialist station agents)
+
+**File**: `src/branitz_heat_decision/agents/domain_agents.py`
+
+### Core abstractions
+- `AgentResult` (dataclass)
+  - Fields: `success`, `data`, `execution_time`, `cache_hit`, `agent_name`, `metadata`, `errors`
+- `BaseDomainAgent` (abstract base class)
+  - `can_handle(...)`
+  - `execute(...)`
+
+### Domain agent classes (8)
+1. `DataPrepAgent`
+2. `CHAAgent`
+3. `DHAAgent`
+4. `EconomicsAgent`
+5. `DecisionAgent`
+6. `ValidationAgent`
+7. `UHDCAgent`
+8. `WhatIfAgent`
+
+### Registry/factory
+- `AGENT_REGISTRY` (dict of class references)
+- `get_agent(agent_name, **kwargs)` (factory)
+
+---
+
+## Layer D — ADK Agents (policy + trajectory wrappers)
+
+**File**: `src/branitz_heat_decision/adk/agent.py`
+
+### Core abstractions
+- `AgentAction` (dataclass)
+  - Includes `duration_seconds` for per-action timing
+- `AgentTrajectory` (dataclass)
+- `BaseADKAgent` (policy-guarded tool executor)
+
+### ADK agent classes (6)
+1. `DataPrepAgent`
+2. `CHAAgent`
+3. `DHAAgent`
+4. `EconomicsAgent`
+5. `DecisionAgent`
+6. `UHDCAgent`
+
+### Additional orchestration classes
+- `BranitzADKAgent` (full pipeline wrapper)
+- `BranitzADKTeam` (batch over clusters)
+
+---
+
+## Layer E — ADK Tools
+
+**File**: `src/branitz_heat_decision/adk/tools.py`
+
+Tool functions:
+- `prepare_data_tool(...)`
+- `run_cha_tool(...)`
+- `run_dha_tool(...)`
+- `run_economics_tool(...)`
+- `run_decision_tool(...)`
+- `run_uhdc_tool(...)`
+- `get_available_tools()`
+
+These call scripts/CLIs and return structured status dictionaries.
+
+---
+
+## 3) Agent Catalog (Current)
+
+## 3.1 Orchestration pipeline agents (conceptual in `route_request`)
+
+| Agent | Where defined | Responsibility |
+|---|---|---|
+| NLU Intent Classifier | `nlu/intent_classifier.py` | Intent + entity extraction |
+| Conversation Manager | `agents/conversation.py` | Follow-up detection, context carryover |
+| Street Resolver | `agents/orchestrator.py` logic | Map street mention to valid cluster_id |
+| Capability Guardrail | `agents/fallback.py` | Block unsupported operations with alternatives |
+| Execution Planner | `nlu/intent_mapper.py` + executor planning | Determine required execution path |
+| Dynamic Executor | `agents/executor.py` | Delegate to domain agents, integrate result |
+
+## 3.2 Domain agents (implemented classes)
+
+| Domain Agent | Handles | Prerequisites / Cache | Delegates to |
+|---|---|---|---|
+| `DataPrepAgent` | Data preparation intents | Checks processed data files | ADK DataPrepAgent |
+| `CHAAgent` | DH simulation/network intents | `cha_kpis.json` + `network.pickle` | ADK CHAAgent |
+| `DHAAgent` | HP/LV-grid intents | `dha_kpis.json` | ADK DHAAgent |
+| `EconomicsAgent` | LCOH/CO2/economic intents | Requires CHA + DHA; checks economics JSON | ADK EconomicsAgent |
+| `DecisionAgent` | decision/explain intents | Requires economics; checks decision JSON | ADK DecisionAgent |
+| `ValidationAgent` | validate/audit intents | Needs explanation text + KPI files | direct validation modules |
+| `UHDCAgent` | report generation intents | Requires decision file | ADK UHDCAgent |
+| `WhatIfAgent` | what-if scenario intents | Uses baseline CHA network | CHAAgent + pandapipes |
+
+## 3.3 ADK agents (implemented classes)
+
+| ADK Agent | Tool | Script/CLI |
+|---|---|---|
+| `DataPrepAgent` | `prepare_data` | `src/scripts/00_prepare_data.py` |
+| `CHAAgent` | `run_cha` | `src/scripts/01_run_cha.py` |
+| `DHAAgent` | `run_dha` | `src/scripts/02_run_dha.py` |
+| `EconomicsAgent` | `run_economics` | `src/scripts/03_run_economics.py` |
+| `DecisionAgent` | `run_decision` | `src/branitz_heat_decision/cli/decision.py` |
+| `UHDCAgent` | `run_uhdc` | `src/branitz_heat_decision/cli/uhdc.py` |
+
+---
+
+## 4) End-to-End Delegation Path
+
+For intents routed to simulation/execution:
+
+`BranitzOrchestrator.route_request(...)`
+-> `DynamicExecutor.execute(...)`
+-> domain agent(s) from plan
+-> ADK agent `.run(...)` (for most domain agents)
+-> ADK tool function
+-> script/CLI/module execution
+-> result files + structured return
+-> executor integration
+-> orchestrator formatting + visualization hints
+-> UI response
+
+---
+
+## 5) Intent-to-Agent Plan (Dynamic Executor)
+
+Current mapping in `DynamicExecutor._create_agent_plan(...)`:
+
+- `CO2_COMPARISON` -> `["cha", "dha", "economics"]`
+- `LCOH_COMPARISON` -> `["cha", "dha", "economics"]`
+- `VIOLATION_ANALYSIS` -> `["cha", "dha"]`
+- `NETWORK_DESIGN` -> `["cha"]`
+- `WHAT_IF_SCENARIO` -> `["what_if"]`
+- `DECISION` -> `["cha", "dha", "economics", "decision"]`
+- `EXPLAIN_DECISION` -> `["cha", "dha", "economics", "decision"]`
+- `FULL_REPORT` -> `["cha", "dha", "economics", "decision", "uhdc"]`
+- `DATA_PREPARATION` -> `["data_prep"]`
+
+Default fallback plan:
+- `["cha", "dha", "economics"]`
+
+---
+
+## 6) Policy, Safety, and Validation
+
+## 6.1 Capability guardrail
+
+**File**: `src/branitz_heat_decision/agents/fallback.py`
+
+- `CapabilityGuardrail`
+- `FallbackLLM`
+- `CapabilityResponse`
+- Blocks unsupported requests
+- Returns alternatives and research-boundary metadata (`is_research_boundary`)
+
+## 6.2 ADK policy enforcement
+
+**File**: `src/branitz_heat_decision/adk/policies.py`
+
+- `enforce_guardrails(...)`
+- `validate_agent_action(...)`
+- `PolicyViolation`
+
+ADK layer enforces policies before each tool call.
+
+## 6.3 Explanation validation
+
+**Primary class**: `ValidationAgent` in `agents/domain_agents.py`
+
+Uses:
+- `validation/logic_auditor.py` -> `ClaimExtractor` (quantitative checks)
+- `validation/tnli_model.py` -> `TNLIModel` / lightweight validator (semantic checks)
+
+---
+
+## 7) What Changed vs. Legacy Documentation
+
+The older version of this document described a mostly ADK-centric 6-agent setup.
+
+Major updates now reflected:
+
+1. Added **Domain Agent layer** (`agents/domain_agents.py`)
+2. Added **AgentResult / BaseDomainAgent** abstractions
+3. Added `ValidationAgent` and `WhatIfAgent`
+4. Added `AGENT_REGISTRY` and `get_agent()` factory
+5. `DynamicExecutor` now delegates to domain agents instead of direct tool calls
+6. Orchestrator now passes through:
+   - `execution_log`
+   - `agent_results`
+   - `total_execution_time`
+7. Architecture now clearly separates:
+   - orchestration
+   - planning/execution
+   - domain logic
+   - policy/tool execution
+   - simulation modules
+
+---
+
+## 8) Current File Structure (Agent-Relevant)
+
+```text
+src/branitz_heat_decision/
+├── agents/
+│   ├── __init__.py
+│   ├── orchestrator.py
+│   ├── executor.py
+│   ├── domain_agents.py
+│   ├── conversation.py
+│   └── fallback.py
+├── adk/
+│   ├── agent.py
+│   ├── tools.py
+│   ├── policies.py
+│   └── evals.py
+├── nlu/
+│   ├── intent_classifier.py
+│   └── intent_mapper.py
+├── validation/
+│   ├── logic_auditor.py
+│   ├── tnli_model.py
+│   └── claims.py
+├── cli/
+│   ├── decision.py
+│   ├── economics.py
+│   └── uhdc.py
+└── ...
+
+src/scripts/
+├── 00_prepare_data.py
+├── 01_run_cha.py
+├── 02_run_dha.py
+└── 03_run_economics.py
+```
+
+---
+
+## 9) One-Line Definition
+
+The current Branitz system is a **hierarchical multi-agent architecture** where the orchestrator interprets user intent, the dynamic executor plans and delegates work to domain-specialist agents, and ADK agents safely execute tools under policy guardrails with full trajectory and timing traceability.
+
 # Where CHA, DHA, Economics, UHDC, and Decision Agents Are Defined
 
 This document shows exactly where each agent/module is defined in the codebase.
