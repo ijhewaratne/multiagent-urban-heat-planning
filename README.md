@@ -53,8 +53,8 @@ The system is an AI-powered decision support platform that compares **District H
 ║  route_request(user_query, cluster_id, context)                                        ║
 ║                                                                                         ║
 ║  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌────────────────────┐    ║
-║  │  AGENT 1     │    │  AGENT 2     │    │  AGENT 3     │    │  AGENT 4           │    ║
-║  │  NLU Intent  │───▶│  Conversation│───▶│  Street      │───▶│  Capability        │    ║
+║  │  AGENT 1     │───▶│  AGENT 2     │───▶│  AGENT 3     │───▶│  AGENT 4           │    ║
+║  │  NLU Intent  │    │  Conversation│    │  Street      │    │  Capability        │    ║
 ║  │  Classifier  │    │  Manager     │    │  Resolver    │    │  Guardrail         │    ║
 ║  │              │    │              │    │              │    │                    │    ║
 ║  │ nlu/intent_  │    │ agents/      │    │ (logic in   │    │ agents/fallback.py │    ║
@@ -68,13 +68,13 @@ The system is an AI-powered decision support platform that compares **District H
 ║  │ intent,      │    │ is_follow_up │    │ Output:      │    │     + alternatives  │    ║
 ║  │ confidence,  │    │ memory_street│    │ cluster_id   │    │                    │    ║
 ║  │ entities     │    │ cached_data  │    │ (ST###_...)  │    │ → FallbackLLM [21] │    ║
-║  └──────────────┘    └──────────────┘    └──────────────┘    └─────────┬──────────┘    ║
-║                                                                        │                ║
-║                                                               can_handle=true           ║
-║                                                                        │                ║
-║  ┌──────────────────────┐                                              │                ║
-║  │  AGENT 5             │◀─────────────────────────────────────────────┘                ║
-║  │  Execution Planner   │                                                               ║
+║  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘    └─────────┬──────────┘    ║
+║         │                   │                   │                      │               ║
+║         └───────────────────┴───────────────────┴──────────────────────┘               ║
+║                                                                                        ║
+║  ┌──────────────────────┐   Outputs returned to Orchestrator                           ║
+║  │  AGENT 5             │◀─────────────────────────────────────────────────────────────┘
+║  │  Execution Planner   │                                                              ║
 ║  │  intent_mapper.py +  │   CO2_COMPARISON     → ["cha","dha","economics"]             ║
 ║  │  executor._create_   │   LCOH_COMPARISON    → ["cha","dha","economics"]             ║
 ║  │  agent_plan()        │   VIOLATION_ANALYSIS → ["cha","dha"]                         ║
@@ -84,7 +84,7 @@ The system is an AI-powered decision support platform that compares **District H
 ║  │                      │   EXPLAIN_DECISION   → ["cha","dha","economics","decision"]  ║
 ║  │                      │   FULL_REPORT        → ["cha","dha","economics","decision","uhdc"] ║
 ║  │                      │   DATA_PREPARATION   → ["data_prep"]                         ║
-║  └──────────┬───────────┘                                                               ║
+║  └──────────┬───────────┘                                                              ║
 ╚═════════════╪═══════════════════════════════════════════════════════════════════════════╝
               │  agent_plan = ["cha", "dha", "economics"]
               ▼
