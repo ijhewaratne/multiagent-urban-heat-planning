@@ -40,30 +40,30 @@ st.markdown("""
 
     /* Global font size increase */
     html, body, [class*="css"] {
-        font-size: 18px;
+        font-size: 22px;
     }
 
     /* Chat message text */
     .stChatMessage p, .stChatMessage li, .stChatMessage span {
-        font-size: 1.05rem;
+        font-size: 1.3rem;
     }
 
     /* Metric labels and values */
-    [data-testid="stMetricLabel"] { font-size: 1rem; }
-    [data-testid="stMetricValue"] { font-size: 1.6rem; }
+    [data-testid="stMetricLabel"] { font-size: 1.25rem; }
+    [data-testid="stMetricValue"] { font-size: 2rem; }
 
     /* Markdown text */
-    .stMarkdown p { font-size: 1.05rem; line-height: 1.6; }
-    .stMarkdown h3 { font-size: 1.4rem; }
+    .stMarkdown p { font-size: 1.3rem; line-height: 1.6; }
+    .stMarkdown h3 { font-size: 1.75rem; }
 
     /* Captions slightly larger */
-    .stCaption, small { font-size: 0.9rem; }
+    .stCaption, small { font-size: 1.1rem; }
 
     /* Buttons */
-    .stButton button { font-size: 0.95rem; }
+    .stButton button { font-size: 1.2rem; }
 
     /* Expander headers */
-    .streamlit-expanderHeader { font-size: 1rem; }
+    .streamlit-expanderHeader { font-size: 1.25rem; }
 
     /* Tighter padding for wide layout */
     .block-container { padding-top: 1.5rem; padding-bottom: 0; }
@@ -95,7 +95,7 @@ st.markdown("""
         border: 1px solid #1e3c72;
         border-radius: 20px;
         padding: 0.3rem 0.85rem;
-        font-size: 0.95rem;
+        font-size: 1.2rem;
         color: #1e3c72;
         margin-bottom: 0.5rem;
     }
@@ -109,7 +109,7 @@ st.markdown("""
         margin-bottom: 0.75rem;
         text-align: center;
     }
-    .viz-header h3 { font-size: 1.3rem; }
+    .viz-header h3 { font-size: 1.6rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -285,12 +285,12 @@ AVATAR_CSS = """
     margin-top: 0.8rem;
     font-weight: 600;
     color: #1e3c72;
-    font-size: 1.1rem;
+    font-size: 1.4rem;
     text-align: center;
 }
 
 .orb-subtitle {
-    font-size: 0.85rem;
+    font-size: 1.05rem;
     color: #666;
     text-align: center;
     margin-top: 0.2rem;
@@ -625,24 +625,7 @@ def _render_visualization(response: Dict[str, Any], result_key: str = ""):
         st.caption("Try: 'Compare CO2 for Heinrich-Zille-Straße' or 'Show network layout'")
 
 
-def _render_agent_trace(trace: List[Dict[str, Any]]):
-    """Agent duty trace in an expander."""
-    if not trace:
-        return
-    with st.expander("Agent Duty Trace", expanded=False):
-        for step in trace:
-            agent = step.get("agent", "?")
-            duty = step.get("duty", "")
-            outcome = step.get("outcome", "")
-            st.markdown(f"**{agent}**")
-            st.caption(f"Duty: {duty}")
-            if outcome:
-                st.caption(f"Outcome: {outcome}")
-            extras = {k: v for k, v in step.items()
-                      if k not in ("agent", "duty", "outcome") and v}
-            if extras:
-                st.json(extras)
-            st.markdown("---")
+
 
 
 # ── Message Processing ──
@@ -690,6 +673,8 @@ def _process_message(user_input: str, cluster_id: str, messages: list, orch) -> 
         msg["category"] = response.get("category", "unknown")
         msg["research_note"] = response.get("research_note")
     messages.append(msg)
+    # Store latest trace in session state so the graph panel can access it
+    st.session_state["_latest_agent_trace"] = response.get("agent_trace", [])
 
 
 # ── Main Layout ──
@@ -707,9 +692,19 @@ def main():
 
     # ===== LEFT PANEL: Chat =====
     with col_chat:
-        # AI Orb Avatar
+        # ===== ANIMATED AVATAR / PERSONA HEADER =====
         st.markdown(AVATAR_CSS, unsafe_allow_html=True)
-        st.markdown(render_ai_orb("dark"), unsafe_allow_html=True)
+        _orb = render_ai_orb("dark")
+        _card = (
+            '<div style="text-align:center; padding:1.5rem 1rem;'
+            ' background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%);'
+            ' border-radius:15px; margin-bottom:1.5rem;'
+            ' box-shadow:0 4px 6px rgba(0,0,0,0.1);">'
+            + _orb
+            + '</div>'
+        )
+        st.markdown(_card, unsafe_allow_html=True)
+        # ===== END ANIMATED AVATAR HEADER =====
 
         # Header
         hdr1, hdr2 = st.columns([3, 1])
@@ -827,16 +822,11 @@ def main():
                     # Visualization
                     _render_visualization(msg, result_key=str(msg_idx))
 
-                    # Execution log + agent trace (collapsed)
-                    detail_cols = st.columns(2)
-                    with detail_cols[0]:
-                        if msg.get("execution_plan"):
-                            with st.expander("What was calculated"):
-                                for p in msg["execution_plan"]:
-                                    st.caption(f"• {p}")
-                    with detail_cols[1]:
-                        if msg.get("agent_trace"):
-                            _render_agent_trace(msg["agent_trace"])
+                    # Execution log (collapsed)
+                    if msg.get("execution_plan"):
+                        with st.expander("What was calculated"):
+                            for p in msg["execution_plan"]:
+                                st.caption(f"• {p}")
 
         else:
             st.markdown("")
@@ -851,8 +841,262 @@ def main():
             st.markdown("- What is the LCOH?")
             st.markdown("- Show me the network layout")
             st.markdown("- Check violations")
-            st.markdown("- What if we remove 2 houses?")
+            st.markdown("- Explain the decision")
+
+    # ===== BOTTOM PANEL: Execution Path Graph =====
+    _render_execution_graph(messages)
+
+
+def _render_execution_graph(messages: list):
+    """Render an SVG branching left-to-right agent graph below the chat.
+
+    Layout mirrors the walkthrough.md Mermaid diagram:
+      User → UI → Orchestrator ─┬─ Intent Classifier
+                                 └─ DynamicExecutor ─┬─ CHA  → 01_run_cha   ──┐
+                                                      ├─ DHA  → 02_run_dha   ──┤
+                                                      ├─ ECON → 03_run_econ  ──┼─→ results/
+                                                      ├─ DEC  → cli/decision ──┤
+                                                      └─ UHDC → cli/uhdc     ──┘
+    """
+    trace = st.session_state.get("_latest_agent_trace", [])
+
+    _MAP = {
+        "NLU Intent Classifier": "nlu", "Conversation Manager": "conv",
+        "Street Resolver": "street", "Capability Guardrail": "guard",
+        "Dynamic Executor": "exec",
+        "CHAAgent": "cha", "CHA": "cha",
+        "DHAAgent": "dha", "DHA": "dha",
+        "EconomicsAgent": "econ", "Economics": "econ",
+        "DecisionAgent": "dec", "Decision": "dec",
+        "UHDCAgent": "uhdc", "UHDC": "uhdc",
+    }
+
+    active: set = set()
+    blocked: set = set()
+    if trace:
+        active.update({"user", "ui", "orch"})
+        for step in trace:
+            # Handle the main agent for this step
+            nid = _MAP.get(step.get("agent", ""))
+            if nid:
+                active.add(nid)
+                out = str(step.get("outcome", ""))
+                if "blocked" in out.lower() or "cannot" in out.lower() or "error" in out.lower() or "exception" in out.lower():
+                    blocked.add(nid)
+            
+            # Domain agents are grouped inside the Executor's step under "agents_invoked"
+            invoked = step.get("agents_invoked", {})
+            for ag_name, info in invoked.items():
+                ag_nid = _MAP.get(ag_name) or ag_name.lower()
+                if ag_nid in ["cha", "dha", "econ", "dec", "uhdc", "economics", "decision"]:
+                    # Normalize 'economics' to 'econ', etc.
+                    if ag_nid == "economics": ag_nid = "econ"
+                    if ag_nid == "decision": ag_nid = "dec"
+                    
+                    active.add(ag_nid)
+                    if info.get("success") is False:
+                        blocked.add(ag_nid)
+        sims = {"cha", "dha", "econ", "dec", "uhdc"}
+        if active & sims:
+            active.update({"res"})
+            for s in sims & active:
+                active.add(f"s_{s}")
+
+    # ── SVG helpers ──
+    W, H = 1200, 380  # viewBox
+
+    def _fill(nid):
+        if nid in blocked: return "#ff9800"
+        if nid in active:  return "#1e3c72"
+        return "#e0e0e0"
+
+    def _fg(nid):
+        if nid in blocked: return "#000"
+        if nid in active:  return "#fff"
+        return "#888"
+
+    def _stroke(nid):
+        if nid in blocked: return "#e65100"
+        if nid in active:  return "#4caf50"
+        return "#ccc"
+
+    def _line_c(a, b):
+        if a in active and b in active: return "#4caf50"
+        return "#d0d0d0"
+
+    def rect(x, y, w, h, nid, label, rx=6):
+        f, fg, s = _fill(nid), _fg(nid), _stroke(nid)
+        return (
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
+            f'fill="{f}" stroke="{s}" stroke-width="2"/>'
+            f'<text x="{x+w/2}" y="{y+h/2+4}" text-anchor="middle" '
+            f'fill="{fg}" font-size="11" font-family="sans-serif">{label}</text>'
+        )
+
+    def circle(cx, cy, r, nid, label):
+        f, fg, s = _fill(nid), _fg(nid), _stroke(nid)
+        return (
+            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{f}" stroke="{s}" stroke-width="2"/>'
+            f'<text x="{cx}" y="{cy+4}" text-anchor="middle" '
+            f'fill="{fg}" font-size="11" font-family="sans-serif">{label}</text>'
+        )
+
+    def cylinder(x, y, w, h, nid, label):
+        """Draw a cylinder (database) shape."""
+        f, fg, s = _fill(nid), _fg(nid), _stroke(nid)
+        ry = 8
+        return (
+            f'<ellipse cx="{x+w/2}" cy="{y+ry}" rx="{w/2}" ry="{ry}" '
+            f'fill="{f}" stroke="{s}" stroke-width="2"/>'
+            f'<rect x="{x}" y="{y+ry}" width="{w}" height="{h-2*ry}" '
+            f'fill="{f}" stroke="{s}" stroke-width="2"/>'
+            f'<ellipse cx="{x+w/2}" cy="{y+h-ry}" rx="{w/2}" ry="{ry}" '
+            f'fill="{f}" stroke="{s}" stroke-width="2"/>'
+            # Cover the internal border between rect and top ellipse
+            f'<rect x="{x+1}" y="{y+ry}" width="{w-2}" height="4" fill="{f}"/>'
+            f'<text x="{x+w/2}" y="{y+h/2+4}" text-anchor="middle" '
+            f'fill="{fg}" font-size="11" font-family="sans-serif">{label}</text>'
+        )
+
+    def line(x1, y1, x2, y2, a_id, b_id):
+        c = _line_c(a_id, b_id)
+        sw = "2.5" if c == "#4caf50" else "1.5"
+        return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+                f'stroke="{c}" stroke-width="{sw}"/>')
+
+    def arrow_head(x, y, a_id, b_id, direction="right"):
+        c = _line_c(a_id, b_id)
+        if direction == "right":
+            pts = f"{x-6},{y-4} {x},{y} {x-6},{y+4}"
+        else:
+            pts = f"{x},{y-4} {x+6},{y} {x},{y+4}"
+        return f'<polygon points="{pts}" fill="{c}"/>'
+
+    def edge_label(x, y, text, a_id, b_id):
+        c = _line_c(a_id, b_id)
+        return (f'<text x="{x}" y="{y}" text-anchor="middle" '
+                f'fill="{c}" font-size="9" font-style="italic" '
+                f'font-family="sans-serif">{text}</text>')
+
+    # ── Node positions ──
+    # Col 1: User (circle)
+    user_cx, user_cy = 35, 190
+    # Col 2: Streamlit UI
+    ui_x, ui_y, ui_w, ui_h = 80, 172, 105, 36
+    # Col 3: Orchestrator
+    or_x, or_y, or_w, or_h = 225, 172, 110, 36
+    # Col 4 top: Intent Classifier
+    nlu_x, nlu_y, nlu_w, nlu_h = 410, 40, 130, 32
+    # Col 4 bot: DynamicExecutor
+    ex_x, ex_y, ex_w, ex_h = 410, 172, 140, 36
+    # Col 5: Domain agents (stacked)
+    agents = [
+        ("cha",  "CHA Agent",    60),
+        ("dha",  "DHA Agent",    125),
+        ("econ", "Economics",    190),
+        ("dec",  "Decision",     255),
+        ("uhdc", "UHDC Report",  320),
+    ]
+    ag_x, ag_w, ag_h = 610, 120, 30
+    # Col 6: Scripts
+    scripts = [
+        ("s_cha",  "01_run_cha.py",      60),
+        ("s_dha",  "02_run_dha.py",      125),
+        ("s_econ", "03_run_econ.py",     190),
+        ("s_dec",  "cli/decision.py",    255),
+        ("s_uhdc", "cli/uhdc.py",        320),
+    ]
+    sc_x, sc_w, sc_h = 790, 130, 30
+    # Col 7: results/ (cylinder)
+    res_x, res_y, res_w, res_h = 990, 150, 90, 80
+
+    # ── Build SVG ──
+    parts = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" '
+             f'style="width:100%; height:auto; max-height:350px;">']
+
+    # Edges first (behind nodes)
+    # User → UI
+    parts.append(line(user_cx+18, user_cy, ui_x, ui_y+ui_h/2, "user", "ui"))
+    parts.append(arrow_head(ui_x, ui_y+ui_h/2, "user", "ui"))
+    # UI → Orch
+    parts.append(line(ui_x+ui_w, ui_y+ui_h/2, or_x, or_y+or_h/2, "ui", "orch"))
+    parts.append(arrow_head(or_x, or_y+or_h/2, "ui", "orch"))
+    parts.append(edge_label(170, ui_y-2, "Chat / Click", "ui", "orch"))
+    # Orch → NLU (branch up, "classify intent")
+    parts.append(line(or_x+or_w/2, or_y, nlu_x+nlu_w/2, nlu_y+nlu_h, "orch", "nlu"))
+    parts.append(arrow_head(nlu_x+nlu_w/2, nlu_y+nlu_h, "orch", "nlu", "left"))
+    parts.append(edge_label(or_x+or_w/2+35, or_y-10, "classify", "orch", "nlu"))
+    # NLU → Orch (return intent result)
+    nlu_ret_c = _line_c("nlu", "orch")
+    parts.append(
+        f'<path d="M {nlu_x} {nlu_y+nlu_h/2} '
+        f'Q {or_x+or_w+10} {nlu_y+nlu_h/2} {or_x+or_w} {or_y}" '
+        f'fill="none" stroke="{nlu_ret_c}" stroke-width="1.5" stroke-dasharray="5,3"/>'
+    )
+    parts.append(edge_label(or_x+or_w-15, nlu_y+nlu_h/2-6, "intent result", "nlu", "orch"))
+    # Orch → Executor (only the Orchestrator calls the executor)
+    parts.append(line(or_x+or_w, or_y+or_h/2, ex_x, ex_y+ex_h/2, "orch", "exec"))
+    parts.append(arrow_head(ex_x, ex_y+ex_h/2, "orch", "exec"))
+    parts.append(edge_label((or_x+or_w+ex_x)/2, ex_y+ex_h+14, "Execute", "orch", "exec"))
+    # Executor → each agent
+    for nid, _, ay in agents:
+        parts.append(line(ex_x+ex_w, ex_y+ex_h/2, ag_x, ay+ag_h/2, "exec", nid))
+        parts.append(arrow_head(ag_x, ay+ag_h/2, "exec", nid))
+    # Agent → Script
+    for (nid, _, ay), (sid, _, _) in zip(agents, scripts):
+        parts.append(line(ag_x+ag_w, ay+ag_h/2, sc_x, ay+sc_h/2, nid, sid))
+        parts.append(arrow_head(sc_x, ay+sc_h/2, nid, sid))
+    # Script → Results
+    for sid, _, sy in scripts:
+        parts.append(line(sc_x+sc_w, sy+sc_h/2, res_x, res_y+res_h/2, sid, "res"))
+    parts.append(arrow_head(res_x, res_y+res_h/2, "s_econ", "res"))
+    # Results → UI (curved return)
+    rc = _line_c("res", "ui")
+    parts.append(
+        f'<path d="M {res_x+res_w/2} {res_y+res_h} '
+        f'Q {res_x+res_w/2} {H-10} {ui_x+ui_w/2} {H-10} '
+        f'L {ui_x+ui_w/2} {ui_y+ui_h}" '
+        f'fill="none" stroke="{rc}" stroke-width="1.5" stroke-dasharray="6,3"/>'
+    )
+
+    # Nodes (on top)
+    parts.append(circle(user_cx, user_cy, 18, "user", "User"))
+    parts.append(rect(ui_x, ui_y, ui_w, ui_h, "ui", "Streamlit UI"))
+    parts.append(rect(or_x, or_y, or_w, or_h, "orch", "Orchestrator"))
+    parts.append(rect(nlu_x, nlu_y, nlu_w, nlu_h, "nlu", "Intent Classifier"))
+    parts.append(rect(ex_x, ex_y, ex_w, ex_h, "exec", "DynamicExecutor"))
+    for nid, label, ay in agents:
+        parts.append(rect(ag_x, ay, ag_w, ag_h, nid, label))
+    for sid, label, sy in scripts:
+        parts.append(rect(sc_x, sy, sc_w, sc_h, sid, label))
+    parts.append(cylinder(res_x, res_y, res_w, res_h, "res", "results/"))
+
+    # Artifacts label
+    parts.append(edge_label(950, 100, "Artifacts", "s_cha", "res"))
+
+    # Legend
+    ly = H - 12
+    parts.append(f'<circle cx="350" cy="{ly}" r="5" fill="#4caf50"/>')
+    parts.append(f'<text x="360" y="{ly+4}" font-size="10" fill="#666" font-family="sans-serif">Active</text>')
+    parts.append(f'<circle cx="420" cy="{ly}" r="5" fill="#e0e0e0" stroke="#ccc" stroke-width="1"/>')
+    parts.append(f'<text x="430" y="{ly+4}" font-size="10" fill="#666" font-family="sans-serif">Idle</text>')
+    parts.append(f'<circle cx="475" cy="{ly}" r="5" fill="#ff9800"/>')
+    parts.append(f'<text x="485" y="{ly+4}" font-size="10" fill="#666" font-family="sans-serif">Blocked</text>')
+
+    parts.append('</svg>')
+
+    title = "🔍 Agent Execution Path" if trace else "🔍 Agent Pipeline (idle)"
+    wrapper = (
+        f'<div style="padding:0.8rem 1rem; background:#f8f9fa; '
+        f'border:1px solid #e0e0e0; border-radius:12px; margin-top:1rem;">'
+        f'<div style="text-align:center; font-weight:600; color:#1e3c72; '
+        f'font-size:0.95rem; margin-bottom:0.4rem;">{title}</div>'
+        + "\n".join(parts)
+        + '</div>'
+    )
+    st.markdown(wrapper, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
     main()
+

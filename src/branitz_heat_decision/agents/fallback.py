@@ -259,23 +259,34 @@ class CapabilityGuardrail:
     ) -> Optional[CapabilityResponse]:
         """Check for edge cases where we have partial capability."""
         if intent == "WHAT_IF_SCENARIO":
-            mod = (entities.get("modification") or "").lower()
-            if mod and "house" not in mod and "building" not in mod:
-                return CapabilityResponse(
-                    can_handle=False,
-                    response_type="clarification",
-                    message=(
-                        "I can only run what-if scenarios for removing houses/buildings. "
-                        f"Modifying '{entities.get('modification', '')}' is not supported."
-                    ),
-                    alternative_suggestions=[
-                        "What if we remove 2 houses?",
-                        "What if we remove 5 houses?",
-                        "Show current network configuration",
-                    ],
-                    category=CapabilityCategory.PARTIAL,
-                    research_note="What-if scenarios are limited to house exclusion in current implementation",
-                )
+            # ALL infrastructure modifications are out of scope.
+            # Users must provide a new dataset if they want different
+            # building configurations, pipe layouts, or network topology.
+            return CapabilityResponse(
+                can_handle=False,
+                response_type="clarification",
+                message=(
+                    "I cannot modify the existing infrastructure (removing houses, "
+                    "changing pipes, altering temperatures, etc.). Infrastructure "
+                    "changes are complex decisions that require municipal planning "
+                    "expertise and are outside the scope of my current research "
+                    "capabilities. If you need a different building configuration, "
+                    "please provide a new GeoJSON dataset and re-run the data "
+                    "preparation step."
+                ),
+                alternative_suggestions=[
+                    "Compare CO₂ emissions for the current configuration",
+                    "Compare LCOH for the current configuration",
+                    "Show the current network layout",
+                    "Check violations in the current network",
+                ],
+                category=CapabilityCategory.PARTIAL,
+                research_note=(
+                    "What-if scenarios involving infrastructure modification are "
+                    "not supported. Users should prepare new input data for "
+                    "alternative building/network configurations."
+                ),
+            )
         return None
 
     def _map_intent_to_tools(self, intent: str) -> List[str]:

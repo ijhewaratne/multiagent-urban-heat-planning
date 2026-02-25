@@ -12,7 +12,8 @@ A deterministic, auditable multi-agent framework for climate-neutral urban heat 
 - **Standards-Aligned**: EN 13941-1 (District Heating), VDE-AR-N 4100 (LV Grid)
 - **Uncertainty-Aware**: Monte Carlo win fractions drive robustness flags
 - **Street-Level Maps**: Interactive Folium maps with cascading colors and pipe sizing
-- **Conversational Interface**: Natural language query processing with multi-turn context
+- **Conversational Interface**: Natural language query processing with multi-turn context, featuring a dedicated "Branitz Assistant" persona
+- **Interactive Execution Trace**: Dynamic, full-width SVG branching diagrams showing the exact agent execution path for full transparency
 - **Capability Guardrails**: Explicit system boundaries with graceful degradation
 
 ---
@@ -37,9 +38,10 @@ The system is an AI-powered decision support platform that compares **District H
 ┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐
 │    Multi-Tab Dashboard    │ │    Intent Chat UI         │ │   Conversational UI       │
 │    ui/app.py              │ │    ui/app_intent_chat.py  │ │   ui/app_conversational.py│
-│    (Overview, Feasibility,│ │    (Split-Panel:          │ │   (Chat-First with        │
-│     Economics, Compare &  │ │     Chat ⟵ 2/5            │ │    auto-context)          │
-│     Decide, Portfolio)    │ │     Viz  ⟵ 3/5)           │ │                           │
+│    (Overview, Feasibility,│ │    (Two-Column + Trace:   │ │   (Chat-First with        │
+│     Economics, Compare &  │ │     Chat ⟵ Left           │ │    auto-context)          │
+│     Decide, Portfolio)    │ │     Viz  ⟵ Right          │ │                           │
+│                           │ │     SVG Trace ⟵ Bottom)   │ │                           │
 └────────────┬──────────────┘ └────────────┬──────────────┘ └────────────┬──────────────┘
              │                             │                             │
              └─────────────────────────────┼─────────────────────────────┘
@@ -280,8 +282,8 @@ The system is an AI-powered decision support platform that compares **District H
 │                         USER INTERFACE                              │
 │  ┌─────────────┐  ┌──────────────────┐  ┌───────────────────────┐  │
 │  │  Multi-Tab   │  │  Intent Chat UI  │  │  Conversational UI    │  │
-│  │  Dashboard   │  │  (Split-Panel)   │  │  (Chat-First)         │  │
-│  │  (app.py)    │  │(app_intent_chat) │  │(app_conversational)   │  │
+│  │  Dashboard   │  │  (app_intent_chat│  │  (Chat-First)         │  │
+│  │  (app.py)    │  │   w/ SVG Trace)  │  │(app_conversational)   │  │
 │  └──────┬───────┘  └────────┬─────────┘  └──────────┬────────────┘  │
 └─────────┼──────────────────┼────────────────────────┼───────────────┘
           │                  │                        │
@@ -395,7 +397,7 @@ The system is an AI-powered decision support platform that compares **District H
 | File | Role |
 |------|------|
 | `ui/app.py` | Main multi-tab Streamlit dashboard (Overview, Feasibility, Economics, Compare & Decide, Intent Chat, Portfolio, Jobs) |
-| `ui/app_intent_chat.py` | Dedicated chat-first UI with split-panel layout — chat on the left, visualizations (maps, charts, traces) on the right |
+| `ui/app_intent_chat.py` | Dedicated chat-first UI with a "Branitz Assistant" persona. Uses a two-column layout (chat on the left, visualizations on the right) and features a dynamic, full-width SVG bottom panel for the **Agent Execution Trace**, which provides full transparency into the Orchestrator → Executor → Domain Agent → Results flow. |
 | `ui/app_conversational.py` | Alternative conversational UI with auto-context detection |
 | `ui/services.py` | Backend services for data loading, job management, and result discovery (`ClusterService`, `JobService`, `ResultService`) |
 | `ui/llm.py` | Legacy LLM router for direct chat |
@@ -853,7 +855,7 @@ Structured Response
 
 ### Agent Trace Example
 
-Every request produces a full agent trace visible in the UI. Example for "Compare CO2 for Heinrich-Zille-Straße":
+Every request produces a full agent trace representing the data flow logically, translated into a real-time branching SVG in the UI. Example for "Compare CO2 for Heinrich-Zille-Straße":
 
 ```json
 [
