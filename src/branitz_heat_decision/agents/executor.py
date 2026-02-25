@@ -246,6 +246,15 @@ class DynamicExecutor:
         if "what_if" in results and not results["what_if"].success:
             errors = results["what_if"].errors or ["Unknown error"]
             return {"error": f"What-if failed: {'; '.join(errors)}"}
+        
+        # Decision is mandatory for decision-oriented intents
+        if intent in ("DECISION", "EXPLAIN_DECISION", "FULL_REPORT"):
+            decision_result = results.get("decision")
+            if decision_result is None:
+                return {"error": "DECISION failed: decision agent did not run"}
+            if not decision_result.success:
+                errors = decision_result.errors or ["Unknown error"]
+                return {"error": f"DECISION failed: {'; '.join(errors)}"}
 
         # Dispatch to intent-specific formatter
         if intent == "CO2_COMPARISON":

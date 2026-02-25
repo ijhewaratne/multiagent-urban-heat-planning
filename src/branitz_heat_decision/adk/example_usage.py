@@ -36,8 +36,8 @@ def example_single_cluster():
         skip_data_prep=False,  # Set to True if data already prepared
         cha_params={
             "use_trunk_spur": True,
-            "plant_wgs84_lat": 51.76274,
-            "plant_wgs84_lon": 14.3453979,
+            "plant_wgs84_lat": 51.758,
+            "plant_wgs84_lon": 14.364,
             "disable_auto_plant_siting": True,
         },
         dha_params={

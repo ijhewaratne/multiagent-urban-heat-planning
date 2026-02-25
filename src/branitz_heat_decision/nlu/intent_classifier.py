@@ -56,10 +56,10 @@ Available intents (return ONLY one):
 - CO2_COMPARISON: User wants carbon emissions comparison (needs DH + HP simulations)
 - LCOH_COMPARISON: User wants cost/LCOH analysis (needs DH + HP simulations)
 - VIOLATION_ANALYSIS: User asks about pressure/velocity/temperature violations (needs DH sim only)
-- NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid, how many buildings/houses, building count, network statistics (needs DH sim only)
+- NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid, for ONE specific street. Use for "how many buildings" or "building count" ONLY when referring to a single street's network. NOT for "list all streets" or "streets in the district and buildings per street".
 - WHAT_IF_SCENARIO: User asks hypotheticals: "what if we remove houses", "different temperatures"
 - EXPLAIN_DECISION: User asks why a decision was made, wants KPI explanation, asks "what is recommended", "what's the recommendation", or asks for decision summary (needs cached results only)
-- CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities, OR asks "what streets", "which streets are available", "list the streets", "how many streets" (ONLY when the user is explicitly asking about system capabilities or available data, NOT when they want to see specific data or maps)
+- CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities, OR asks for a LIST of streets / available data: "what streets", "which streets", "list the streets", "streets in the district", "streets and the number of residential buildings in each street", "buildings in each street" (use this whenever the user wants ALL streets or a list with counts per street, not one street's network)
 - UNKNOWN: Outside capabilities (adding consumers, changing building geometry, legal advice, etc.)
 
 IMPORTANT: If the user asks to "see", "show", or "view" something specific (maps, network, grid, layout, results), classify based on WHAT they want to see, NOT as CAPABILITY_QUERY.
@@ -73,6 +73,7 @@ Examples:
 "Can I see the interactive maps" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants to view network maps"}
 "Show me the heating grid layout" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants network visualization"}
 "Add a new consumer" -> {"intent": "UNKNOWN", "confidence": 0.9, "reasoning": "Cannot modify network topology"}
+"What are the streets in the district and the number of residential buildings in each street?" -> {"intent": "CAPABILITY_QUERY", "confidence": 0.95, "entities": {"sub_query": "list_streets"}, "reasoning": "User wants list of all streets with building counts per street"}
 """
 
 VALID_INTENTS = {e.value.upper().replace(" ", "_") for e in BranitzIntent}
@@ -146,6 +147,28 @@ def classify_intent(
             "confidence": 0.0,
             "entities": {},
             "reasoning": "Empty query",
+        }
+
+    # Fast path: list streets / streets in district / buildings per street → CAPABILITY_QUERY (before LLM)
+    q_lower = str(user_query).strip().lower()
+    list_street_phrases = [
+        "streets in the district",
+        "streets in the",
+        "list the streets",
+        "list streets",
+        "what are the streets",
+        "which streets",
+        "all streets",
+        "number of residential buildings in each street",
+        "number of buildings in each street",
+        "buildings in each street",
+    ]
+    if any(p in q_lower for p in list_street_phrases):
+        return {
+            "intent": "CAPABILITY_QUERY",
+            "confidence": 0.85,
+            "entities": {"sub_query": "list_streets"},
+            "reasoning": "Query asks for list of streets or buildings per street → list_streets",
         }
 
     if use_llm and GENAI_AVAILABLE:
@@ -247,8 +270,8 @@ def _keyword_fallback(user_query: str) -> Dict[str, Any]:
             "entities": {},
             "reasoning": "Keyword fallback",
         }
-    if any(w in q for w in ["which street", "what street", "list street", "available street",
-                              "streets in the", "all streets", "show street",
+    if any(w in q for w in ["which street", "what street", "list street", "list streets", "list the street", "list the streets",
+                              "available street", "streets in the", "all streets", "show street",
                               "streets and", "street and house", "street and building"]):
         return {
             "intent": "CAPABILITY_QUERY",

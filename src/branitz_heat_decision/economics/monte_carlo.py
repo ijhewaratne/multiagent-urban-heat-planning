@@ -251,7 +251,7 @@ def _run_one_sample_for_cluster(
         hp_om_frac_per_year=p.hp_om_frac_per_year,
         feeder_loading_planning_limit=p.feeder_loading_planning_limit,
         # Plant cost allocation (Marginal Cost vs. Sunk Cost)
-        plant_cost_allocation=getattr(p, "plant_cost_allocation", "full"),
+        plant_cost_allocation=getattr(p, "plant_cost_allocation", "marginal"),
         plant_total_capacity_kw=getattr(p, "plant_total_capacity_kw", 0.0),
         plant_utilized_capacity_kw=getattr(p, "plant_utilized_capacity_kw", 0.0),
         plant_is_built=getattr(p, "plant_is_built", False),

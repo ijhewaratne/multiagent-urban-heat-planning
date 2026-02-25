@@ -96,9 +96,9 @@ def prepare_data_tool(
         }
 
 
-# Default CHP plant location (Cottbus) - used whenever CHA is run
-DEFAULT_PLANT_LAT = 51.76274
-DEFAULT_PLANT_LON = 14.3453979
+# Default HKW Cottbus plant location (WGS84) - used whenever CHA is run
+DEFAULT_PLANT_LAT = 51.758
+DEFAULT_PLANT_LON = 14.364
 
 
 def run_cha_tool(
@@ -434,11 +434,13 @@ def run_decision_tool(
     logger.info(f"[ADK Tool] Running decision pipeline: {' '.join(cmd)}")
     
     try:
+        project_root = Path(__file__).parents[3]
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             check=True,
+            cwd=str(project_root),
             env={**dict(os.environ), "PYTHONPATH": str(Path(__file__).parents[2])}
         )
         

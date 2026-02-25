@@ -21,13 +21,16 @@ class CottbusCHPContext:
     Shared across ALL streets — same plant serves entire district.
     """
 
-    # Plant specifications from GEM data
-    total_capacity_kw_th: float = 220_000  # 220 MW thermal (54+48.9 MW elec * ~2 CHP ratio)
-    utilized_capacity_kw_th: float = 180_000  # Current baseline load (city minus spare)
-    total_cost_eur: float = 150_000_000  # Historical sunk cost (~150M€)
-    is_built: bool = True  # EXISTS since 1999/2022
-    marginal_cost_per_kw: float = 150.0  # Expansion cost if needed
-    fuel_type: str = "natural_gas"  # Changed from coal (retired 2022)
+    # Plant specifications aligned to HKW Cottbus modernization context
+    total_capacity_kw_th: float = 170_000  # ~170 MW thermal site capacity
+    utilized_capacity_kw_th: float = 85_000  # ~50% utilized baseline load
+    total_cost_eur: float = 90_000_000  # Midpoint of 75-100M€ modernization estimate
+    is_built: bool = True  # Existing/operating asset
+    marginal_cost_per_kw: float = 700.0  # Midpoint of 600-800 €/kW expansion estimate
+    fuel_type: str = "natural_gas"
+    # Fixed plant location (WGS84) for consistent geospatial references
+    plant_wgs84_lat: float = 51.758
+    plant_wgs84_lon: float = 14.364
 
     @property
     def available_capacity_kw(self) -> float:

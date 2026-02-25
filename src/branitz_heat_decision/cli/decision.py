@@ -39,6 +39,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Tuple, List, cast
 
+from branitz_heat_decision.config import RESULTS_ROOT
 from branitz_heat_decision.decision.kpi_contract import build_kpi_contract
 from branitz_heat_decision.decision.schemas import ContractValidator
 from branitz_heat_decision.decision.rules import decide_from_contract, validate_config
@@ -125,7 +126,7 @@ def save_json(data: Dict[str, Any], path: Path) -> None:
     print(f"✓ Saved: {path}")
 
 def _discover_paths_for_cluster(cluster_id: str) -> Tuple[Path, Path, Path]:
-    base = Path("results")
+    base = Path(RESULTS_ROOT)
     cha = base / "cha" / cluster_id / "cha_kpis.json"
     dha = base / "dha" / cluster_id / "dha_kpis.json"
     # Try economics_monte_carlo.json first (current format), fallback to monte_carlo_summary.json (legacy)
@@ -136,7 +137,7 @@ def _discover_paths_for_cluster(cluster_id: str) -> Tuple[Path, Path, Path]:
     return cha, dha, econ
 
 def _list_clusters() -> List[str]:
-    base = Path("results") / "cha"
+    base = Path(RESULTS_ROOT) / "cha"
     if not base.exists():
         return []
     return sorted([p.name for p in base.iterdir() if p.is_dir()])

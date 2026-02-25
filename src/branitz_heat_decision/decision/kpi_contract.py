@@ -218,14 +218,24 @@ def _build_hp_block(cluster_id: str, dha_kpis: Dict[str, Any], econ_summary: Dic
 
 def _build_mc_block(econ_summary: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Build MonteCarloBlock if data available."""
-    # Current economics summary schema: {"monte_carlo": {...}, "lcoh": {...}, "co2": {...}, "metadata": {...}}
-    mc = econ_summary.get("monte_carlo") or {}
+    # Supports both:
+    # 1) nested schema: {"monte_carlo": {...}, ...}
+    # 2) flat schema: economics_monte_carlo.json with top-level keys
+    mc = econ_summary.get("monte_carlo") if isinstance(econ_summary.get("monte_carlo"), dict) else econ_summary
     if not mc:
         return None
+    dh_wins = mc.get("dh_wins_fraction", mc.get("prob_dh_cheaper", 0.0))
+    hp_wins = mc.get("hp_wins_fraction")
+    if hp_wins is None:
+        try:
+            hp_wins = max(0.0, 1.0 - float(dh_wins))
+        except Exception:
+            hp_wins = 0.0
+    n_samples = mc.get("n_samples", mc.get("n", 0))
     return {
-        "dh_wins_fraction": float(mc.get("dh_wins_fraction", 0.0)),
-        "hp_wins_fraction": float(mc.get("hp_wins_fraction", 0.0)),
-        "n_samples": int(mc.get("n_samples", 0)),
+        "dh_wins_fraction": float(dh_wins),
+        "hp_wins_fraction": float(hp_wins),
+        "n_samples": int(n_samples),
         "seed": (econ_summary.get("metadata") or {}).get("seed", None),
     }
 

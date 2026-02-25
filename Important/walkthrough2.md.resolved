@@ -1,0 +1,393 @@
+# Branitz2 Project: Comprehensive A-to-Z Walkthrough
+
+> **Multi-Agent AI System for Climate-Neutral Urban Heat Planning**
+> Author: Ishantha Hewaratne · Fraunhofer IEG · Python 3.10 · MIT License
+
+---
+
+## 1. What the Project Does
+
+Branitz Heat Decision is a **service-oriented, multi-agent system** that evaluates whether a residential street cluster in the Branitz settlement (Cottbus, Germany) should be heated by **District Heating (DH)** or individual **Heat Pumps (HP)**. It runs physics-based simulations, economic analysis, and deterministic decision logic — then presents results through a Streamlit UI with natural-language chat.
+
+```mermaid
+graph LR
+    User((User)) -->|Chat / Click| UI[Streamlit UI]
+    UI --> O[Orchestrator]
+    O -->|Intent| NLU[Intent Classifier]
+    O -->|Execute| EX[DynamicExecutor]
+    EX --> CHA[CHA Agent]
+    EX --> DHA[DHA Agent]
+    EX --> ECON[Economics Agent]
+    EX --> DEC[Decision Agent]
+    EX --> UHDC[UHDC Report Agent]
+    CHA --> S1[01_run_cha.py]
+    DHA --> S2[02_run_dha.py]
+    ECON --> S3[03_run_economics.py]
+    DEC --> S4[cli/decision.py]
+    UHDC --> S5[cli/uhdc.py]
+    S1 & S2 & S3 & S4 & S5 -->|Artifacts| R[(results/)]
+    R --> UI
+```
+
+---
+
+## 2. How [app_intent_chat.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py) Drives the System
+
+You are using [app_intent_chat.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py) as the main interface. Here is the **exact data flow** from your chat input to the visualizations:
+
+```mermaid
+flowchart TD
+    subgraph UI["Streamlit Split-Panel UI (app_intent_chat.py)"]
+        direction TB
+        LP["LEFT PANEL\nChat + AI Orb"]
+        RP["RIGHT PANEL\nVisualizations"]
+    end
+
+    LP -->|"user_input"| PM["_process_message()"]
+    PM -->|"route_request(query, cluster_id, context)"| ORCH["BranitzOrchestrator\n(agents/orchestrator.py)"]
+
+    ORCH -->|"1. classify_intent(query)"| NLU["IntentClassifier\n(nlu/intent_classifier.py)\nGemini LLM + keyword fallback"]
+    NLU -->|"intent + entities + confidence"| ORCH
+
+    ORCH -->|"2. conversation.resolve_references()"| CONV["ConversationManager\n(agents/conversation.py)\nFollow-up detection, metric switching"]
+    CONV -->|"enriched intent"| ORCH
+
+    ORCH -->|"3. guardrail.validate_request()"| GUARD["CapabilityGuardrail\n(agents/fallback.py)\nBlocks unsupported operations"]
+    GUARD -->|"can_handle?"| ORCH
+
+    ORCH -->|"4. executor.execute(intent, street_id)"| EXEC["DynamicExecutor\n(agents/executor.py)\nHead Chef"]
+
+    EXEC -->|"_create_agent_plan()"| PLAN["Agent Plan\ne.g. [cha, dha, economics]"]
+    PLAN --> EXEC
+
+    EXEC -->|"sequential execution"| DA["Domain Agents\n(agents/domain_agents.py)"]
+
+    subgraph DA_SUB["Domain Agents (Layer 2)"]
+        CHA_A["CHAAgent"]
+        DHA_A["DHAAgent"]
+        ECON_A["EconomicsAgent"]
+        DEC_A["DecisionAgent"]
+        UHDC_A["UHDCAgent"]
+        WIF_A["WhatIfAgent"]
+    end
+
+    DA --> DA_SUB
+
+    subgraph ADK["ADK Tools (Layer 1) — subprocess.run()"]
+        T1["run_cha_tool"]
+        T2["run_dha_tool"]
+        T3["run_economics_tool"]
+        T4["run_decision_tool"]
+        T5["run_uhdc_tool"]
+    end
+
+    CHA_A --> T1
+    DHA_A --> T2
+    ECON_A --> T3
+    DEC_A --> T4
+    UHDC_A --> T5
+
+    subgraph SCRIPTS["Core Scripts (the muscles)"]
+        S1["01_run_cha.py\npandapipes hydraulics"]
+        S2["02_run_dha.py\npandapower load flow"]
+        S3["03_run_economics.py\nLCOH + Monte Carlo"]
+        S4["cli/decision.py\nDeterministic rules"]
+        S5["cli/uhdc.py\nJinja2 HTML report"]
+    end
+
+    T1 --> S1
+    T2 --> S2
+    T3 --> S3
+    T4 --> S4
+    T5 --> S5
+
+    S1 & S2 & S3 & S4 & S5 -->|"write JSON/HTML"| RES[("results/\ncha/ dha/ economics/\ndecision/ uhdc/")]
+
+    RES -->|"read back"| DA_SUB
+    DA_SUB -->|"AgentResult"| EXEC
+    EXEC -->|"_integrate_results()"| ORCH
+    ORCH -->|"_format_answer() + _create_viz()"| RESP["response dict\n{answer, type, data, sources,\nexecution_plan, agent_trace}"]
+
+    RESP --> PM
+    PM -->|"append to messages"| LP
+    PM -->|"data + type"| RP
+
+    subgraph VIZ["Right-Panel Renderers"]
+        V1["_render_co2()\nAltair bar chart"]
+        V2["_render_lcoh()\nAltair bar chart"]
+        V3["_render_violations()\nMetric cards"]
+        V4["_render_network_design()\niframe map"]
+        V5["_render_what_if()\nBaseline vs Scenario"]
+        V6["_render_fallback_ui()\nCapability list"]
+    end
+
+    RP --> VIZ
+```
+
+### Step-by-step when you type a question
+
+1. **You type** in `st.chat_input()` (left panel, line 762)
+2. **Street extraction** — if no street selected, NLU's [extract_street_entities()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/nlu/intent_classifier.py#298-383) tries to find one in your query (line 773)
+3. **[_process_message()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py#650-683)** (line 650) calls `orch.route_request(user_input, cluster_id, context)`
+4. **Orchestrator** classifies intent via Gemini → resolves follow-ups via [ConversationManager](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/conversation.py#70-405) → checks guardrails → dispatches to [DynamicExecutor](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py#50-408)
+5. **Executor** builds an agent plan (e.g. `["cha", "dha", "economics"]` for LCOH) → runs each domain agent in order
+6. **Domain agents** check cache → if miss, delegate to ADK tool → which runs the CLI script as a subprocess
+7. **Scripts** do the heavy physics (pandapipes/pandapower/NumPy) → write results to [results/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/orchestrator.py#105-109)
+8. **Results flow back** through agents → executor → orchestrator formats answer + viz hints
+9. **Response stored** in `st.session_state.intent_chat_messages`
+10. **Right panel** renders the matching visualization ([_render_co2](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py#363-386), [_render_lcoh](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py#388-411), etc.)
+
+---
+
+## 3. Directory Structure
+
+| Path | Purpose |
+|:---|:---|
+| [pyproject.toml](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/pyproject.toml) | Package metadata, tooling config (black, mypy) |
+| [config/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py#24-65) | Decision config JSONs (2023, 2030, aggressive thresholds) |
+| [data/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/conversation.py#65-68) | Raw GeoJSON (buildings, streets, power grid) |
+| [results/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/orchestrator.py#105-109) | All simulation artifacts ([cha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#104-203), [dha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#205-312), [economics/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#314-393), [decision/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py#358-370), [uhdc/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#485-563)) |
+| `scripts/` | Top-level helper scripts (map generation, review packages) |
+| `tests/` | Test suite |
+| **`src/scripts/`** | **Pipeline entry-point scripts** (the "muscles") |
+| **`src/branitz_heat_decision/`** | **Core Python package** (15 sub-packages) |
+
+---
+
+## 3. The Pipeline: Five Phases
+
+The system runs a **sequential 5-phase pipeline**. Each phase is a standalone CLI script and a corresponding agent.
+
+### Phase 0 — Data Preparation
+- **Script**: [00_prepare_data.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py)
+- **What it does**: Loads raw GeoJSON (buildings + streets), creates street-based clusters, generates BDEW hourly heat-demand profiles (8760 × n_buildings), computes design-hour and top-N hours, and writes a UI-friendly cluster index.
+- **Key modules**: [loader.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py), [cluster.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/cluster.py), [profiles.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/profiles.py), [typology.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/typology.py)
+- **Outputs**: `data/processed/buildings.parquet`, `street_clusters.parquet`, `cluster_index.parquet`, `hourly_profiles.parquet`, `cluster_design_topn.json`
+
+### Phase 1 — CHA (Cluster Heat Assessment)
+- **Script**: [01_run_cha.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/01_run_cha.py) (858 lines)
+- **What it does**: Builds a district heating **trunk-spur network** using street geometries, runs **pandapipes** hydraulic simulation (pressure/velocity/temperature), optimizes for convergence, validates against **EN 13941-1** compliance.
+- **Key modules**:
+  - [network_builder_trunk_spur.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/network_builder_trunk_spur.py) (1875 lines) — the heart of CHA; builds supply+return pipe network from street graph → building spurs
+  - [convergence_optimizer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/convergence_optimizer.py) — iterative diameter/flow adjustment
+  - [heat_loss.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/heat_loss.py) — per-pipe thermal loss (U-value based)
+  - [sizing_catalog.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/sizing_catalog.py) — DN-based pipe catalog with technical specs
+  - [kpi_extractor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/kpi_extractor.py) — extracts KPIs from pandapipes results
+  - Validators: [design_validator.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/design_validator.py), [hydraulic_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/hydraulic_checks.py), [thermal_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/thermal_checks.py), [geospatial_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/geospatial_checks.py)
+- **Outputs**: `results/cha/{cluster_id}/cha_kpis.json`, `network.pickle`, `interactive_map.html` (velocity, temperature, pressure maps)
+
+### Phase 2 — DHA (Decentralized Heat Assessment)
+- **Script**: [02_run_dha.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/02_run_dha.py) (458 lines)
+- **What it does**: Models per-building heat pumps on the **low-voltage (LV) electrical grid**, runs **pandapower** load flow, checks for voltage violations and line overloading, evaluates smart grid mitigation strategies and grid reinforcement.
+- **Key modules**:
+  - [grid_builder.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/grid_builder.py) — builds LV grid topology
+  - [loadflow.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/loadflow.py) — pandapower load flow analysis
+  - [hosting_capacity.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/hosting_capacity.py) — how many HPs the grid can handle
+  - [mitigations.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/mitigations.py) & [smart_grid_strategies.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/smart_grid_strategies.py) — voltage regulation strategies
+  - [reinforcement_optimizer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/reinforcement_optimizer.py) — cable/transformer upgrade planning
+  - [bdew_base_loads.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/bdew_base_loads.py) — BDEW standard load profiles
+- **Outputs**: `results/dha/{cluster_id}/dha_kpis.json`, `hp_lv_map.html`
+
+### Phase 3 — Economics
+- **Script**: [03_run_economics.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/03_run_economics.py) (438 lines)
+- **Dependencies**: Requires Phase 1 (CHA) + Phase 2 (DHA) results
+- **What it does**: Computes **Levelized Cost of Heat (LCOH)** using the CRF method for both DH and HP, calculates CO₂ emissions, runs **Monte Carlo** uncertainty propagation (500 samples default), performs sensitivity analysis and stress testing.
+- **Key modules**:
+  - [lcoh.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py) — LCOH calculation with marginal cost allocation (PlantContext)
+  - [monte_carlo.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/monte_carlo.py) — statistical robustness via sampling
+  - [co2.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/co2.py) — carbon emission factors (DH vs HP)
+  - [sensitivity.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/sensitivity.py) & [stress_tests.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/stress_tests.py) — parameter sensitivity
+  - [params.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/params.py) — economic parameters (discount rates, lifecycle costs)
+  - [plant_context.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/plant_context.py) — Cottbus CHP plant shared asset context
+- **Outputs**: `results/economics/{cluster_id}/economics_deterministic.json`, `economics_monte_carlo.json`, `sensitivity_analysis.json`, `stress_tests.json`
+
+### Phase 4 — Decision
+- **CLI**: [cli/decision.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cli/decision.py)
+- **Dependencies**: CHA + DHA + Economics results
+- **What it does**: Builds a canonical **KPI Contract** from all upstream outputs, applies **deterministic rules** to recommend DH or HP — purely rule-based, never LLM-driven.
+- **Key modules**:
+  - [kpi_contract.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py) — assembles CHA + DHA + Economics KPIs into a single auditable contract
+  - [rules.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py) — **`decide_from_contract()`**: feasibility gate → cost comparison → MC robustness → CO₂ tiebreaker
+  - [schemas.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/schemas.py) — TypedDict schemas + ContractValidator + REASON_CODES
+- **Decision Logic**: (1) If only one is feasible → pick it; (2) If costs differ >5% → pick cheaper; (3) If costs close → use Monte Carlo robustness (≥70% wins = robust); (4) CO₂ tiebreaker
+- **Outputs**: `results/decision/{cluster_id}/decision_{cluster_id}.json`
+
+### Phase 5 — UHDC (Urban Heat Decision Communication)
+- **CLI**: [cli/uhdc.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cli/uhdc.py)
+- **Dependencies**: Decision results
+- **What it does**: Generates a stakeholder-facing HTML report with glassmorphism design, decision banner, executive summary, embedded charts, metric cards with confidence intervals, and map iframes.
+- **Key modules**:
+  - [report_builder.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/report_builder.py) (988 lines) — Jinja2-based HTML report with Bootstrap 5 styling
+  - [explainer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py) — LLM-generated explanations (Gemini) with template fallback
+  - [safety_validator.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/safety_validator.py) — validates LLM explanations don't contradict the deterministic decision
+- **Outputs**: `results/uhdc/{cluster_id}/uhdc_report_{cluster_id}.html`
+
+---
+
+## 4. Agent Architecture (3 Layers)
+
+The system has a deliberate **3-layer agent hierarchy**, analogized as a **restaurant kitchen**:
+
+### Layer 1 — ADK Agents (`adk/`)
+- [agent.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/agent.py): `BaseADKAgent` → `DataPrepAgent`, `CHAAgent`, `DHAAgent`, `EconomicsAgent`, `DecisionAgent`, `UHDCAgent`
+- [tools.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py): 6 tool functions (`prepare_data_tool`, `run_cha_tool`, `run_dha_tool`, `run_economics_tool`, `run_decision_tool`, `run_uhdc_tool`) — each constructs a CLI command and runs it via `subprocess`
+- [policies.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/policies.py): 4 guardrails:
+  1. **`llm_cannot_decide`** — LLM cannot modify or override decisions
+  2. **`readonly_artifacts`** — upstream artifacts are immutable
+  3. **`required_phases`** — enforces dependency order
+  4. **`deterministic_outputs`** — blocks random decision paths
+
+### Layer 2 — Domain Agents (`agents/domain_agents.py`)
+"Station chefs" with caching. Each delegates to its ADK counterpart:
+- `DataPrepAgent`, `CHAAgent`, `DHAAgent`, `EconomicsAgent`, `DecisionAgent`, `ValidationAgent`, `UHDCAgent`, `WhatIfAgent`
+- Each implements `can_handle(intent)`, `execute(street_id, context)`, and cache checking
+
+### Layer 3 — Orchestrator + Executor (`agents/`)
+| File | Role |
+|:---|:---|
+| [orchestrator.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/orchestrator.py) | `BranitzOrchestrator` — **routes** natural-language requests by classifying intent, then dispatching to `DynamicExecutor` or answering directly |
+| [executor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py) | `DynamicExecutor` — **"Head Chef"** that creates dependency-ordered agent plans, runs them sequentially, integrates results |
+| [conversation.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/conversation.py) | `ConversationManager` — multi-turn context (handles "What about LCOH?" follow-ups, metric switching, modification chaining) |
+| [fallback.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/fallback.py) | `CapabilityGuardrail` — explicit boundaries for what the system *cannot* do, with graceful LLM-powered explanations |
+
+---
+
+## 5. NLU (Natural Language Understanding)
+
+[intent_classifier.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/nlu/intent_classifier.py) uses **Gemini** (google.genai SDK) to classify user queries into intents:
+
+| Intent | Triggers |
+|:---|:---|
+| `CO2_COMPARISON` | "Compare CO2 emissions" |
+| `LCOH_COMPARISON` | "Compare costs" |
+| `VIOLATION_ANALYSIS` | "Check pressure violations" |
+| `NETWORK_DESIGN` | "Show network layout" |
+| `WHAT_IF_SCENARIO` | "What if we remove 2 houses?" |
+| `EXPLAIN_DECISION` | "Why was DH recommended?" |
+| `CAPABILITY_QUERY` | "What can you do?" |
+
+Falls back to **keyword matching** when LLM is unavailable.
+
+---
+
+## 6. Validation & Safety
+
+### Logic Auditor (`validation/`)
+[logic_auditor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/logic_auditor.py) (911 lines)
+- **TNLI Model**: Textual Natural Language Inference — checks if LLM explanations are entailed, neutral, or contradictory vs. KPI data
+- **ClaimExtractor**: Regex-based quantitative claim extraction + cross-validation against canonical KPIs
+- **Feedback Loop**: If contradictions detected, triggers LLM regeneration with enriched context
+- Reports: `verified_rate`, `unverified_rate`, `contradiction_rate`
+
+### Safety Validator (`uhdc/safety_validator.py`)
+Validates that LLM-generated explanations don't contradict the deterministic decision.
+
+---
+
+## 7. UI Layer
+
+[app.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app.py) (1685 lines) — Streamlit application with:
+- **Sidebar**: Street selector, scenario catalog buttons, chat input with example prompts
+- **Main tabs**: 3D Map, Feasibility (CHA sub-tab + DHA sub-tab), Economics, Decision, Report, AI Chat
+- **Services** ([services.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/services.py)):
+  - `ClusterService` — loads cluster index, buildings, geometries, profiles
+  - `JobService` — starts background subprocess jobs with dependency resolution
+  - `ResultService` — polls `results/` directory for artifacts
+- **Registry** ([registry.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/registry.py)): `SCENARIO_REGISTRY` maps scenario keys → CLI command templates + expected outputs + dependencies
+- **LLM Router** ([llm.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/llm.py)): Gemini API integration for chat
+
+---
+
+## 8. Data Flow: End-to-End Example
+
+A user asks: **"Is District Heating feasible for Heinrich Zille Straße?"**
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Streamlit UI
+    participant O as Orchestrator
+    participant NLU as IntentClassifier
+    participant EX as DynamicExecutor
+    participant CHA as CHAAgent
+    participant S as 01_run_cha.py
+    participant R as results/cha/
+
+    U->>UI: "Is DH feasible here?"
+    UI->>O: route_request(query, cluster_id)
+    O->>NLU: classify_intent(query)
+    NLU-->>O: {intent: NETWORK_DESIGN}
+    O->>EX: execute("NETWORK_DESIGN", "ST010_...")
+    EX->>CHA: execute("ST010_...")
+    CHA->>CHA: _check_cha_cache() → miss
+    CHA->>S: subprocess.run(01_run_cha.py ...)
+    S->>S: load_cluster_data()
+    S->>S: build_trunk_spur_network()
+    S->>S: pandapipes.pipeflow()
+    S->>R: write cha_kpis.json + maps
+    CHA-->>EX: AgentResult(success=True, data=kpis)
+    EX-->>O: integrated response
+    O-->>UI: {answer: "...", viz: map, data: kpis}
+    UI-->>U: Display map + metrics
+```
+
+---
+
+## 9. Key Design Principles
+
+| Principle | Implementation |
+|:---|:---|
+| **LLM Cannot Decide** | Decision logic is 100% deterministic rules ([rules.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py)); LLM only generates explanations |
+| **Artifact Communication** | Components decouple via JSON/HTML files in `results/`; no in-memory coupling |
+| **Dual Triggers** | Same pipeline runs from UI (subprocess) or programmatically (ADK agents) |
+| **Graceful Degradation** | `CapabilityGuardrail` explicitly lists what the system *cannot* do and offers alternatives |
+| **Reproducibility** | Monte Carlo uses fixed seeds; deterministic outputs policy enforced |
+| **Validation Safety** | TNLI-based logic auditing catches LLM hallucinations before they reach users |
+
+---
+
+## 10. Configuration
+
+| File | Contents |
+|:---|:---|
+| `config/decision_config_2023.json` | Current-year thresholds for decision logic |
+| `config/decision_config_2030.json` | Future-scenario thresholds |
+| `config/decision_config_aggressive.json` | Aggressive decarbonization thresholds |
+| [config_paths.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/config_paths.py) | Central path resolution (`resolve_cluster_path()`) |
+| `.env` | `GOOGLE_API_KEY` for Gemini LLM |
+| `.streamlit/` | Streamlit theme/config |
+
+---
+
+## 11. Testing & Verification
+
+| Path | Purpose |
+|:---|:---|
+| `tests/` | pytest-based test suite |
+| `pytest.ini` | Test configuration |
+| `test_safety_validator_st010.py` | Specialized safety validator tests |
+| `scripts/validate_phase5.py` | Phase 5 end-to-end validation |
+| `scripts/verify_cha_implementation.py` | CHA implementation verification |
+
+---
+
+## 12. Module Sizes at a Glance
+
+| Module | Files | Key File | Lines |
+|:---|:---:|:---|---:|
+| CHA | 16+ | `network_builder_trunk_spur.py` | 1,875 |
+| UI | 8 | `app.py` | 1,685 |
+| Orchestrator | 1 | `orchestrator.py` | 983 |
+| UHDC | 6 | `report_builder.py` | 988 |
+| Validation | 8 | `logic_auditor.py` | 911 |
+| Scripts | 4 | `01_run_cha.py` | 858 |
+| Domain Agents | 1 | `domain_agents.py` | 987 |
+| ADK Tools | 1 | `tools.py` | 650 |
+| ADK Agent | 1 | `agent.py` | 665 |
+| Data | 4 | `loader.py` | 665 |
+| Economics | 7 | `lcoh.py` | 558 |
+| DHA | 10 | `dha_readme.md` | ~ |
+| Decision | 3 | `kpi_contract.py` | 436 |
+| Conversation | 1 | `conversation.py` | 405 |
+| Fallback | 1 | `fallback.py` | 392 |
+| NLU | 2 | `intent_classifier.py` | 383 |

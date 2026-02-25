@@ -12,8 +12,8 @@ SCENARIO_REGISTRY = {
             "--cluster-id", "{cluster_id}",
             "--use-trunk-spur",  # Default: use trunk-spur builder (required for convergence)
             "--optimize-convergence",  # Default: optimize for numerical stability
-            "--plant-wgs84-lat", "51.76274",  # Fixed Cottbus CHP (default)
-            "--plant-wgs84-lon", "14.3453979",
+            "--plant-wgs84-lat", "51.758",  # Fixed HKW Cottbus (default)
+            "--plant-wgs84-lon", "14.364",
             "--disable-auto-plant-siting"
         ],
         "kwargs_map": {

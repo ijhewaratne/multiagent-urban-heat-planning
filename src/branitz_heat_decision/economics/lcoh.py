@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # --- Marginal Cost vs. Sunk Cost: Plant Context ---
 
-PlantCostAllocation = Literal["full", "marginal", "proportional", "none"]
+PlantCostAllocation = Literal["marginal"]
 
 
 @dataclass
@@ -180,7 +180,7 @@ def compute_lcoh_dh_for_cluster(
     plant_context: Optional[PlantContext] = None,
     pump_cost_eur: float = 5000.0,
     params: Optional[EconomicParameters] = None,
-    cost_allocation_method: Literal["marginal", "proportional", "none"] = "marginal",
+    cost_allocation_method: Literal["marginal"] = "marginal",
 ) -> Dict[str, Any]:
     """
     Compute LCOH for a street cluster with proper marginal cost accounting.
@@ -198,7 +198,7 @@ def compute_lcoh_dh_for_cluster(
         plant_context: Shared plant context (for marginal allocation)
         pump_cost_eur: Street-specific pump cost (€)
         params: Economic parameters (uses defaults if None)
-        cost_allocation_method: 'marginal', 'proportional', or 'none'
+        cost_allocation_method: 'marginal'
 
     Returns:
         Dict with lcoh_eur_per_mwh, capex breakdown, plant allocation details
@@ -241,26 +241,16 @@ def compute_lcoh_dh_for_cluster(
         "rationale": "No allocation",
     }
 
-    if plant_context and cost_allocation_method == "marginal":
+    if cost_allocation_method != "marginal":
+        raise ValueError(
+            f"Only marginal allocation is supported, got {cost_allocation_method}"
+        )
+
+    if plant_context:
         # TRUE marginal cost - only expansion costs
         allocation = plant_context.get_marginal_allocation(street_peak_load_kw)
         capex_plant = allocation["allocated_eur"]
         plant_info = allocation
-
-    elif plant_context and cost_allocation_method == "proportional":
-        # Proportional - for comparison only (not recommended for street-level)
-        share = (
-            street_peak_load_kw / plant_context.total_capacity_kw
-            if plant_context.total_capacity_kw > 0
-            else 0
-        )
-        capex_plant = share * plant_context.total_cost_eur
-        plant_info = {
-            "allocated_eur": capex_plant,
-            "method": "proportional",
-            "capacity_share_frac": share,
-            "rationale": f"Proportional: {share*100:.1f}% of total plant cost",
-        }
 
     # --- 4. LV GRID UPGRADE COSTS ---
     lv_upgrade_cost = _calculate_lv_upgrade_cost(
@@ -330,7 +320,7 @@ def compute_lcoh_dh(
     params: EconomicParameters,
     plant_cost_override: Optional[float] = None,
     *,
-    plant_cost_allocation: PlantCostAllocation = "full",
+    plant_cost_allocation: PlantCostAllocation = "marginal",
     plant_context: Optional[PlantContext] = None,
     street_peak_load_kw: Optional[float] = None,
     district_total_design_capacity_kw: Optional[float] = None,
@@ -339,10 +329,7 @@ def compute_lcoh_dh(
     Compute LCOH for District Heating using CRF method.
 
     Economic Principle: Marginal Cost vs. Sunk Cost
-    - full: Include full plant cost (default, backward compatible)
-    - none: Exclude plant cost (street-level network extension only)
     - marginal: Only allocate cost if street triggers capacity expansion (requires plant_context)
-    - proportional: Allocate plant cost by capacity share (requires plant_context or district_total_design_capacity_kw)
 
     Returns (lcoh_eur_per_mwh, breakdown_dict).
     """
@@ -367,18 +354,12 @@ def compute_lcoh_dh(
 
     # 2) Plant CAPEX - Marginal Cost vs. Sunk Cost
     capex_plant = 0.0
-    plant_allocation_info: Dict[str, object] = {
-        "method": plant_cost_allocation,
-        "rationale": "Full plant cost (default)",
-    }
+    plant_allocation_info: Dict[str, object] = {"method": plant_cost_allocation}
 
     if plant_cost_override is not None:
         # Explicit override takes precedence
         capex_plant = float(plant_cost_override)
         plant_allocation_info["rationale"] = "Explicit plant_cost_override"
-    elif plant_cost_allocation == "none":
-        capex_plant = 0.0
-        plant_allocation_info["rationale"] = "No plant cost (street-level marginal cost)"
     elif plant_cost_allocation == "marginal":
         if plant_context is not None and street_peak_load_kw is not None:
             allocation = plant_context.calculate_marginal_allocation(float(street_peak_load_kw))
@@ -390,29 +371,10 @@ def compute_lcoh_dh(
             plant_allocation_info["rationale"] = (
                 "Marginal requested but no plant context - 0€ allocation (cost at district level)"
             )
-    elif plant_cost_allocation == "proportional":
-        peak_kw = street_peak_load_kw if street_peak_load_kw is not None else 0.0
-        district_kw = (
-            district_total_design_capacity_kw
-            if district_total_design_capacity_kw is not None
-            else (plant_context.total_capacity_kw if plant_context else 0.0)
-        )
-        if district_kw > 0 and peak_kw > 0:
-            share = peak_kw / district_kw
-            capex_plant = share * (
-                plant_context.total_cost_eur if plant_context else float(params.plant_cost_base_eur)
-            )
-            plant_allocation_info.update(
-                {"allocated_eur": capex_plant, "capacity_share_frac": share}
-            )
-            plant_allocation_info["rationale"] = f"Proportional allocation: {share*100:.1f}% of plant capacity"
-        else:
-            capex_plant = float(params.plant_cost_base_eur)
-            plant_allocation_info["rationale"] = "Proportional fallback: no district capacity, using full"
     else:
-        # full (default)
-        capex_plant = float(params.plant_cost_base_eur)
-        plant_allocation_info["rationale"] = "Full plant cost allocated to cluster"
+        raise ValueError(
+            f"Only marginal allocation is supported, got {plant_cost_allocation}"
+        )
 
     total_capex = capex_pipes + capex_pump + capex_plant
 
@@ -521,7 +483,7 @@ def lcoh_dh_crf(
     *,
     street_peak_load_kw: Optional[float] = None,
 ) -> float:
-    """Back-compat: return only LCOH. Pass street_peak_load_kw for marginal/proportional allocation."""
+    """Back-compat: return only LCOH. Pass street_peak_load_kw for marginal allocation."""
     plant_ctx = build_plant_context_from_params(params) if hasattr(params, "plant_total_capacity_kw") else None
     v, _ = compute_lcoh_dh(
         annual_heat_mwh=inputs.heat_mwh_per_year,
@@ -529,7 +491,7 @@ def lcoh_dh_crf(
         total_pipe_length_m=inputs.total_pipe_length_m,
         pump_power_kw=inputs.pump_power_kw,
         params=params,
-        plant_cost_allocation=getattr(params, "plant_cost_allocation", "full"),
+        plant_cost_allocation=getattr(params, "plant_cost_allocation", "marginal"),
         plant_context=plant_ctx,
         street_peak_load_kw=street_peak_load_kw,
         district_total_design_capacity_kw=getattr(params, "district_total_design_capacity_kw", None) or None,

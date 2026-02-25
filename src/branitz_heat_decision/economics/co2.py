@@ -35,12 +35,20 @@ def compute_co2_dh(
 
     gen_type = str(generation_type) if generation_type else params.dh_generation_type
 
+    allocation_factor_heat = None
     if gen_type == "gas":
-        efficiency = 0.90
+        # CHP-aware heat-side allocation for DH.
+        efficiency = float(params.dh_total_efficiency)
         emission_factor = float(params.ef_gas_kg_per_mwh)
-        logger.debug("Using gas generation: ef=%.1f kg/MWh, eff=%.2f", emission_factor, efficiency)
-        co2_per_mwh = emission_factor / efficiency
-        annual_co2 = (float(annual_heat_mwh) / efficiency) * emission_factor
+        allocation_factor_heat = float(params.dh_co2_allocation_factor_heat)
+        logger.debug(
+            "Using gas CHP generation: ef=%.1f kg/MWh, eta_total=%.2f, AF_heat=%.2f",
+            emission_factor,
+            efficiency,
+            allocation_factor_heat,
+        )
+        co2_per_mwh = (emission_factor / efficiency) * allocation_factor_heat
+        annual_co2 = (float(annual_heat_mwh) / efficiency) * emission_factor * allocation_factor_heat
     elif gen_type == "biomass":
         efficiency = 0.85
         emission_factor = float(params.ef_biomass_kg_per_mwh)
@@ -64,6 +72,7 @@ def compute_co2_dh(
         "generation_type": gen_type,
         "efficiency": float(efficiency) if gen_type in ["gas", "biomass"] else None,
         "emission_factor_kg_per_mwh": float(emission_factor),
+        "allocation_factor_heat": float(allocation_factor_heat) if allocation_factor_heat is not None else None,
     }
     return float(co2_per_mwh), breakdown
 

@@ -203,9 +203,9 @@ def main() -> None:
     ap.add_argument(
         "--plant-cost-allocation",
         type=str,
-        default="full",
-        choices=["full", "marginal", "proportional", "none"],
-        help="Plant cost allocation: full (default), marginal, proportional, none",
+        default="marginal",
+        choices=["marginal"],
+        help="Plant cost allocation mode (only supported: marginal)",
     )
     ap.add_argument("--sensitivity", action="store_true", help="Run sensitivity analysis (±5% parameter variations)")
     ap.add_argument("--stress-tests", action="store_true", help="Run stress test scenarios")
@@ -263,11 +263,7 @@ def main() -> None:
         )
         connection_length_m = get_trunk_connection_length_m(cluster_id)
         pump_cost_eur = pump_power_kw * float(params.pump_cost_per_kw)
-        cost_method = (
-            params.plant_cost_allocation
-            if params.plant_cost_allocation in ("marginal", "proportional", "none")
-            else "marginal"
-        )
+        cost_method = "marginal"
         cluster_result = compute_lcoh_dh_for_cluster(
             annual_heat_demand_mwh=annual_heat_mwh,
             pipe_network_results=combined_results,
@@ -372,6 +368,8 @@ def main() -> None:
             "ef_electricity_kg_per_mwh": params.ef_electricity_kg_per_mwh,
             "ef_gas_kg_per_mwh": params.ef_gas_kg_per_mwh,
             "ef_biomass_kg_per_mwh": params.ef_biomass_kg_per_mwh,
+            "dh_total_efficiency": params.dh_total_efficiency,
+            "dh_co2_allocation_factor_heat": params.dh_co2_allocation_factor_heat,
             "feeder_loading_planning_limit": params.feeder_loading_planning_limit,
         "plant_cost_allocation": params.plant_cost_allocation,
         "plant_allocation": lcoh_dh_breakdown.get("plant_allocation", {}),

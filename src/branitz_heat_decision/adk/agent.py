@@ -222,8 +222,8 @@ class CHAAgent(BaseADKAgent):
     def run(
         self,
         use_trunk_spur: bool = True,
-        plant_wgs84_lat: Optional[float] = 51.76274,
-        plant_wgs84_lon: Optional[float] = 14.3453979,
+        plant_wgs84_lat: Optional[float] = 51.758,
+        plant_wgs84_lon: Optional[float] = 14.364,
         disable_auto_plant_siting: bool = True,
         optimize_convergence: bool = True,
     ) -> AgentAction:
@@ -439,8 +439,8 @@ class BranitzADKAgent(BaseADKAgent):
     def run_cha(
         self,
         use_trunk_spur: bool = True,
-        plant_wgs84_lat: Optional[float] = 51.76274,
-        plant_wgs84_lon: Optional[float] = 14.3453979,
+        plant_wgs84_lat: Optional[float] = 51.758,
+        plant_wgs84_lon: Optional[float] = 14.364,
         disable_auto_plant_siting: bool = True,
         optimize_convergence: bool = True,
     ) -> AgentAction:

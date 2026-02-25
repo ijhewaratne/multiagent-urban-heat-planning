@@ -1,10 +1,9 @@
 """
 Configuration for Heinrich-Zille-Straße demonstrating marginal cost principles.
 
-Evaluates three cost allocation scenarios:
-- marginal: True marginal cost (only incremental capacity)
-- proportional: Proportional allocation by capacity share
-- none: No plant cost (pure street infrastructure)
+Evaluates marginal allocation under two capacity conditions:
+- marginal_spare_capacity: Existing spare plant capacity available
+- marginal_capacity_constrained: Additional plant capacity required
 """
 
 from __future__ import annotations
@@ -88,45 +87,6 @@ def evaluate_heinrich_zille_scenarios(
     )
     br2["lcoh_eur_per_mwh"] = lcoh2
     results["marginal_capacity_constrained"] = br2
-
-    # Proportional (using existing plant capacity share)
-    district_capacity = 5000.0
-    lcoh3, br3 = compute_lcoh_dh(
-        annual_heat_mwh=street_demand_mwh,
-        pipe_lengths_by_dn=pipe_lengths,
-        total_pipe_length_m=total_pipe_length_m,
-        pump_power_kw=pump_power_kw,
-        params=params,
-        plant_cost_allocation="proportional",
-        plant_context=existing_plant,
-        street_peak_load_kw=street_peak_load_kw,
-        district_total_design_capacity_kw=district_capacity,
-    )
-    br3["lcoh_eur_per_mwh"] = lcoh3
-    results["proportional"] = br3
-
-    # No plant cost
-    lcoh4, br4 = compute_lcoh_dh(
-        annual_heat_mwh=street_demand_mwh,
-        pipe_lengths_by_dn=pipe_lengths,
-        total_pipe_length_m=total_pipe_length_m,
-        pump_power_kw=pump_power_kw,
-        params=params,
-        plant_cost_allocation="none",
-    )
-    results["no_plant"] = br4
-
-    # Full (default)
-    lcoh5, br5 = compute_lcoh_dh(
-        annual_heat_mwh=street_demand_mwh,
-        pipe_lengths_by_dn=pipe_lengths,
-        total_pipe_length_m=total_pipe_length_m,
-        pump_power_kw=pump_power_kw,
-        params=params,
-        plant_cost_allocation="full",
-    )
-    br5["lcoh_eur_per_mwh"] = lcoh5
-    results["full"] = br5
 
     return results
 

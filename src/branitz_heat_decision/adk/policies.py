@@ -220,8 +220,13 @@ def _policy_required_phases(action: str, context: Dict[str, Any]) -> tuple[bool,
             missing_phases.append(phase)
         elif phase == "dha" and not (phase_dir / "dha_kpis.json").exists():
             missing_phases.append(phase)
-        elif phase == "economics" and not (phase_dir / "monte_carlo_summary.json").exists():
-            missing_phases.append(phase)
+        elif phase == "economics":
+            # Support both current and legacy economics artifact names.
+            has_current_mc = (phase_dir / "economics_monte_carlo.json").exists()
+            has_legacy_mc = (phase_dir / "monte_carlo_summary.json").exists()
+            has_det = (phase_dir / "economics_deterministic.json").exists()
+            if not (has_current_mc or has_legacy_mc or has_det):
+                missing_phases.append(phase)
         elif phase == "decision" and not (phase_dir / f"decision_{cluster_id}.json").exists():
             missing_phases.append(phase)
     

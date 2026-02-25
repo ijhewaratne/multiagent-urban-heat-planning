@@ -51,7 +51,7 @@ GOOGLE_MODEL_DEFAULT = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash")
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "30"))
 UHDC_FORCE_TEMPLATE = os.getenv("UHDC_FORCE_TEMPLATE", "false").strip().lower() == "true"
 
-def _get_google_api_key() -> str | None:
+def _get_google_api_key() -> Optional[str]:
     """
     Retrieve GOOGLE_API_KEY from environment.
     Returns None if missing or placeholder.

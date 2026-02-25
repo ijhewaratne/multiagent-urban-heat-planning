@@ -351,12 +351,6 @@ def _get_available_streets() -> List[str]:
     return []
 
 
-def _get_default_cluster() -> str:
-    """Return first available street as fallback (used only when query needs a street)."""
-    streets = _get_available_streets()
-    return streets[0] if streets else ""
-
-
 def _get_cluster_id() -> str:
     """Get current cluster — starts empty, set from query text or street selector."""
     if "intent_chat_cluster" not in st.session_state:
@@ -669,6 +663,16 @@ def _process_message(user_input: str, cluster_id: str, messages: list, orch) -> 
                 "answer": str(e),
                 "suggestion": "Try: Compare CO₂ emissions",
             }
+
+    # Sync the pinned street to whatever the orchestrator actually resolved.
+    # This handles cases where the Street Resolver found a new street from
+    # NLU entities or conversation memory that differs from the UI default.
+    resolved_street = (
+        response.get("intent_data", {}).get("entities", {}).get("street_name")
+    )
+    if resolved_street and resolved_street != cluster_id:
+        st.session_state.intent_chat_cluster = resolved_street
+
     msg: Dict[str, Any] = {
         "role": "assistant",
         "content": response.get("answer", ""),
@@ -725,12 +729,14 @@ def main():
         with st.expander("Change street", expanded=False):
             streets = _get_available_streets()
             if streets:
-                idx = streets.index(cluster_id) if cluster_id in streets else 0
+                # Keep street unpinned until user explicitly selects one.
+                options = [""] + streets
+                idx = options.index(cluster_id) if cluster_id in options else 0
                 chosen = st.selectbox(
                     "Street",
-                    streets,
+                    options,
                     index=idx,
-                    format_func=lambda x: x.replace("_", " "),
+                    format_func=lambda x: x.replace("_", " ") if x else "No street selected",
                     key="street_selector",
                     label_visibility="collapsed",
                 )
@@ -765,32 +771,29 @@ def main():
         # Chat input
         user_input = st.chat_input("Ask about CO₂, LCOH, violations, network...")
         if user_input:
-            effective = cluster_id
-            if not effective:
-                import re
-                m = re.search(r"ST\d{3}_[\w\-]+", user_input, re.I)
-                if m:
-                    effective = m.group(0)
-                else:
-                    available = _get_available_streets()
-                    if available:
-                        from branitz_heat_decision.nlu import extract_street_entities
-                        effective = extract_street_entities(user_input, available)
-                if effective:
-                    st.session_state.intent_chat_cluster = effective
-                else:
-                    effective = _get_default_cluster()
+            import re
 
-            if not effective:
-                messages.append({"role": "user", "content": user_input})
-                messages.append({
-                    "role": "assistant",
-                    "content": "Please specify a street name in your message (e.g. 'Compare CO2 for Heinrich-Zille-Straße').",
-                    "type": "fallback", "data": {}, "execution_plan": [], "agent_trace": [],
-                })
-                st.rerun()
-                return
+            # Always try to extract a street from the new input so that
+            # switching streets mid-conversation updates the pin.
+            new_street = None
+            m = re.search(r"ST\d{3}_[\w\-]+", user_input, re.I)
+            if m:
+                new_street = m.group(0)
+            else:
+                available = _get_available_streets()
+                if available:
+                    from branitz_heat_decision.nlu import extract_street_entities
+                    new_street = extract_street_entities(user_input, available)
 
+            if new_street:
+                # User mentioned a (possibly different) street → update pin
+                effective = new_street
+                st.session_state.intent_chat_cluster = effective
+            else:
+                # No street in this message → keep current pin (for follow-ups)
+                effective = cluster_id
+
+            # Always call orchestrator (e.g. "list the streets" does not require a street)
             _process_message(user_input, effective, messages, orch)
             st.rerun()
 

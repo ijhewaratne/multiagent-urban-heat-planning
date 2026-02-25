@@ -18,13 +18,16 @@ class EconomicParameters:
 
     # Energy prices (EUR/MWh)
     electricity_price_eur_per_mwh: float = 250.0
-    gas_price_eur_per_mwh: float = 55.0  # Natural gas, current German prices (Cottbus CHP)
+    gas_price_eur_per_mwh: float = 40.0  # HKW Cottbus scenario default (35-45 €/MWh midpoint)
     biomass_price_eur_per_mwh: float = 110.0
 
     # Emission factors (kg CO2/MWh)
     ef_electricity_kg_per_mwh: float = 350.0  # German grid mix (reference)
     ef_gas_kg_per_mwh: float = 202.0  # Natural gas: 202 kg CO2/MWh (UBA)
     ef_biomass_kg_per_mwh: float = 25.0
+    # CHP heat-side CO2 allocation (for modern gas engines)
+    dh_total_efficiency: float = 0.93  # eta_total for CHP plant fuel-to-useful-energy
+    dh_co2_allocation_factor_heat: float = 0.65  # AF_heat: share of stack CO2 allocated to heat
 
     # CAPEX parameters
     pipe_cost_eur_per_m: Dict[str, float] = field(
@@ -42,7 +45,7 @@ class EconomicParameters:
             "DN200": 500.0,
         }
     )
-    plant_cost_base_eur: float = 1500000.0
+    plant_cost_base_eur: float = 90000000.0  # HKW modernization estimate midpoint
     pump_cost_per_kw: float = 500.0
 
     # HP parameters
@@ -63,17 +66,14 @@ class EconomicParameters:
     dh_generation_type: str = "gas"  # 'gas' | 'biomass' | 'electric'
 
     # Plant cost allocation (Marginal Cost vs. Sunk Cost principle)
-    # 'full' = include full plant cost (default, backward compatible)
-    # 'none' = exclude plant cost (street-level network extension only)
-    # 'marginal' = only allocate if street triggers capacity expansion (requires plant context)
-    # 'proportional' = allocate plant cost by capacity share
+    # Only "marginal" is supported system-wide.
     plant_cost_allocation: str = "marginal"
-    # For marginal/proportional: plant context (optional)
-    plant_total_capacity_kw: float = 0.0  # Total district plant capacity
-    plant_utilized_capacity_kw: float = 0.0  # Already allocated capacity
-    plant_is_built: bool = False  # True if plant exists (sunk cost)
-    plant_marginal_cost_per_kw_eur: float = 150.0  # Cost per kW for capacity expansion
-    district_total_design_capacity_kw: float = 0.0  # Sum of all clusters' design capacity (for proportional)
+    # Plant context defaults (HKW Cottbus)
+    plant_total_capacity_kw: float = 170000.0  # Total district plant thermal capacity
+    plant_utilized_capacity_kw: float = 85000.0  # Already allocated capacity (~50%)
+    plant_is_built: bool = True  # Existing sunk asset
+    plant_marginal_cost_per_kw_eur: float = 700.0  # €/kW expansion midpoint
+    district_total_design_capacity_kw: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.discount_rate) < 1.0:
@@ -82,9 +82,18 @@ class EconomicParameters:
             raise ValueError(f"Lifetime must be positive, got {self.lifetime_years}")
         if self.dh_generation_type not in ["gas", "biomass", "electric"]:
             raise ValueError(f"Unknown generation type: {self.dh_generation_type}")
-        if self.plant_cost_allocation not in ["full", "marginal", "proportional", "none"]:
+        if not 0.0 < float(self.dh_total_efficiency) <= 1.0:
             raise ValueError(
-                f"plant_cost_allocation must be one of full|marginal|proportional|none, got {self.plant_cost_allocation}"
+                f"dh_total_efficiency must be in (0,1], got {self.dh_total_efficiency}"
+            )
+        if not 0.0 < float(self.dh_co2_allocation_factor_heat) <= 1.0:
+            raise ValueError(
+                "dh_co2_allocation_factor_heat must be in (0,1], "
+                f"got {self.dh_co2_allocation_factor_heat}"
+            )
+        if self.plant_cost_allocation != "marginal":
+            raise ValueError(
+                f"plant_cost_allocation must be 'marginal', got {self.plant_cost_allocation}"
             )
         if not 0.0 < float(self.feeder_loading_planning_limit) <= 1.0:
             raise ValueError(

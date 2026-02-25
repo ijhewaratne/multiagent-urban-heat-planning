@@ -634,9 +634,6 @@ class BranitzOrchestrator:
                 "visualization": None,
             }
 
-        answer = self._format_answer(results, intent)
-        viz = self._create_viz(results, intent)
-
         # Map executor data keys to orchestrator data format for UI compatibility
         data = dict(results)
         if intent == "CO2_COMPARISON":
@@ -648,6 +645,10 @@ class BranitzOrchestrator:
         elif intent == "EXPLAIN_DECISION":
             # Enrich with full decision JSON from disk for UI rendering
             self._enrich_decision_data(data, intent_data)
+        
+        # Build answer/viz from enriched data (important for EXPLAIN_DECISION).
+        answer = self._format_answer(data, intent)
+        viz = self._create_viz(data, intent)
 
         return {
             "type": intent.lower(),
@@ -764,6 +765,29 @@ class BranitzOrchestrator:
                 " Note: this result is not robust "
                 "(Monte Carlo analysis missing or inconclusive)."
             )
+
+        # Prefer long-form LLM explanation when available.
+        llm_explanation = (results.get("llm_explanation") or "").strip()
+        if llm_explanation:
+            val = results.get("validation", {}) or {}
+            val_status = str(val.get("validation_status", "")).upper()
+            verified = val.get("verified_count")
+            total = val.get("statements_validated")
+            contradictions = val.get("contradiction_count", 0)
+            validation_line = (
+                f"Validation: {val_status} "
+                f"({verified}/{total} verified, {contradictions} contradictions)."
+                if val_status
+                else "Validation: unavailable."
+            )
+            return (
+                f"{answer}\n\n"
+                f"### Detailed Explanation (LLM)\n"
+                f"{llm_explanation}\n\n"
+                f"### Verification\n"
+                f"{validation_line}"
+            )
+
         return answer
 
     def _enrich_decision_data(
@@ -798,6 +822,26 @@ class BranitzOrchestrator:
         dec["reason"] = dec.get("reason", "") or (
             ", ".join(reason_codes) if reason_codes else ""
         )
+
+        # Attach long-form explanation text (if present)
+        expl_path = (
+            resolve_cluster_path(cluster_id, "decision")
+            / f"explanation_{cluster_id}.md"
+        )
+        if expl_path.exists():
+            try:
+                data.setdefault("llm_explanation", expl_path.read_text(encoding="utf-8").strip())
+            except Exception:
+                pass
+
+        # Attach validation artifact (latest verification report)
+        val_path = (
+            resolve_cluster_path(cluster_id, "decision")
+            / f"validation_{cluster_id}.json"
+        )
+        val = _load_json(val_path)
+        if val:
+            data.setdefault("validation", val)
 
         # Merge full decision fields into data (executor fields win on conflict)
         for key, val in dec.items():

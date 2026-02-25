@@ -749,14 +749,14 @@ Examples:
     parser.add_argument(
         '--plant-wgs84-lat',
         type=float,
-        default=51.76274,
-        help='Fixed plant latitude in WGS84 (EPSG:4326). Default: 51.76274 (Cottbus CHP)'
+        default=51.758,
+        help='Fixed plant latitude in WGS84 (EPSG:4326). Default: 51.758 (HKW Cottbus)'
     )
     parser.add_argument(
         '--plant-wgs84-lon',
         type=float,
-        default=14.3453979,
-        help='Fixed plant longitude in WGS84 (EPSG:4326). Default: 14.3453979 (Cottbus CHP)'
+        default=14.364,
+        help='Fixed plant longitude in WGS84 (EPSG:4326). Default: 14.364 (HKW Cottbus)'
     )
     parser.add_argument(
         '--enable-auto-plant-siting',
