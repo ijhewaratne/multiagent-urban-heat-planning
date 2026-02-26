@@ -32,21 +32,19 @@ The system is an AI-powered decision support platform that compares **District H
 ║                              21 Agents · 5 Layers · 10 Intent Types                                 ║
 ╚═══════════════════════════════════════════════╤═════════════════════════════════════════════════════════╝
                                                 │
-                ┌───────────────────────────────┼───────────────────────────────┐
-                │                               │                               │
-                ▼                               ▼                               ▼
-┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐
-│    Multi-Tab Dashboard    │ │    Intent Chat UI         │ │   Conversational UI       │
-│    ui/app.py              │ │    ui/app_intent_chat.py  │ │   ui/app_conversational.py│
-│    (Overview, Feasibility,│ │    (Two-Column + Trace:   │ │   (Chat-First with        │
-│     Economics, Compare &  │ │     Chat ⟵ Left           │ │    auto-context)          │
-│     Decide, Portfolio)    │ │     Viz  ⟵ Right          │ │                           │
-│                           │ │     SVG Trace ⟵ Bottom)   │ │                           │
-└────────────┬──────────────┘ └────────────┬──────────────┘ └────────────┬──────────────┘
-             │                             │                             │
-             └─────────────────────────────┼─────────────────────────────┘
-                                           │  user_query + cluster_id
-                                           ▼
+                │
+                ▼
+┌───────────────────────────────────────────────────────────┐
+│                    USER INTERFACE                         │
+│                 Intent Chat UI                            │
+│             ui/app_intent_chat.py                         │
+│                                                           │
+│    (Two-Column + Trace: Chat ⟵ Left, Viz ⟵ Right          │
+│                         SVG Trace ⟵ Bottom)               │
+└────────────────────────────┬──────────────────────────────┘
+                             │
+                             │  user_query + cluster_id
+                             ▼
 ╔══════════════════════════════════════════════════════════════════════════════════════════╗
 ║  LAYER 1: ORCHESTRATION            BranitzOrchestrator    (agents/orchestrator.py)      ║
 ║                                                                                         ║
@@ -280,12 +278,11 @@ The system is an AI-powered decision support platform that compares **District H
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         USER INTERFACE                              │
-│  ┌─────────────┐  ┌──────────────────┐  ┌───────────────────────┐  │
-│  │  Multi-Tab   │  │  Intent Chat UI  │  │  Conversational UI    │  │
-│  │  Dashboard   │  │  (app_intent_chat│  │  (Chat-First)         │  │
-│  │  (app.py)    │  │   w/ SVG Trace)  │  │(app_conversational)   │  │
-│  └──────┬───────┘  └────────┬─────────┘  └──────────┬────────────┘  │
-└─────────┼──────────────────┼────────────────────────┼───────────────┘
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    Intent Chat UI                             │  │
+│  │        (ui/app_intent_chat.py w/ SVG Trace)                   │  │
+│  └──────────────────────────────┬────────────────────────────────┘  │
+└─────────────────────────────────┼───────────────────────────────────┘
           │                  │                        │
           ▼                  ▼                        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -396,9 +393,7 @@ The system is an AI-powered decision support platform that compares **District H
 
 | File | Role |
 |------|------|
-| `ui/app.py` | Main multi-tab Streamlit dashboard (Overview, Feasibility, Economics, Compare & Decide, Intent Chat, Portfolio, Jobs) |
 | `ui/app_intent_chat.py` | Dedicated chat-first UI with a "Branitz Assistant" persona. Uses a two-column layout (chat on the left, visualizations on the right) and features a dynamic, full-width SVG bottom panel for the **Agent Execution Trace**, which provides full transparency into the Orchestrator → Executor → Domain Agent → Results flow. |
-| `ui/app_conversational.py` | Alternative conversational UI with auto-context detection |
 | `ui/services.py` | Backend services for data loading, job management, and result discovery (`ClusterService`, `JobService`, `ResultService`) |
 | `ui/llm.py` | Legacy LLM router for direct chat |
 | `ui/registry.py` | Scenario registry defining tool definitions, dependencies, and outputs |

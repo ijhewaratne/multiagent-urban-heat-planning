@@ -154,14 +154,14 @@ These call scripts/CLIs and return structured status dictionaries.
 
 | Domain Agent | Handles | Prerequisites / Cache | Delegates to |
 |---|---|---|---|
-| `DataPrepAgent` | Data preparation intents | Checks processed data files | ADK DataPrepAgent |
-| `CHAAgent` | DH simulation/network intents | `cha_kpis.json` + `network.pickle` | ADK CHAAgent |
-| `DHAAgent` | HP/LV-grid intents | `dha_kpis.json` | ADK DHAAgent |
-| `EconomicsAgent` | LCOH/CO2/economic intents | Requires CHA + DHA; checks economics JSON | ADK EconomicsAgent |
-| `DecisionAgent` | decision/explain intents | Requires economics; checks decision JSON | ADK DecisionAgent |
-| `ValidationAgent` | validate/audit intents | Needs explanation text + KPI files | direct validation modules |
-| `UHDCAgent` | report generation intents | Requires decision file | ADK UHDCAgent |
-| `WhatIfAgent` | what-if scenario intents | Uses baseline CHA network | CHAAgent + pandapipes |
+| `DataPrepAgent` | Data preparation intents | Checks processed data files | ADK `DataPrepAgent` |
+| `CHAAgent` | DH simulation/network intents | `cha_kpis.json` + `network.pickle` | ADK `CHAAgent` |
+| `DHAAgent` | HP/LV-grid intents | `dha_kpis.json` | ADK `DHAAgent` |
+| `EconomicsAgent` | LCOH/CO2/economic intents | Requires CHA + DHA; checks economics JSON | ADK `EconomicsAgent` |
+| `DecisionAgent` | decision/explain intents | Requires economics; checks decision JSON | ADK `DecisionAgent` |
+| `ValidationAgent` | validate/audit intents | Needs explanation text + KPI files | External validation logic |
+| `UHDCAgent` | report generation intents | Requires decision file | ADK `UHDCAgent` |
+| `WhatIfAgent` | what-if scenario intents | Uses baseline CHA network | Baseline net + `pandapipes` |
 
 ## 3.3 ADK agents (implemented classes)
 
@@ -1022,14 +1022,20 @@ def run_uhdc_tool(
 
 ## Summary Table
 
-| Agent | Module Directory | ADK Agent Class | CLI Script | Tool Function |
-|-------|------------------|-----------------|-------------|---------------|
-| **DataPrep** | `data/` | `DataPrepAgent` (line 169) | `00_prepare_data.py` | `prepare_data_tool()` (line 21) |
-| **CHA** | `cha/` | `CHAAgent` (line 198) | `01_run_cha.py` | `run_cha_tool()` (line 99) |
-| **DHA** | `dha/` | `DHAAgent` (line 240) | `02_run_dha.py` | `run_dha_tool()` (line 198) |
-| **Economics** | `economics/` | `EconomicsAgent` (line 285) | `03_run_economics.py` | `run_economics_tool()` (line 299) |
-| **Decision** | `decision/` | `DecisionAgent` (line 318) | `cli/decision.py` | `run_decision_tool()` (line 399) |
-| **UHDC** | `uhdc/` | `UHDCAgent` (line 357) | `cli/uhdc.py` | `run_uhdc_tool()` (line 499) |
+| Agent | Module Directory | Definition Layer | Execution Script | Details |
+|-------|------------------|------------------|------------------|---------|
+| **DataPrep** | `data/` | `DataPrepAgent` (Domain & ADK) | `00_prepare_data.py` | Data normalization and profiles |
+| **CHA** | `cha/` | `CHAAgent` (Domain & ADK) | `01_run_cha.py` | Central heating / Network |
+| **DHA** | `dha/` | `DHAAgent` (Domain & ADK) | `02_run_dha.py` | Heat Pump / LV grid |
+| **Economics** | `economics/` | `EconomicsAgent` (Domain & ADK) | `03_run_economics.py` | Capex/Opex/LCOH/CO₂ |
+| **Decision** | `decision/` | `DecisionAgent` (Domain & ADK) | `cli/decision.py` | Logical rules & LLM explain |
+| **UHDC** | `uhdc/` | `UHDCAgent` (Domain & ADK) | `cli/uhdc.py` | Report generation |
+| **Validation** | `validation/` | `ValidationAgent` (Domain only) | Internal logic | Audits claims in explanations |
+| **WhatIf** | `cha/` | `WhatIfAgent` (Domain only) | Internal pandapipes | Modifies baseline pipes/heat |
+| **Guardrail** | `agents/` | `CapabilityGuardrail` | `fallback.py` | Policy boundary enforcement |
+| **Conversation**| `agents/` | `ConversationManager` | `conversation.py` | Context & memory resolution |
+| **Orchestrator**| `agents/` | `BranitzOrchestrator` | `orchestrator.py` | Intent parsing & flow routing |
+| **Executor** | `agents/` | `DynamicExecutor` | `executor.py` | DAG resolution & task dispatch |
 
 ---
 

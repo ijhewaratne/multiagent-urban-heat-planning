@@ -13,7 +13,8 @@ Branitz Heat Decision is a **service-oriented, multi-agent system** that evaluat
 graph LR
     User((User)) -->|Chat / Click| UI[Streamlit UI]
     UI --> O[Orchestrator]
-    O -->|Intent| NLU[Intent Classifier]
+    O -->|Classify| NLU[Intent Classifier]
+    NLU -.->|intent result| O
     O -->|Execute| EX[DynamicExecutor]
     EX --> CHA[CHA Agent]
     EX --> DHA[DHA Agent]
@@ -31,14 +32,124 @@ graph LR
 
 ---
 
-## 2. Directory Structure
+## 2. How [app_intent_chat.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py) Drives the System
+
+You are using [app_intent_chat.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py) as the main interface. Here is the **exact data flow** from your chat input to the visualizations:
+
+```mermaid
+flowchart TD
+    subgraph UI["Streamlit Two-Column UI (app_intent_chat.py)"]
+        direction TB
+        LP["LEFT PANEL\nChat + AI Persona"]
+        RP["RIGHT PANEL\nVisualizations"]
+        BP["BOTTOM PANEL\nSVG Execution Trace"]
+    end
+
+    LP -->|"user_input"| PM["_process_message()"]
+    PM -->|"route_request(query, cluster_id, context)"| ORCH["BranitzOrchestrator\n(agents/orchestrator.py)"]
+
+    ORCH -->|"1. classify_intent(query)"| NLU["IntentClassifier\n(nlu/intent_classifier.py)\nGemini LLM + keyword fallback"]
+    NLU -->|"intent + entities + confidence"| ORCH
+
+    ORCH -->|"2. conversation.resolve_references()"| CONV["ConversationManager\n(agents/conversation.py)\nFollow-up detection, metric switching"]
+    CONV -->|"enriched intent"| ORCH
+
+    ORCH -->|"3. guardrail.validate_request()"| GUARD["CapabilityGuardrail\n(agents/fallback.py)\nBlocks unsupported operations"]
+    GUARD -->|"can_handle?"| ORCH
+
+    ORCH -->|"4. executor.execute(intent, street_id)"| EXEC["DynamicExecutor\n(agents/executor.py)\nHead Chef"]
+
+    EXEC -->|"_create_agent_plan()"| PLAN["Agent Plan\ne.g. [cha, dha, economics]"]
+    PLAN --> EXEC
+
+    EXEC -->|"sequential execution"| DA["Domain Agents\n(agents/domain_agents.py)"]
+
+    subgraph DA_SUB["Domain Agents (Layer 2)"]
+        CHA_A["CHAAgent"]
+        DHA_A["DHAAgent"]
+        ECON_A["EconomicsAgent"]
+        DEC_A["DecisionAgent"]
+        UHDC_A["UHDCAgent"]
+        WIF_A["WhatIfAgent"]
+    end
+
+    DA --> DA_SUB
+
+    subgraph ADK["ADK Tools (Layer 1) — subprocess.run()"]
+        T1["run_cha_tool"]
+        T2["run_dha_tool"]
+        T3["run_economics_tool"]
+        T4["run_decision_tool"]
+        T5["run_uhdc_tool"]
+    end
+
+    CHA_A --> T1
+    DHA_A --> T2
+    ECON_A --> T3
+    DEC_A --> T4
+    UHDC_A --> T5
+
+    subgraph SCRIPTS["Core Scripts (the muscles)"]
+        S1["01_run_cha.py\npandapipes hydraulics"]
+        S2["02_run_dha.py\npandapower load flow"]
+        S3["03_run_economics.py\nLCOH + Monte Carlo"]
+        S4["cli/decision.py\nDeterministic rules"]
+        S5["cli/uhdc.py\nJinja2 HTML report"]
+    end
+
+    T1 --> S1
+    T2 --> S2
+    T3 --> S3
+    T4 --> S4
+    T5 --> S5
+
+    S1 & S2 & S3 & S4 & S5 -->|"write JSON/HTML"| RES[("results/\ncha/ dha/ economics/\ndecision/ uhdc/")]
+
+    RES -->|"read back"| DA_SUB
+    DA_SUB -->|"AgentResult"| EXEC
+    EXEC -->|"_integrate_results()"| ORCH
+    ORCH -->|"_format_answer() + _create_viz()"| RESP["response dict\n{answer, type, data, sources,\nexecution_plan, agent_trace}"]
+
+    RESP --> PM
+    PM -->|"append to messages"| LP
+    PM -->|"data + type"| RP
+    PM -->|"agent_trace JSON"| BP
+
+    subgraph VIZ["Right-Panel Renderers"]
+        V1["_render_co2()\nAltair bar chart"]
+        V2["_render_lcoh()\nAltair bar chart"]
+        V3["_render_violations()\nMetric cards"]
+        V4["_render_network_design()\niframe map"]
+        V5["_render_what_if()\nBaseline vs Scenario"]
+        V6["_render_fallback_ui()\nCapability list"]
+    end
+
+    RP --> VIZ
+```
+
+### Step-by-step when you type a question
+
+1. **You type** in `st.chat_input()` (left panel, line 762)
+2. **Street extraction** — if no street selected, NLU's [extract_street_entities()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/nlu/intent_classifier.py#298-383) tries to find one in your query (line 773)
+3. **[_process_message()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py#633-678)** (line 650) calls `orch.route_request(user_input, cluster_id, context)`
+4. **Orchestrator** classifies intent via Gemini → resolves follow-ups via [ConversationManager](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/conversation.py#70-405) → checks guardrails → dispatches to [DynamicExecutor](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py#50-408)
+5. **Executor** builds an agent plan (e.g. `["cha", "dha", "economics"]` for LCOH) → runs each domain agent in order
+6. **Domain agents** check cache → if miss, delegate to ADK tool → which runs the CLI script as a subprocess
+7. **Scripts** do the heavy physics (pandapipes/pandapower/NumPy) → write results to [results/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/orchestrator.py#111-115)
+8. **Results flow back** through agents → executor → orchestrator formats answer + viz hints
+9. **Response stored** in `st.session_state.intent_chat_messages`
+10. **Right panel** renders the matching visualization ([_render_co2](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py#363-386), [_render_lcoh](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/ui/app_intent_chat.py#388-411), etc.)
+
+---
+
+## 3. Directory Structure
 
 | Path | Purpose |
 |:---|:---|
 | [pyproject.toml](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/pyproject.toml) | Package metadata, tooling config (black, mypy) |
 | [config/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py#24-65) | Decision config JSONs (2023, 2030, aggressive thresholds) |
 | [data/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/conversation.py#65-68) | Raw GeoJSON (buildings, streets, power grid) |
-| [results/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/orchestrator.py#111-115) | All simulation artifacts ([cha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#104-203), [dha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#205-312), [economics/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py#386-393), [decision/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py#358-370), [uhdc/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#485-563)) |
+| [results/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/orchestrator.py#111-115) | All simulation artifacts ([cha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#104-203), [dha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#205-312), [economics/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#314-393), [decision/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/executor.py#358-370), [uhdc/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/adk/tools.py#485-563)) |
 | `scripts/` | Top-level helper scripts (map generation, review packages) |
 | `tests/` | Test suite |
 | **`src/scripts/`** | **Pipeline entry-point scripts** (the "muscles") |

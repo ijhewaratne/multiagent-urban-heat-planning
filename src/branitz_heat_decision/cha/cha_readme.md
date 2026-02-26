@@ -7,8 +7,9 @@ Complete documentation for the CHA module implementing district heating network 
 **Primary Language**: Python 3.9+  
 **Dependencies**: pandapipes, networkx, geopandas, shapely, pandas, numpy, folium
 
-**Last Updated**: 2026-01-24  
+**Last Updated**: 2026-02-26  
 **Recent Updates**:
+- ✅ Added comprehensive documentation for all validation sub-modules (`geospatial`, `thermal`, `robustness`)
 - ✅ Added context-aware validation warnings for trunk-spur networks (`hydraulic_checks.py`)
 - ✅ Added 25% design margin to pipe sizing for robustness (`network_builder_trunk_spur.py`)
 - ✅ Added comprehensive design validation system (`design_validator.py`)
@@ -646,6 +647,112 @@ result = validator.validate(net)
 ```
 
 ---
+
+### `thermal_checks.py` (256 lines) ⭐ **VALIDATION MODULE**
+**Purpose**: Thermal performance validation including heat losses, temperatures, and spread.
+
+**Classes**:
+
+#### `ThermalValidator`
+```python
+class ThermalValidator:
+    def __init__(self, config)
+    def validate(self, net: pp.pandapipesNet) -> ThermalResult
+```
+
+**Validation Checks**:
+
+1. **Heat Loss Checks** (`_check_heat_losses()`):
+   - Approximates total heat delivered vs. losses globally across the network.
+   - Computes `heat_loss_pct` = `100 * Q_loss / (Q_delivered + Q_loss)`.
+   - Warns if `heat_loss_pct` > recommended limit (e.g. 15%).
+   - Hard fails if `heat_loss_pct` > absolute limit (e.g. 25%).
+
+2. **Temperature Checks** (`_check_temperatures()`):
+   - Checks supply temperature logic against `min_supply_temp_dhw` (Legionella prevention) and `max_supply_temp`.
+   - Checks return temperature logic against `min_return_temp` (condensing boiler efficiency).
+   - Validates temperature spread (warns if $\Delta T < 20^\circ C$).
+
+**Returns**:
+- `ThermalResult` with:
+  - `passed`: bool
+  - `issues`, `warnings`: Lists of strings
+  - `metrics`: `supply_temp_c`, `return_temp_c`, `temp_spread_c`, `heat_loss_pct`, etc.
+
+**Interactions**:
+- **Called by**: `design_validator.py`
+- **Uses**: `ValidationConfig.en13941` for thresholds.
+
+---
+
+### `geospatial_checks.py` (320 lines) ⭐ **VALIDATION MODULE**
+**Purpose**: Geospatial validation to ensure pipes follow streets and all buildings are securely connected.
+
+**Classes**:
+
+#### `GeospatialValidator`
+```python
+class GeospatialValidator:
+    def __init__(self, config)
+    def validate(self, net: pp.pandapipesNet, streets_gdf: gpd.GeoDataFrame, buildings_gdf: gpd.GeoDataFrame) -> GeospatialResult
+```
+
+**Validation Checks**:
+
+1. **Street Alignment Check** (`_check_street_alignment()`):
+   - Buffers the `streets_gdf` (e.g., 15m radius for right-of-way).
+   - Constructs Shapely LineStrings from pipe coordinates and tests `within(street_union)`.
+   - Warns or fails if pipes cross private property significantly outside the street buffer.
+2. **Building Connectivity Check** (`_check_building_connectivity()`):
+   - Evaluates the proximity of heat exchangers/sinks to actual building footprints.
+   - Raises an issue if required demand buildings are completely unconnected.
+   - Warns if the maximum service pipe length exceeds recommendations (e.g., 50m).
+3. **Topology Sanity Check** (`_check_topology_sanity()`):
+   - Ensures no isolated/floating junctions (not connected to any pipes).
+   - Ensures there are not multiple disconnected sub-components in the graph.
+   - Flags exceptionally long individual pipe segments.
+
+**Returns**:
+- `GeospatialResult` with spatial compliance percentages and issues.
+
+**Interactions**:
+- **Called by**: `design_validator.py`
+- **Uses**: `ValidationConfig.geospatial` for spatial thresholds.
+
+---
+
+### `robustness_checks.py` (218 lines) ⭐ **VALIDATION MODULE**
+**Purpose**: Robustness validation simulating Monte Carlo uncertainty analysis for demand and temperature.
+
+**Classes**:
+
+#### `RobustnessValidator`
+```python
+class RobustnessValidator:
+    def __init__(self, config)
+    def validate(self, net: pp.pandapipesNet) -> RobustnessResult
+```
+
+**Validation Checks**:
+
+1. **Monte Carlo Scenario Execution**:
+   - Executes $N$ scenarios (default 50).
+   - Randomizes demand for each scenario ($\pm 20\%$) using uniform distribution.
+   - Randomizes supply temperature ($\pm 5^\circ C$).
+2. **Constraint Verification**:
+   - Ensures pipeflow still converges under varied loads.
+   - Uses relaxed thresholds for uncertainty scenarios (e.g., allows up to $2.0\text{ m/s}$ velocity during surge conditions, instead of standard $1.5\text{ m/s}$).
+   - Fails the scenario if `max_pressure` > 20 bar or `min_pressure` < 0.5 bar.
+3. **Success Rate Calculation**:
+   - Compares successful scenarios against `min_success_rate` (e.g. 95%).
+   - Aggregates statistical metrics (mean, std, p95 limits for velocity and pressure).
+
+**Returns**:
+- `RobustnessResult` listing reliability metrics and success rates.
+
+**Interactions**:
+- **Called by**: `design_validator.py`
+- **Uses**: `ValidationConfig.robustness`, `copy.deepcopy` to replicate the base network.
 
 ### `design_validator.py` (334 lines) ⭐ **DESIGN VALIDATION SYSTEM**
 **Purpose**: Comprehensive design validation orchestrator
