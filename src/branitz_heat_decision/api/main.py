@@ -8,9 +8,11 @@ from contextlib import asynccontextmanager
 from .v1.endpoints import router as v1_router
 from .v1.demo import router as demo_router
 from .middleware import validation_exception_handler
+from .v1.secure_endpoints import router as secure_router
 from .metrics import metrics_middleware, get_metrics
 from ..api.tasks import celery_app
 from ..config.loader import config_manager
+from .auth import verify_access
 
 # Custom OpenAPI schema metadata
 tags_metadata = [
@@ -128,6 +130,7 @@ async def metrics():
 # Include versioned routers
 app.include_router(v1_router, prefix="/api/v1", tags=["Simulation"])
 app.include_router(demo_router, prefix="/api/v1", tags=["Demo"])
+app.include_router(secure_router, prefix="/api/v1/secure", tags=["Enterprise"])
 
 @app.get("/health", tags=["System"])
 async def health_check():

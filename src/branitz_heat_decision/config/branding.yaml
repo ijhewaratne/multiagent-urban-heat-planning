@@ -1,0 +1,53 @@
+# White-label configuration for Fraunhofer deployment
+branding:
+  # Identity
+  app_name: "Urban Heat Planner"
+  app_short_name: "UHP"
+  organization: "Fraunhofer IIS"
+  
+  # Visual Assets (paths relative to static folder)
+  logo_main: "/static/logo_fraunhofer.svg"
+  logo_alt: "/static/logo_iis.png"
+  favicon: "/static/favicon.ico"
+  
+  # Colors (CSS variables)
+  theme:
+    primary: "#0091DA"        # Fraunhofer Blue
+    secondary: "#6C757D"      # Neutral gray
+    success: "#28A745"
+    warning: "#FFC107"
+    danger: "#DC3545"
+    background: "#F8F9FA"
+    text: "#212529"
+    header_bg: "#FFFFFF"
+    sidebar_bg: "#F1F3F5"
+  
+  # Typography
+  fonts:
+    heading: "Fraunhofer Sans, system-ui, sans-serif"
+    body: "Source Sans Pro, system-ui, sans-serif"
+    mono: "Fira Code, monospace"
+  
+  # Text Content
+  content:
+    welcome_title: "District Heating Network Planner"
+    welcome_subtitle: "Analyze heat demand and optimize network topology for urban areas"
+    footer_text: "© 2024 Fraunhofer IIS. All calculations based on VDI 4655 and DIN 18599."
+    help_url: "https://www.iis.fraunhofer.de/en/publications/heat-planning.html"
+    contact_email: "heat-planning@iis.fraunhofer.de"
+  
+  # Features to enable/disable
+  features:
+    show_branding_footer: true
+    show_powered_by: false          # Hide original Branitz branding
+    enable_user_registration: false # Fraunhofer manages users via LDAP
+    enable_public_access: false     # Require authentication
+    allow_data_download: true
+    show_advanced_params: true      # Show technical parameters
+    
+  # Map Defaults
+  map:
+    default_center: [51.7563, 14.3329]  # Cottbus
+    default_zoom: 13
+    tile_layer: "CartoDB.Positron"      # Neutral, professional map style
+    attribution: "© OpenStreetMap contributors, © Fraunhofer IIS"

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ config.app_name }} - {{ config.organization }}</title>
+    
+    <!-- Dynamic Branding -->
+    <link rel="icon" href="{{ config.favicon }}">
+    <style>
+        :root {
+            --color-primary: {{ config.theme.primary }};
+            --color-secondary: {{ config.theme.secondary }};
+            --color-bg: {{ config.theme.background }};
+            --font-heading: {{ config.fonts.heading }};
+            --font-body: {{ config.fonts.body }};
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: var(--font-body);
+        }
+        
+        body {
+            background-color: var(--color-bg);
+            color: {{ config.theme.text }};
+        }
+        
+        .header {
+            background: {{ config.theme.header_bg }};
+            border-bottom: 2px solid var(--color-primary);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo-container img {
+            height: 40px;
+            width: auto;
+        }
+        
+        .app-title {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            color: var(--color-primary);
+            font-weight: 600;
+        }
+        
+        .main-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: calc(100vh - 70px);
+        }
+        
+        .sidebar {
+            background: {{ config.theme.sidebar_bg }};
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-right: 1px solid #dee2e6;
+        }
+        
+        .map-container {
+            position: relative;
+            background: #e9ecef;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: #495057;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        button.primary {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        button.primary:hover {
+            opacity: 0.9;
+        }
+        
+        .help-text {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        
+        {% if not config.features.show_powered_by %}
+        .powered-by { display: none !important; }
+        {% endif %}
+        
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: {{ config.theme.header_bg }};
+            border-top: 1px solid #dee2e6;
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+    
+    <!-- Leaflet for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="logo-container">
+            <img src="{{ config.logo_main }}" alt="Logo">
+            <div>
+                <div class="app-title">{{ config.app_name }}</div>
+                <div style="font-size: 0.8rem; color: #6c757d;">{{ config.content.welcome_subtitle }}</div>
+            </div>
+        </div>
+        <div class="user-menu">
+            {% if user %}
+            <span>{{ user.name }}</span>
+            <a href="/logout">Logout</a>
+            {% else %}
+            <a href="/login">Login</a>
+            {% endif %}
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <aside class="sidebar">
+            <h3 style="margin-bottom: 1rem; color: var(--color-primary);">New Analysis</h3>
+            
+            <form id="analysis-form">
+                <div class="form-group">
+                    <label>Location Type</label>
+                    <select id="location-type" onchange="toggleLocationInput()">
+                        <option value="postal">Postal Code</option>
+                        <option value="coordinates">Coordinates</option>
+                        <option value="upload">Upload Data</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="postal-group">
+                    <label>Postal Code</label>
+                    <input type="text" id="postal-code" placeholder="03046" pattern="\d{5}">
+                    <div class="help-text">German 5-digit postal code</div>
+                </div>
+                
+                <div class="form-group" id="coordinates-group" style="display:none;">
+                    <label>Plant Location (Lat, Lon)</label>
+                    <input type="text" id="plant-lat" placeholder="51.7563" style="margin-bottom: 0.5rem;">
+                    <input type="text" id="plant-lon" placeholder="14.3329">
+                    <div class="help-text">WGS84 coordinates of heat plant</div>
+                </div>
+                
+                <div class="form-group" id="upload-group" style="display:none;">
+                    <label>Upload Building Data</label>
+                    <input type="file" id="data-upload" accept=".geojson,.shp,.gpkg">
+                    <div class="help-text">GeoJSON, Shapefile, or GeoPackage</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Max Pipe Distance (m)</label>
+                    <input type="number" id="max-distance" value="3000" min="500" max="10000" step="100">
+                </div>
+                
+                <div class="form-group">
+                    <label>Analysis Depth</label>
+                    <select id="analysis-mode">
+                        <option value="quick">Quick (100 buildings)</option>
+                        <option value="standard">Standard (1000 buildings)</option>
+                        <option value="detailed">Detailed (5000 buildings)</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="primary">Run Analysis</button>
+            </form>
+            
+            <div id="results-panel" style="margin-top: 2rem; display: none;">
+                <h4>Results</h4>
+                <div id="metrics"></div>
+                <button onclick="downloadResults()" style="margin-top: 1rem; width: 100%;">Download Report</button>
+            </div>
+        </aside>
+        
+        <main class="map-container">
+            <div id="map"></div>
+            <div id="loading-overlay" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.9); padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <div>Running Simulation...</div>
+                <progress id="simulation-progress" style="width: 200px; margin-top: 1rem;"></progress>
+            </div>
+        </main>
+    </div>
+    
+    {% if config.features.show_branding_footer %}
+    <footer class="footer">
+        {{ config.content.footer_text }} | 
+        <a href="{{ config.content.help_url }}">Help</a> | 
+        <a href="mailto:{{ config.content.contact_email }}">Contact</a>
+    </footer>
+    {% endif %}
+    
+    <script>
+        // Initialize map
+        const map = L.map('map').setView({{ config.map.default_center|tojson }}, {{ config.map.default_zoom }});
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '{{ config.map.attribution }}'
+        }).addTo(map);
+        
+        let plantMarker = null;
+        
+        map.on('click', function(e) {
+            if (document.getElementById('location-type').value === 'coordinates') {
+                if (plantMarker) map.removeLayer(plantMarker);
+                plantMarker = L.marker(e.latlng).addTo(map);
+                document.getElementById('plant-lat').value = e.latlng.lat.toFixed(6);
+                document.getElementById('plant-lon').value = e.latlng.lng.toFixed(6);
+            }
+        });
+        
+        function toggleLocationInput() {
+            const type = document.getElementById('location-type').value;
+            document.getElementById('postal-group').style.display = type === 'postal' ? 'block' : 'none';
+            document.getElementById('coordinates-group').style.display = type === 'coordinates' ? 'block' : 'none';
+            document.getElementById('upload-group').style.display = type === 'upload' ? 'block' : 'none';
+        }
+        
+        document.getElementById('analysis-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            document.getElementById('loading-overlay').style.display = 'block';
+            
+            const formData = {
+                region: {
+                    postal_code: document.getElementById('postal-code').value,
+                    plant_location: {
+                        lat: parseFloat(document.getElementById('plant-lat').value) || 51.7563,
+                        lon: parseFloat(document.getElementById('plant-lon').value) || 14.3329
+                    }
+                },
+                max_pipe_distance_m: parseInt(document.getElementById('max-distance').value),
+                max_buildings_to_process: parseInt(document.getElementById('analysis-mode').value === 'quick' ? 100 : 1000)
+            };
+            
+            try {
+                const response = await fetch('/api/v1/simulate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.network_geojson) {
+                    L.geoJSON(result.network_geojson, {
+                        style: {color: '{{ config.theme.primary }}', weight: 3}
+                    }).addTo(map);
+                    
+                    document.getElementById('results-panel').style.display = 'block';
+                    document.getElementById('metrics').innerHTML = `
+                        <p><strong>LCOH:</strong> ${result.economics.lcoh_eur_mwh} €/MWh</p>
+                        <p><strong>Network Length:</strong> ${result.network.total_pipe_length_m} m</p>
+                        <p><strong>CO2 Savings:</strong> ${result.environment.co2_savings_vs_baseline_tons} tons/a</p>
+                    `;
+                }
+            } catch (error) {
+                alert('Error running simulation: ' + error.message);
+            } finally {
+                document.getElementById('loading-overlay').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
