@@ -30,6 +30,3 @@ def resolve_cluster_path(cluster_id: str, phase: str) -> Path:
     """Get result directory for a cluster and phase."""
     return RESULTS_ROOT / phase / cluster_id
 
-from .loader import config_manager
-from .schemas import AppConfig, CityConfig
-
