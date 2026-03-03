@@ -1,0 +1,30 @@
+name: "Cottbus"
+country: "Germany"
+climate_zone: "Dfb"
+crs: "EPSG:32633"
+center_lat: 51.7563
+center_lon: 14.3329
+
+economic:
+  electricity_price_eur_kwh: 0.32  # Local Cottbus pricing
+  gas_price_eur_kwh: 0.075
+  co2_price_eur_ton: 85.0
+  discount_rate: 0.04
+  plant_lifetime_years: 25
+
+physics:
+  design_temp_ambient_c: -12  # German VDI 2078 standard for Cottbus region
+  design_temp_supply_c: 75    # Low-temperature DH compatible
+  design_temp_return_c: 55
+  soil_temp_c: 9.0
+  heat_loss_coefficient: 0.45
+
+clustering:
+  min_buildings_per_cluster: 5
+  max_buildings_per_cluster: 40
+  max_distance_to_street_m: 40.0
+
+specific_heat_demand_kwh_m2a:
+  residential: 110  # Better insulated than average
+  commercial: 140
+  school: 120
