@@ -466,7 +466,7 @@ def _render_what_if(data: Dict[str, Any]):
                    f"Heat change: {comp.get('heat_delivered_change_mw', 0):.4f} MW")
 
 
-def _render_fallback_ui(response: Dict[str, Any]):
+def _render_fallback_ui(response: Dict[str, Any], result_key: str = ""):
     """Display fallback with structured capability information (Phase 5)."""
     data = response.get("data", {})
     category = data.get("category", response.get("category", "unknown"))
@@ -502,7 +502,7 @@ def _render_fallback_ui(response: Dict[str, Any]):
         for i, alt in enumerate(alternatives[:4]):
             if st.button(
                 f"  {alt}",
-                key=f"alt_{hash(str(alt))}_{i}",
+                key=f"alt_{hash(str(alt))}_{i}_{result_key}",
                 use_container_width=True,
             ):
                 st.session_state._fallback_suggestion = alt
@@ -616,7 +616,7 @@ def _render_visualization(response: Dict[str, Any], result_key: str = ""):
             else:
                 st.warning(f"Validation: {val_status}")
     elif rtype == "guardrail_blocked":
-        _render_fallback_ui(response)
+        _render_fallback_ui(response, result_key=result_key)
     else:
         st.markdown(
             '<div class="viz-header"><h3>Ask a question to see results here</h3></div>',
