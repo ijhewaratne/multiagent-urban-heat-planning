@@ -60,3 +60,12 @@ Thumbs.db
 # Parquet (large)
 *.parquet
 
+
+# Cleanup additions
+data/raw/
+data/processed/*.parquet
+results/
+cache/
+*.pyc
+.pytest_cache/
+archive/

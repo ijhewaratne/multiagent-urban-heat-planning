@@ -1,0 +1,191 @@
+# Agent Functions Reference
+
+> Every function listed below is what makes a user question **answerable**.
+> If a question maps to one of these functions → the system can handle it.
+
+---
+
+## 1. CHAAgent — District Heating Network Specialist
+
+**Module**: [cha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| [build_trunk_spur_network()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/network_builder_trunk_spur.py#27-372) | [network_builder_trunk_spur.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/network_builder_trunk_spur.py) | Builds supply+return pipe network from street graph, plant location → building spurs |
+| `pipeflow()` | pandapipes (external) | Runs hydraulic simulation: pressure, velocity, temperature at every node/pipe |
+| `optimize_convergence()` | [convergence_optimizer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/convergence_optimizer.py) | Iteratively adjusts pipe diameters and flow to achieve numerical convergence |
+| `optimize_spur_convergence()` | [convergence_optimizer_spur.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/convergence_optimizer_spur.py) | Spur-specific convergence tuning |
+| `compute_heat_loss()` | [heat_loss.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/heat_loss.py) | Per-pipe thermal loss calculation based on DN, insulation, ground temperature |
+| `load_pipe_catalog()` | [sizing.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/sizing.py) | Loads DN-based pipe specifications |
+| `load_technical_catalog()` | [sizing_catalog.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/sizing_catalog.py) | Full technical pipe catalog with dimensions, U-values, costs |
+| [extract_kpis()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/kpi_extractor.py#62-152) | [kpi_extractor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/kpi_extractor.py) | Extracts EN 13941-1 KPIs: velocity, pressure drop, temperature, pump power |
+| [_check_en13941_compliance()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/kpi_extractor.py#417-467) | [kpi_extractor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/kpi_extractor.py) | Checks against EN 13941-1 limits (v ≤ 2 m/s, Δp ≤ 0.3 bar/100m, 95% compliance) |
+| `validate_design()` | [design_validator.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/design_validator.py) | Validates overall network design quality |
+| `check_hydraulics()` | [hydraulic_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/hydraulic_checks.py) | Pressure/velocity limit checks per pipe |
+| `check_thermal()` | [thermal_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/thermal_checks.py) | Temperature drop and heat loss checks |
+| `check_geospatial()` | [geospatial_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/geospatial_checks.py) | Geometry validity, building-to-pipe distances |
+| `check_robustness()` | [robustness_checks.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/robustness_checks.py) | Network robustness under stress |
+| `export_qgis()` | [qgis_export.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/qgis_export.py) | Exports network to QGIS-compatible formats |
+
+**Answerable questions**: *"Is DH feasible?", "Show the network layout", "What are the pressure violations?", "How fast is water flowing?"*
+
+---
+
+## 2. DHAAgent — Heat Pump Grid Specialist
+
+**Module**: [dha/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| `build_lv_grid()` | [grid_builder.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/grid_builder.py) | Builds low-voltage electrical grid model from GeoJSON |
+| `run_loadflow()` | [loadflow.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/loadflow.py) | pandapower AC load flow with heat pump loads |
+| `assess_hosting_capacity()` | [hosting_capacity.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/hosting_capacity.py) | Max number of HPs the grid can handle without violations |
+| [extract_dha_kpis()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/kpi_extractor.py#12-242) | [kpi_extractor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/cha/kpi_extractor.py) | Voltage violations, line loading %, feeder distance, transformer loading |
+| `evaluate_mitigations()` | [mitigations.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/mitigations.py) | Voltage regulation strategies (tap changers, reactive power) |
+| `simulate_smart_grid_strategies()` | [smart_grid_strategies.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/smart_grid_strategies.py) | Smart charging, demand response, load shifting |
+| `plan_grid_reinforcement()` | [reinforcement_optimizer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/reinforcement_optimizer.py) | Cable/transformer upgrade planning with costs |
+| `generate_base_loads()` | [base_loads.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/base_loads.py) / [bdew_base_loads.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/bdew_base_loads.py) | BDEW standard electrical load profiles |
+| `export_results()` | [export.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/export.py) | Export DHA results to JSON/HTML maps |
+| `map_buildings_to_grid()` | [mapping.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/dha/mapping.py) | Maps building locations to grid nodes |
+
+**Answerable questions**: *"Can heat pumps work here?", "Are there voltage violations?", "How loaded is the grid?", "What grid upgrades are needed?"*
+
+---
+
+## 3. EconomicsAgent — Cost & CO₂ Specialist
+
+**Module**: [economics/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| [compute_lcoh_dh()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py#315-419) | [lcoh.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py) | LCOH for District Heating (CRF method, marginal plant cost allocation) |
+| [compute_lcoh_hp()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py#421-478) | [lcoh.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py) | LCOH for Heat Pump system (CRF method, incl. grid upgrade costs) |
+| [compute_lcoh_dh_for_cluster()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py#175-297) | [lcoh.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py) | Street-level LCOH with proper marginal vs sunk cost accounting |
+| [compute_lcoh_district_aggregate()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py#502-545) | [lcoh.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py) | District-wide LCOH aggregation across multiple streets |
+| [compute_co2_dh()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/co2.py#21-78) | [co2.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/co2.py) | CO₂ emissions for DH (gas CHP / biomass / electric, with allocation factor) |
+| [compute_co2_hp()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/co2.py#80-110) | [co2.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/co2.py) | CO₂ emissions for HP (grid electricity × COP) |
+| [run_monte_carlo_for_cluster()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/monte_carlo.py#329-431) | [monte_carlo.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/monte_carlo.py) | 500-sample MC with correlated parameter sampling (LCOH + CO₂ distributions) |
+| [compute_mc_summary()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/monte_carlo.py#433-509) | [monte_carlo.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/monte_carlo.py) | p05/p50/p95/mean/std + DH-cheaper win fraction + robustness flag |
+| `run_sensitivity()` | [sensitivity.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/sensitivity.py) | One-at-a-time parameter sensitivity analysis |
+| `run_stress_tests()` | [stress_tests.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/stress_tests.py) | Extreme scenario testing (worst-case gas price, grid fee spike, etc.) |
+| [get_plant_context_for_marginal()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py#90-111) | [lcoh.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/economics/lcoh.py) | Shared Cottbus CHP plant context for marginal costing |
+
+**Answerable questions**: *"What does DH cost?", "Compare CO₂ emissions", "How robust is the cost estimate?", "What if gas prices rise?"*
+
+---
+
+## 4. DecisionAgent — Rule-Based Decision Specialist
+
+**Module**: [decision/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| [build_kpi_contract()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py#64-136) | [kpi_contract.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py) | Assembles CHA + DHA + Economics KPIs into one canonical contract |
+| [decide_from_contract()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py#82-239) | [rules.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py) | **The core decision**: feasibility gate → cost comparison → MC robustness → CO₂ tiebreaker |
+| [validate_config()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py#24-65) | [rules.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/rules.py) | Validates decision thresholds (cost tolerance, win fractions) |
+| `ContractValidator.validate()` | [schemas.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/schemas.py) | Validates KPI contract schema completeness |
+| [_infer_dh_feasibility()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py#242-260) | [kpi_contract.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py) | Infers DH feasibility from CHA convergence + EN 13941-1 compliance |
+| [_infer_hp_feasibility()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py#261-277) | [kpi_contract.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py) | Infers HP feasibility from DHA violation counts |
+| [_infer_dh_reasons()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py#278-303) / [_infer_hp_reasons()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py#304-336) | [kpi_contract.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/decision/kpi_contract.py) | Generates reason codes (e.g. `COST_DH_CHEAPER`, `HP_VOLTAGE_VIOLATIONS`) |
+
+**Decision logic (deterministic, never LLM)**:
+1. If only one option is feasible → pick it
+2. If costs differ >5% → pick cheaper
+3. If costs are close → use Monte Carlo robustness (≥70% wins = robust)
+4. CO₂ tiebreaker if still tied
+
+**Answerable questions**: *"Which is better, DH or HP?", "Why was DH recommended?", "Is the decision robust?"*
+
+---
+
+## 5. ValidationAgent — Logic Auditor
+
+**Module**: [validation/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| `ClaimExtractor.extract_all()` | [logic_auditor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/logic_auditor.py) | Regex extraction of quantitative claims from LLM text |
+| `ClaimExtractor.cross_validate()` | [logic_auditor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/logic_auditor.py) | Cross-checks extracted numbers against canonical KPIs (±tolerance) |
+| `LogicAuditor.validate_rationale()` | [logic_auditor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/logic_auditor.py) | TNLI entailment check: is each statement supported by the data? |
+| `LogicAuditor.validate_explanation()` | [logic_auditor.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/logic_auditor.py) | Combined claim extraction + TNLI validation |
+| `TNLIModel.predict()` | [tnli_model.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/tnli_model.py) | Textual NLI: ENTAILED / NEUTRAL / CONTRADICTION per statement |
+| `ClaimValidator.validate()` | [claims.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/claims.py) | Structured claim validation pipeline |
+| `FeedbackLoop.regenerate()` | [feedback_loop.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/validation/feedback_loop.py) | Auto-regenerate LLM explanation if contradictions found |
+
+**Answerable questions**: *"Are the AI explanations accurate?", "Did the LLM hallucinate?"* (internal quality control)
+
+---
+
+## 6. UHDCAgent — Report Generator
+
+**Module**: [uhdc/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| `build_report()` | [report_builder.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/report_builder.py) | Jinja2 HTML report: decision banner, metric cards, charts, embedded maps |
+| [explain_with_llm()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py#151-272) | [explainer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py) | Gemini-generated executive/technical/detailed explanation |
+| [_fallback_template_explanation()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py#536-569) | [explainer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py) | Deterministic template explanation when LLM unavailable |
+| [_validate_explanation_safety()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py#388-535) | [explainer.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/explainer.py) | Checks LLM output numbers match contract (±1%) |
+| `SafetyValidator.validate()` | [safety_validator.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/safety_validator.py) | Ensures LLM explanation doesn't contradict the deterministic decision |
+| `orchestrate_uhdc()` | [orchestrator.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/uhdc/orchestrator.py) | End-to-end UHDC pipeline: load data → explain → validate → build report |
+
+**Answerable questions**: *"Generate a report", "Explain the decision for stakeholders"*
+
+---
+
+## 7. WhatIfAgent — Scenario Specialist
+
+**Module**: [agents/domain_agents.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py) (lines 753–966)
+
+| Function | What it computes |
+|:---|:---|
+| [_parse_house_count()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#886-895) | Parses "remove 2 houses" → integer 2 |
+| [_exclude_houses()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#896-916) | Disables last N heat consumers in pandapipes network |
+| `pipeflow()` (pandapipes) | Re-runs hydraulic simulation on modified network |
+| [_get_max_pressure()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#932-941) | Extracts max pressure from scenario network |
+| [_count_violations()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#942-951) | Counts velocity/pressure violations in scenario |
+| [_calculate_dh_co2()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#917-931) | Approximate CO₂ for modified network |
+| [_compare_scenarios()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#952-967) | Baseline vs scenario: Δpressure, Δheat, Δviolations |
+| [_heat_mw()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/domain_agents.py#956-961) | Total heat delivered in scenario |
+
+**Answerable questions**: *"What if we remove 2 houses?", "What happens if 3 buildings disconnect?"*
+
+---
+
+## 8. DataPrepAgent — Data Preparation
+
+**Module**: [data/](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data) + [00_prepare_data.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py)
+
+| Function | File | What it computes |
+|:---|:---|:---|
+| [load_buildings_geojson()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py#290-463) | [loader.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py) | Loads + validates building geometries with heat demand |
+| [load_streets_geojson()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py#465-614) | [loader.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py) | Loads + validates street LineString geometries |
+| [filter_residential_buildings_with_heat_demand()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py#15-100) | [loader.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py) | Filters to residential buildings with >0 heat demand |
+| [create_street_based_clusters()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py#42-183) | [00_prepare_data.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py) | Groups buildings into street-based clusters |
+| [generate_profiles_and_design_topn()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py#185-217) | [00_prepare_data.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py) | 8760-hour BDEW heat demand profiles + design hour selection |
+| [generate_cluster_ui_index()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py#219-318) | [00_prepare_data.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/scripts/00_prepare_data.py) | Lightweight cluster index for UI dropdown |
+| [load_power_grid()](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py#616-666) | [loader.py](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/data/loader.py) | Loads LV power grid (lines + substations) for DHA |
+
+**Answerable questions**: *"How many buildings are in this cluster?", "What is the design load?"* (implicit — data is loaded automatically)
+
+---
+
+## Summary: The Answerability Boundary
+
+```
+User question
+    │
+    ▼
+NLU classifies intent ──────────────────────── UNKNOWN? → CapabilityGuardrail
+    │                                                         "I can't do that"
+    ▼
+Executor picks agent plan
+    │
+    ▼
+Agents run their functions ◄── THIS IS THE BOUNDARY
+    │                          If a function exists → answerable
+    ▼                          If no function exists → blocked
+Results returned to UI
+```
+
+> **Bottom line**: The system can answer any question that ultimately requires computing something from the functions listed above. Everything else is explicitly blocked by the [CapabilityGuardrail](file:///Users/ishanthahewaratne/Documents/Reserch%20New/Branitz2/src/branitz_heat_decision/agents/fallback.py#44-335) with graceful fallback.
