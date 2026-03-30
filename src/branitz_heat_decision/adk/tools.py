@@ -97,8 +97,8 @@ def prepare_data_tool(
 
 
 # Default HKW Cottbus plant location (WGS84) - used whenever CHA is run
-DEFAULT_PLANT_LAT = 51.7601419
-DEFAULT_PLANT_LON = 14.3700521
+DEFAULT_PLANT_LAT = 51.758
+DEFAULT_PLANT_LON = 14.364
 
 
 def run_cha_tool(

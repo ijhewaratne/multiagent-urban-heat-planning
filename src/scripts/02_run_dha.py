@@ -108,7 +108,7 @@ def main():
         "--legacy-nodes-ways-json",
         type=str,
         default=None,
-        help="Path to legacy nodes/ways JSON (default: Legacy/DHA/HP New /Data/branitzer_siedlung_ns_v3_ohne_UW.json).",
+        help="Path to legacy nodes/ways JSON (default: data/raw/branitzer_siedlung_ns_v3_ohne_UW.json).",
     )
     parser.add_argument("--output-dir", type=str, default=None, help="Output dir (default results/dha/<cluster_id>/)")
     parser.add_argument("--monte-carlo", type=int, default=0, help="Run Monte Carlo hosting capacity analysis with N scenarios (default: 0 = off)")
@@ -259,7 +259,7 @@ def main():
         legacy_path = args.legacy_nodes_ways_json
         if legacy_path is None:
             legacy_path = str(
-                Path("Legacy/DHA/HP New /Data/branitzer_siedlung_ns_v3_ohne_UW.json")
+                Path("data/raw/branitzer_siedlung_ns_v3_ohne_UW.json")
             )
         net = grid_builder.build_lv_grid_from_nodes_ways_json(Path(legacy_path), cfg)
 

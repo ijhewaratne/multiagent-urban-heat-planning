@@ -804,7 +804,7 @@ def main():
 
         if result_messages:
             st.markdown(f"**{len(result_messages)} result(s)** — scroll to see all")
-            viz_container = st.container(height=600)
+            viz_container = st.container(height=1000)
             with viz_container:
                 # Render each result in reverse chronological order (newest first)
                 for idx, (msg_idx, msg) in enumerate(reversed(result_messages)):

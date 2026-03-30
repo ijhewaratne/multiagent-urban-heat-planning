@@ -32,16 +32,23 @@ from branitz_heat_decision.data.loader import (
     filter_residential_buildings_with_heat_demand,
     load_processed_buildings
 )
-from branitz_heat_decision.cha.convergence_optimizer_spur import optimize_network_for_convergence
+from branitz_heat_decision.cha import network_builder
+# Use the new convergence optimizer
+from branitz_heat_decision.cha.convergence_optimizer import optimize_network_for_convergence
 from branitz_heat_decision.cha.kpi_extractor import extract_kpis
 from branitz_heat_decision.cha.qgis_export import create_interactive_map, export_pipe_velocity_csvs
 from branitz_heat_decision.cha.config import CHAConfig, get_default_config
 from branitz_heat_decision.cha.sizing import load_pipe_catalog
-from branitz_heat_decision.cha.hydraulic_checks import HydraulicValidator
-from branitz_heat_decision.cha.robustness_checks import RobustnessValidator
-from branitz_heat_decision.config.validation_standards import ValidationConfig
-from branitz_heat_decision.cha.network_builder_trunk_spur import build_trunk_spur_network
-from branitz_heat_decision.cha.sizing_catalog import load_technical_catalog
+
+# Optional trunk-spur imports
+try:
+    from branitz_heat_decision.cha.network_builder_trunk_spur import build_trunk_spur_network
+    from branitz_heat_decision.cha.sizing_catalog import load_technical_catalog
+    TRUNK_SPUR_AVAILABLE = True
+except ImportError as e:
+    TRUNK_SPUR_AVAILABLE = False
+    # logger not defined yet at import time, will log later if needed
+    pass
 
 # Configure logging
 logging.basicConfig(
@@ -202,7 +209,10 @@ def load_cluster_data(
 def run_cha_pipeline(
     cluster_id: str,
     attach_mode: str = 'split_edge_per_building',
+    trunk_mode: str = 'paths_to_buildings',
+    optimize_convergence: bool = False,
     output_dir: Optional[Path] = None,
+    use_trunk_spur: bool = False,
     catalog_path: Optional[Path] = None,
     max_spur_length_m: float = 50.0,
     plant_wgs84_lat: Optional[float] = None,
@@ -210,17 +220,14 @@ def run_cha_pipeline(
     disable_auto_plant_siting: bool = False,
 ):
     """
-    Run complete CHA pipeline for a cluster using the trunk-spur network builder.
-
+    Run complete CHA pipeline for a cluster.
+    
     Args:
         cluster_id: Cluster identifier
-        attach_mode: Building attachment mode ('split_edge_per_building')
+        attach_mode: Building attachment mode
+        trunk_mode: Trunk topology mode
+        optimize_convergence: Whether to optimize for convergence
         output_dir: Output directory (default: results/cha/{cluster_id})
-        catalog_path: Optional path to technical pipe catalog Excel file
-        max_spur_length_m: Maximum spur pipe length in metres (default 50)
-        plant_wgs84_lat: Fixed plant latitude in WGS84 (optional)
-        plant_wgs84_lon: Fixed plant longitude in WGS84 (optional)
-        disable_auto_plant_siting: Disable automatic plant re-siting
     """
     logger.info(f"Starting CHA pipeline for cluster {cluster_id}")
     
@@ -254,97 +261,259 @@ def run_cha_pipeline(
     
     # Get CHA config
     config = get_default_config()
-
-    logger.info("Building trunk-spur network (strict street-following trunks + exclusive spurs)...")
-
-    # Load technical pipe catalog
-    if catalog_path is None:
-        candidates = [
-            DATA_RAW / "Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY.xlsx",
-            DATA_RAW / "Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY (1).xlsx",
-            Path("data/raw/Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY.xlsx"),
-            Path("data/raw/Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY (1).xlsx"),
-        ]
-        catalog_path = next((p for p in candidates if p.exists()), candidates[0])
-
-    if not catalog_path.exists():
-        logger.warning(f"Technical catalog not found at {catalog_path}, using default pipe catalog")
-        pipe_catalog = load_pipe_catalog()
-    else:
-        pipe_catalog = load_technical_catalog(catalog_path)
-
-    # Prepare per-building design loads from hourly profiles at the design hour
-    design_loads_kw = {}
-    if hourly_profiles is not None and not hourly_profiles.empty:
-        for _, building in buildings.iterrows():
-            bid = building['building_id']
-            if bid in hourly_profiles.columns:
-                design_loads_kw[bid] = float(hourly_profiles.loc[design_hour, bid])
-                logger.debug(f"Building {bid}: {design_loads_kw[bid]:.2f} kW (hourly profile, hour {design_hour})")
-            else:
-                logger.warning(f"Building {bid} not in hourly profiles, using distributed cluster load")
-                total_area = buildings['floor_area_m2'].sum() if 'floor_area_m2' in buildings.columns else 0
-                area_share = (building['floor_area_m2'] / total_area
-                              if total_area > 0 else 1.0 / len(buildings))
-                design_loads_kw[bid] = float(design_load_kw * area_share)
-    else:
-        logger.warning("Hourly profiles not available, distributing cluster design load per building")
-        for _, building in buildings.iterrows():
-            bid = building['building_id']
-            total_area = buildings['floor_area_m2'].sum() if 'floor_area_m2' in buildings.columns else 0
-            area_share = (building['floor_area_m2'] / total_area
-                          if total_area > 0 else 1.0 / len(buildings))
-            design_loads_kw[bid] = float(design_load_kw * area_share)
-
-    total_cluster_load = sum(design_loads_kw.values())
-    logger.info(
-        f"Building heat demands (design hour {design_hour}): "
-        f"total={total_cluster_load:.1f} kW across {len(design_loads_kw)} buildings"
-    )
-
-    net, topology_info = build_trunk_spur_network(
-        cluster_id=cluster_id,
-        buildings=buildings,
-        streets=streets,
-        plant_coords=plant_coords,
-        selected_street_name=cluster_street_name,
-        design_loads_kw=design_loads_kw,
-        pipe_catalog=pipe_catalog,
-        config=config,
-        max_spur_length_m=max_spur_length_m,
-        attach_mode=attach_mode,
-        disable_auto_plant_siting=disable_auto_plant_siting,
-    )
-
-    # Trunk-spur builder already runs pipeflow internally
-    initial_converged = topology_info.get('converged', False)
-    final_converged = initial_converged
-    logger.info(f"Trunk-spur network built: converged={initial_converged}")
     
-    # Update heat consumer loads with per-building design loads (trunk-spur uses heat_consumer elements)
+    # Build network (either standard or trunk-spur)
+    if use_trunk_spur:
+        if not TRUNK_SPUR_AVAILABLE:
+            raise ValueError("Trunk-spur network builder not available. Install required dependencies.")
+        
+        logger.info("Building trunk-spur network (strict street-following trunks + exclusive spurs)...")
+        
+        # Load technical catalog for trunk-spur
+        if catalog_path is None:
+            # Try common filenames (the repo sometimes contains "(1)" suffix)
+            candidates = [
+                DATA_RAW / "Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY.xlsx",
+                DATA_RAW / "Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY (1).xlsx",
+                Path("data/raw/Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY.xlsx"),
+                Path("data/raw/Technikkatalog_Wärmeplanung_Version_1.1_August24_CC-BY (1).xlsx"),
+            ]
+            catalog_path = next((p for p in candidates if p.exists()), candidates[0])
+        
+        if not catalog_path.exists():
+            logger.warning(f"Technical catalog not found at {catalog_path}, using default pipe catalog")
+            pipe_catalog = load_pipe_catalog()
+        else:
+            pipe_catalog = load_technical_catalog(catalog_path)
+        
+        # Prepare design loads dictionary from hourly profiles
+        # Each building gets its heat demand from the hourly profiles at the design hour
+        design_loads_kw = {}
+        if hourly_profiles is not None and not hourly_profiles.empty:
+            # Extract per-building heat demand at design hour
+            for _, building in buildings.iterrows():
+                bid = building['building_id']
+                if bid in hourly_profiles.columns:
+                    # Get this building's heat demand at the design hour
+                    building_demand_kw = float(hourly_profiles.loc[design_hour, bid])
+                    design_loads_kw[bid] = building_demand_kw
+                    logger.debug(f"Building {bid}: {building_demand_kw:.2f} kW (from hourly profile, hour {design_hour})")
+                else:
+                    # Fallback: distribute cluster design load
+                    logger.warning(f"Building {bid} not in hourly profiles, using distributed cluster load")
+                    if 'floor_area_m2' in buildings.columns:
+                        total_area = buildings['floor_area_m2'].sum()
+                        area_share = building['floor_area_m2'] / total_area if total_area > 0 else 1.0 / len(buildings)
+                        design_loads_kw[bid] = float(design_load_kw * area_share)
+                    else:
+                        design_loads_kw[bid] = float(design_load_kw / len(buildings)) if len(buildings) > 0 else design_load_kw
+        else:
+            # Fallback: distribute cluster design load if profiles not available
+            logger.warning("Hourly profiles not available, distributing cluster design load per building")
+            for _, building in buildings.iterrows():
+                bid = building['building_id']
+                if 'floor_area_m2' in buildings.columns:
+                    total_area = buildings['floor_area_m2'].sum()
+                    area_share = building['floor_area_m2'] / total_area if total_area > 0 else 1.0 / len(buildings)
+                    design_loads_kw[bid] = float(design_load_kw * area_share)
+                else:
+                    design_loads_kw[bid] = float(design_load_kw / len(buildings)) if len(buildings) > 0 else design_load_kw
+        
+        total_cluster_load = sum(design_loads_kw.values())
+        logger.info(f"Building heat demands from hourly profiles (design hour {design_hour}): "
+                   f"total={total_cluster_load:.1f} kW across {len(design_loads_kw)} buildings")
+        
+        net, topology_info = build_trunk_spur_network(
+            cluster_id=cluster_id,
+            buildings=buildings,
+            streets=streets,
+            plant_coords=plant_coords,
+            selected_street_name=cluster_street_name,
+            design_loads_kw=design_loads_kw,
+            pipe_catalog=pipe_catalog,
+            config=config,
+            max_spur_length_m=max_spur_length_m,
+            attach_mode=attach_mode,
+            disable_auto_plant_siting=disable_auto_plant_siting,
+        )
+        
+        # Trunk-spur builder already runs simulation and optimization
+        # Check if it converged
+        initial_converged = topology_info.get('converged', False)
+        final_converged = initial_converged
+        optimize_convergence = False  # Already optimized by trunk-spur builder
+        
+        logger.info(f"Trunk-spur network built: converged={initial_converged}")
+        
+    else:
+        # Standard network builder
+        logger.info("Building district heating network (standard topology)...")
+        
+        # Load pipe catalog
+        pipe_catalog = load_pipe_catalog()
+        
+        net, topology_info = network_builder.build_dh_network_for_cluster(
+            cluster_id=cluster_id,
+            buildings=buildings,
+            streets=streets,
+            plant_coords=plant_coords,
+            pipe_catalog=pipe_catalog,
+            attach_mode=attach_mode,
+            trunk_mode=trunk_mode,
+            config=config
+        )
+        
+        # Set initial_converged to False, will be checked after simulation
+        initial_converged = False
+        final_converged = False
+        
+        # Set design loads on sinks (only for standard builder; trunk-spur uses hourly-profile per-building loads)
+        # Try to load per-building design loads from design_topn, otherwise use cluster design load
+        design_loads_kw = {}
+    
+    # For trunk-spur, keep the per-building loads derived from hourly profiles earlier.
+    # Only overwrite for the standard builder path.
+    if not use_trunk_spur:
+        # First, try to get per-building loads from building data
+        if 'design_load_kw' in buildings.columns:
+            for _, building in buildings.iterrows():
+                design_loads_kw[building['building_id']] = float(building['design_load_kw'])
+        else:
+            # Use cluster-level design load and distribute proportionally
+            if DESIGN_TOPN_PATH.exists():
+                try:
+                    with open(DESIGN_TOPN_PATH, 'r') as f:
+                        design_topn = json.load(f)
+                    if cluster_id in design_topn.get('clusters', {}):
+                        cluster_design_load = design_topn['clusters'][cluster_id].get('design_load_kw', design_load_kw)
+                        # Distribute cluster load to buildings (proportional to floor area if available)
+                        if 'floor_area_m2' in buildings.columns:
+                            total_area = buildings['floor_area_m2'].sum()
+                            for _, building in buildings.iterrows():
+                                area_share = building['floor_area_m2'] / total_area if total_area > 0 else 1.0 / len(buildings)
+                                design_loads_kw[building['building_id']] = float(cluster_design_load * area_share)
+                        else:
+                            per_building_load = cluster_design_load / len(buildings) if len(buildings) > 0 else design_load_kw
+                            for _, building in buildings.iterrows():
+                                design_loads_kw[building['building_id']] = float(per_building_load)
+                except Exception as e:
+                    logger.warning(f"Could not load design loads from design_topn: {e}, using defaults")
+                    per_building_load = design_load_kw / len(buildings) if len(buildings) > 0 else design_load_kw
+                    for _, building in buildings.iterrows():
+                        design_loads_kw[building['building_id']] = float(per_building_load)
+            else:
+                per_building_load = design_load_kw / len(buildings) if len(buildings) > 0 else design_load_kw
+                for _, building in buildings.iterrows():
+                    design_loads_kw[building['building_id']] = float(per_building_load)
+    
+    # Calculate mass flow rates per building
+    cp_water = 4.186  # kJ/(kg·K)
+    delta_t = config.delta_t_k  # K
     total_load_kw = sum(design_loads_kw.values())
-    if hasattr(net, 'heat_consumer') and net.heat_consumer is not None and not net.heat_consumer.empty:
+    
+    # For trunk-spur networks: update heat consumers (pandapipes DH element)
+    if use_trunk_spur and hasattr(net, 'heat_consumer') and (net.heat_consumer is not None) and (not net.heat_consumer.empty):
         for _, building in buildings.iterrows():
             bid = building['building_id']
-            qext_w = float(design_loads_kw.get(bid, 0.0)) * 1000.0
+            load_kw = float(design_loads_kw.get(bid, 0.0))
+            qext_w = load_kw * 1000.0
             hc_mask = net.heat_consumer['name'] == f"hc_{bid}"
             if hc_mask.any():
                 net.heat_consumer.loc[hc_mask, 'qext_w'] = qext_w
+                # Option B (requested): qext_w + controlled_mdot_kg_per_s
+                # Fix mdot using design ΔT so return temperature becomes a result of the network + losses.
                 if 'controlled_mdot_kg_per_s' in net.heat_consumer.columns:
                     cp_j_per_kgk = 4180.0
                     deltat_k = max(1.0, float(config.delta_t_k))
-                    net.heat_consumer.loc[hc_mask, 'controlled_mdot_kg_per_s'] = max(
-                        1e-5, qext_w / (cp_j_per_kgk * deltat_k)
-                    )
+                    controlled_mdot = max(1e-5, qext_w / (cp_j_per_kgk * deltat_k))
+                    net.heat_consumer.loc[hc_mask, 'controlled_mdot_kg_per_s'] = controlled_mdot
+
         logger.info(
-            f"Set design loads: total={total_load_kw:.1f} kW across "
-            f"{len(design_loads_kw)} buildings (heat_consumer)"
+            f"Set design loads: total={total_load_kw:.1f} kW across {len(design_loads_kw)} buildings "
+            f"(heat_consumer)"
         )
-        # Re-run pipeflow in thermal mode so temperatures reflect updated loads
+
+        # Re-run pipeflow in thermal mode so temperatures reflect the updated qext_w.
         try:
             pp.pipeflow(net, mode='sequential', verbose=False, max_iter_hyd=80, max_iter_therm=80)
         except Exception as e:
             logger.warning(f"Thermal pipeflow (sequential) failed after updating heat_consumer loads: {e}")
+    
+    # For standard networks: assign mass flows to sinks based on building loads
+    elif hasattr(net, 'sink') and net.sink is not None and not net.sink.empty:
+        # Match sinks to buildings by name (sink names should be like "sink_B0001")
+        for sink_idx in net.sink.index:
+            sink_name = net.sink.loc[sink_idx, 'name']
+            # Extract building_id from sink name (format: "sink_{building_id}")
+            if sink_name.startswith('sink_'):
+                building_id = sink_name[5:]  # Remove "sink_" prefix
+                if building_id in design_loads_kw:
+                    load_kw = design_loads_kw[building_id]
+                    mdot_kg_s = (load_kw * 1000) / (cp_water * delta_t * 1000)  # kg/s
+                    net.sink.loc[sink_idx, 'mdot_kg_per_s'] = mdot_kg_s
+                else:
+                    logger.warning(f"Building {building_id} not found in design_loads_kw, using average")
+                    avg_load = total_load_kw / len(net.sink)
+                    mdot_kg_s = (avg_load * 1000) / (cp_water * delta_t * 1000)
+                    net.sink.loc[sink_idx, 'mdot_kg_per_s'] = mdot_kg_s
+            else:
+                logger.warning(f"Sink {sink_name} does not match expected format, using average load")
+                avg_load = total_load_kw / len(net.sink)
+                mdot_kg_s = (avg_load * 1000) / (cp_water * delta_t * 1000)
+                net.sink.loc[sink_idx, 'mdot_kg_per_s'] = mdot_kg_s
+        
+        # Update source/circ pump to match total demand
+        total_mdot = net.sink['mdot_kg_per_s'].sum()
+        if hasattr(net, 'source') and not net.source.empty:
+            net.source.loc[net.source.index[0], 'mdot_kg_per_s'] = total_mdot
+        # Note: Trunk-spur networks use circulation pump, not source - mass flow is handled internally
+        
+        logger.info(f"Set design loads: total={total_load_kw:.1f} kW across {len(design_loads_kw)} buildings (sinks)")
+    
+    # Run initial simulation (skip if trunk-spur already did this)
+    if use_trunk_spur:
+        logger.info("Skipping simulation (already done by trunk-spur builder)")
+        # initial_converged and final_converged already set from trunk-spur builder
+    else:
+        # Run initial simulation
+        logger.info("Running initial pandapipes simulation...")
+        initial_converged = False
+        try:
+            pp.pipeflow(net, mode='all', verbose=False)
+            initial_converged = getattr(net, 'converged', True)  # pandapipes sets converged attribute
+            if initial_converged:
+                logger.info("Initial simulation converged successfully")
+            else:
+                logger.warning("Initial simulation did not converge")
+        except Exception as e:
+            logger.warning(f"Initial simulation failed: {e}")
+            initial_converged = False
+        final_converged = initial_converged
+    
+    # Optimize for convergence if requested or if initial simulation didn't converge
+    if not use_trunk_spur:  # Trunk-spur builder already optimized
+        final_converged = initial_converged
+    if optimize_convergence or (not use_trunk_spur and not initial_converged):
+        logger.info("Optimizing network for convergence...")
+        converged, net, opt_summary = optimize_network_for_convergence(net, config)
+        final_converged = converged
+        if converged:
+            logger.info(f"Network optimized and converged after {opt_summary.get('iterations', 'N/A')} iterations")
+        else:
+            logger.warning("Network optimization did not achieve full convergence")
+        
+        # Run simulation after optimization
+        logger.info("Running simulation after optimization...")
+        try:
+            pp.pipeflow(net, mode='all', verbose=False)
+            final_converged = getattr(net, 'converged', True)
+            if final_converged:
+                logger.info("Simulation converged after optimization")
+            else:
+                logger.warning("Simulation still did not converge after optimization")
+        except Exception as e:
+            logger.warning(f"Simulation failed after optimization: {e}")
+            final_converged = False
     
     # Extract topology information for logging
     topology_stats = {}
@@ -370,7 +539,7 @@ def run_cha_pipeline(
         kpis['convergence'] = {
             'initial_converged': initial_converged,
             'final_converged': final_converged,
-            'optimized': False  # trunk-spur builder handles optimization internally
+            'optimized': optimize_convergence or not initial_converged
         }
         # Add topology info to KPIs
         kpis['topology'] = topology_stats
@@ -382,7 +551,7 @@ def run_cha_pipeline(
             kpis['convergence'] = {
                 'initial_converged': initial_converged,
                 'final_converged': False,
-                'optimized': False,
+                'optimized': optimize_convergence or not initial_converged,
                 'warning': 'KPIs extracted from non-converged network'
             }
             # Add topology info to KPIs
@@ -394,7 +563,7 @@ def run_cha_pipeline(
                 'convergence': {
                     'initial_converged': initial_converged,
                     'final_converged': False,
-                    'optimized': False,
+                    'optimized': optimize_convergence or not initial_converged,
                     'error': str(e)
                 },
                 'feasible': False,
@@ -402,62 +571,12 @@ def run_cha_pipeline(
                 'topology': topology_stats
             }
     
-    # ── Hydraulic validation (EN 13941-1) ─────────────────────────────────────
-    hyd_path = None
-    if final_converged:
-        try:
-            val_cfg = ValidationConfig()
-            hydraulic_result = HydraulicValidator(val_cfg).validate(net)
-            kpis["hydraulic_validation"] = {
-                "passed": hydraulic_result.passed,
-                "issues": hydraulic_result.issues,
-                "warnings": hydraulic_result.warnings,
-                "metrics": hydraulic_result.metrics,
-            }
-            hyd_path = output_dir / "hydraulic_validation.json"
-            with open(hyd_path, "w") as f:
-                json.dump(kpis["hydraulic_validation"], f, indent=2, default=str)
-            logger.info(
-                f"Hydraulic validation (EN 13941-1): "
-                f"{'PASSED' if hydraulic_result.passed else 'FAILED'} "
-                f"→ {hyd_path}"
-            )
-        except Exception as e:
-            logger.warning(f"Hydraulic validation skipped: {e}")
-
-    # ── Robustness validation (Monte Carlo) ────────────────────────────────────
-    rob_path = None
-    if final_converged:
-        try:
-            val_cfg = ValidationConfig()
-            n_sc = val_cfg.robustness.n_scenarios
-            logger.info(f"Running robustness validation ({n_sc} Monte Carlo scenarios)...")
-            robustness_result = RobustnessValidator(val_cfg).validate(net)
-            kpis["robustness_validation"] = {
-                "passed": robustness_result.passed,
-                "issues": robustness_result.issues,
-                "warnings": robustness_result.warnings,
-                "metrics": robustness_result.metrics,
-                "scenario_results": robustness_result.scenario_results,
-            }
-            rob_path = output_dir / "robustness_validation.json"
-            with open(rob_path, "w") as f:
-                json.dump(kpis["robustness_validation"], f, indent=2, default=str)
-            success_rate = robustness_result.metrics.get("robustness_success_rate", 0.0)
-            logger.info(
-                f"Robustness validation ({n_sc} scenarios): "
-                f"{'PASSED' if robustness_result.passed else 'FAILED'} "
-                f"(success rate: {success_rate:.1%}) → {rob_path}"
-            )
-        except Exception as e:
-            logger.warning(f"Robustness validation skipped: {e}")
-
-    # Save KPIs to JSON (after validators so their results are included)
+    # Save KPIs to JSON
     kpis_path = output_dir / "cha_kpis.json"
     with open(kpis_path, 'w') as f:
         json.dump(kpis, f, indent=2, default=str)
     logger.info(f"Saved KPIs to {kpis_path}")
-
+    
     # Save network as pickle
     network_path = output_dir / "network.pickle"
     with open(network_path, 'wb') as f:
@@ -557,8 +676,6 @@ def run_cha_pipeline(
         'interactive_map': map_path,
         'interactive_map_temperature': temp_map_path,
         'interactive_map_pressure': pressure_map_path,
-        'hydraulic_validation': hyd_path,
-        'robustness_validation': rob_path,
     }
 
 
@@ -568,10 +685,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Standard network builder
   python scripts/01_run_cha.py --cluster-id ST001_HEINRICH_ZILLE_STRASSE
-  python scripts/01_run_cha.py --cluster-id ST001 --catalog path/to/catalog.xlsx
-  python scripts/01_run_cha.py --cluster-id ST001 --max-spur-length 30
-  python scripts/01_run_cha.py --cluster-id ST001 --enable-auto-plant-siting
+  python scripts/01_run_cha.py --cluster-id ST001 --optimize-convergence
+  python scripts/01_run_cha.py --cluster-id ST001 --attach-mode split_edge_per_building --trunk-mode paths_to_buildings
+  
+  # Trunk-spur network builder (recommended for better convergence)
+  python scripts/01_run_cha.py --cluster-id ST001 --use-trunk-spur
+  python scripts/01_run_cha.py --cluster-id ST001 --use-trunk-spur --catalog path/to/catalog.xlsx
         """
     )
     
@@ -590,7 +711,26 @@ Examples:
         help='Building attachment mode'
     )
     
-
+    parser.add_argument(
+        '--trunk-mode',
+        type=str,
+        default='paths_to_buildings',
+        choices=['paths_to_buildings', 'steiner_tree'],
+        help='Trunk topology mode'
+    )
+    
+    parser.add_argument(
+        '--optimize-convergence',
+        action='store_true',
+        help='Optimize network topology for numerical convergence (standard builder only)'
+    )
+    
+    parser.add_argument(
+        '--use-trunk-spur',
+        action='store_true',
+        help='Use trunk-spur network builder (strict street-following trunks + exclusive spurs)'
+    )
+    
     parser.add_argument(
         '--catalog',
         type=str,
@@ -602,19 +742,19 @@ Examples:
         '--max-spur-length',
         type=float,
         default=50.0,
-        help='Maximum spur length in meters (default: 50.0)'
+        help='Maximum spur length in meters (trunk-spur builder, default: 50.0)'
     )
 
     parser.add_argument(
         '--plant-wgs84-lat',
         type=float,
-        default=51.7601419,
+        default=51.758,
         help='Fixed plant latitude in WGS84 (EPSG:4326). Default: 51.758 (HKW Cottbus)'
     )
     parser.add_argument(
         '--plant-wgs84-lon',
         type=float,
-        default=14.3700521,
+        default=14.364,
         help='Fixed plant longitude in WGS84 (EPSG:4326). Default: 14.364 (HKW Cottbus)'
     )
     parser.add_argument(
@@ -657,7 +797,10 @@ Examples:
         results = run_cha_pipeline(
             cluster_id=args.cluster_id,
             attach_mode=args.attach_mode,
+            trunk_mode=args.trunk_mode,
+            optimize_convergence=args.optimize_convergence,
             output_dir=output_dir,
+            use_trunk_spur=args.use_trunk_spur,
             catalog_path=catalog_path,
             max_spur_length_m=args.max_spur_length,
             plant_wgs84_lat=plant_lat,
