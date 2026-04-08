@@ -364,14 +364,14 @@ def _extract_lcoh_metrics(econ_summary: Dict[str, Any], system: str) -> Dict[str
     # Try Monte Carlo format: top-level keys like lcoh_dh_p50, lcoh_hp_p50
     prefix = f"lcoh_{system}"
     p50_key = f"{prefix}_p50"
-    p10_key = f"{prefix}_p10"
-    p90_key = f"{prefix}_p90"
+    p05_key = f"{prefix}_p05"
+    p95_key = f"{prefix}_p95"
     
     if p50_key in econ_summary:
         return {
             "median": _to_float(econ_summary.get(p50_key, 0.0), 0.0),
-            "p05": _to_float(econ_summary.get(p10_key, econ_summary.get(f"{prefix}_p05", 0.0)), 0.0),
-            "p95": _to_float(econ_summary.get(p90_key, econ_summary.get(f"{prefix}_p95", 0.0)), 0.0),
+            "p05": _to_float(econ_summary.get(p05_key, econ_summary.get(f"{prefix}_p10", 0.0)), 0.0),
+            "p95": _to_float(econ_summary.get(p95_key, econ_summary.get(f"{prefix}_p90", 0.0)), 0.0),
             "mean": _to_float(econ_summary.get(f"{prefix}_mean", None), None),
             "std": _to_float(econ_summary.get(f"{prefix}_std", None), None),
         }
@@ -413,14 +413,14 @@ def _extract_co2_metrics(econ_summary: Dict[str, Any], system: str) -> Dict[str,
     # Try Monte Carlo format: top-level keys like co2_dh_p50, co2_hp_p50
     prefix = f"co2_{system}"
     p50_key = f"{prefix}_p50"
-    p10_key = f"{prefix}_p10"
-    p90_key = f"{prefix}_p90"
+    p05_key = f"{prefix}_p05"
+    p95_key = f"{prefix}_p95"
     
     if p50_key in econ_summary:
         return {
             "median": _to_float(econ_summary.get(p50_key, 0.0), 0.0),
-            "p05": _to_float(econ_summary.get(p10_key, econ_summary.get(f"{prefix}_p05", 0.0)), 0.0),
-            "p95": _to_float(econ_summary.get(p90_key, econ_summary.get(f"{prefix}_p95", 0.0)), 0.0),
+            "p05": _to_float(econ_summary.get(p05_key, econ_summary.get(f"{prefix}_p10", 0.0)), 0.0),
+            "p95": _to_float(econ_summary.get(p95_key, econ_summary.get(f"{prefix}_p90", 0.0)), 0.0),
             "mean": _to_float(econ_summary.get(f"{prefix}_mean", None), None),
             "std": _to_float(econ_summary.get(f"{prefix}_std", None), None),
         }

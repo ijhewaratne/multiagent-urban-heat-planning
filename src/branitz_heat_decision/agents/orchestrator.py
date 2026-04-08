@@ -418,11 +418,20 @@ class BranitzOrchestrator:
 
         if not guardrail_result.can_handle:
             # Speaker B: "He needs to say 'no, I don't know exactly'"
+            preview = None
+            if intent == "WHAT_IF_SCENARIO" and cluster_id:
+                preview = self._build_hypothetical_what_if_preview(
+                    cluster_id=cluster_id,
+                    intent_data=enriched_intent,
+                    context=context,
+                    run_missing=run_missing,
+                )
             resp = self._handle_capability_fallback(
                 user_query=user_query,
                 intent=intent,
                 capability=guardrail_result,
                 intent_data=enriched_intent,
+                hypothetical_preview=preview,
             )
             resp["agent_trace"] = agent_trace
             return resp
@@ -898,6 +907,7 @@ class BranitzOrchestrator:
         intent: str,
         capability: Any,  # CapabilityResponse
         intent_data: Dict[str, Any],
+        hypothetical_preview: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Handle unsupported requests gracefully (Speaker B requirement).
@@ -914,6 +924,12 @@ class BranitzOrchestrator:
             )
         else:
             message = capability.message
+
+        if hypothetical_preview:
+            message = (
+                f"{message}\n\n"
+                f"{self._format_hypothetical_preview_answer(hypothetical_preview)}"
+            )
 
         # Look up research note from registry
         unsupported_info = CapabilityGuardrail.UNSUPPORTED_INTENTS.get(intent.lower(), {})
@@ -933,6 +949,7 @@ class BranitzOrchestrator:
                 "research_note": research_note,
                 "alternatives": capability.alternative_suggestions,
                 "escalation_path": capability.escalation_path,
+                "hypothetical_preview": hypothetical_preview,
             },
             "answer": message,
             "alternative_suggestions": capability.alternative_suggestions,
@@ -946,6 +963,79 @@ class BranitzOrchestrator:
             # Important for thesis: document this as research objective
             "is_research_boundary": True,
         }
+
+    def _build_hypothetical_what_if_preview(
+        self,
+        cluster_id: str,
+        intent_data: Dict[str, Any],
+        context: Dict[str, Any],
+        run_missing: bool,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Best-effort advisory preview for blocked what-if requests.
+
+        This does not change the guardrail outcome. It only provides a clearly
+        labeled hypothetical result so the UI can say "not supported, but if it
+        were simulated these could be the effects."
+        """
+        try:
+            preview = self.executor.execute(
+                intent="WHAT_IF_SCENARIO",
+                street_id=cluster_id,
+                context={
+                    "modification": (intent_data.get("entities") or {}).get("modification"),
+                    "history": context.get("history", []),
+                    "run_missing": run_missing,
+                },
+            )
+        except Exception as e:
+            logger.warning("Hypothetical what-if preview failed for %s: %s", cluster_id, e)
+            return None
+
+        if "error" in preview:
+            logger.warning(
+                "Hypothetical what-if preview returned error for %s: %s",
+                cluster_id,
+                preview["error"],
+            )
+            return None
+
+        return {
+            "cluster_id": cluster_id,
+            "baseline": preview.get("baseline", {}),
+            "scenario": preview.get("scenario", {}),
+            "comparison": preview.get("comparison", {}),
+            "modification_applied": preview.get("modification_applied", ""),
+            "execution_log": preview.get("execution_log", []),
+            "agent_results": preview.get("agent_results", {}),
+            "total_execution_time": preview.get("total_execution_time"),
+            "disclaimer": (
+                "This is a hypothetical preview only. The system still does not allow "
+                "infrastructure modifications as a supported workflow."
+            ),
+        }
+
+    @staticmethod
+    def _format_hypothetical_preview_answer(preview: Dict[str, Any]) -> str:
+        mod = preview.get("modification_applied", "the requested change")
+        comparison = preview.get("comparison", {})
+        baseline = preview.get("baseline", {})
+        scenario = preview.get("scenario", {})
+
+        dp = comparison.get("pressure_change_bar", 0.0)
+        dq = comparison.get("heat_delivered_change_mw", 0.0)
+        vr = comparison.get("violation_reduction", 0)
+        base_p = baseline.get("max_pressure_bar", 0.0)
+        scen_p = scenario.get("max_pressure_bar", 0.0)
+
+        return (
+            "The requested modification is still outside the supported workflow. "
+            f"However, as a hypothetical preview, if {mod} were simulated on the current "
+            f"district-heating model, the estimated maximum pressure would change from "
+            f"{base_p:.3f} bar to {scen_p:.3f} bar, heat delivered would change by "
+            f"{dq:.4f} MW, and the simplified violation count would change by {vr}. "
+            f"Net pressure change: {dp:.4f} bar."
+        )
 
     def get_system_capabilities(self) -> Dict[str, List[str]]:
         """Public API to show what the system can/cannot do."""

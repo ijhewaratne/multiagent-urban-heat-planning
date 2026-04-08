@@ -82,13 +82,24 @@ class BaseDomainAgent(ABC):
         """
         pass
 
-    def _check_cache(self, street_id: str) -> tuple[bool, Any]:
+    def _check_cache(self, street_id: str, context: Dict = None) -> tuple[bool, Any]:
         """Check if valid cached result exists."""
         pass
 
     def _update_cache(self, street_id: str, result: Any):
         """Update cache with new result."""
         pass
+
+    def _compute_cache_key(self, context: Dict) -> str:
+        """Compute SHA-256 hash of the input context to guarantee canonical determinism."""
+        import hashlib
+        import json
+        try:
+            canonical = json.dumps(context or {}, sort_keys=True)
+            return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+        except TypeError as e:
+            logger.warning("Context unhashable, falling back to string representation: %s", e)
+            return hashlib.sha256(str(context).encode('utf-8')).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +189,7 @@ class CHAAgent(BaseDomainAgent):
         context = context or {}
 
         # Check cache first
-        cache_hit, cached_data = self._check_cha_cache(street_id)
+        cache_hit, cached_data = self._check_cha_cache(street_id, context)
         if cache_hit and not context.get("force_recalc"):
             logger.info(f"[{self.agent_name}] Using cached CHA for {street_id}")
             return AgentResult(
@@ -212,6 +223,11 @@ class CHAAgent(BaseDomainAgent):
             if kpi_path.exists():
                 with open(kpi_path) as f:
                     kpis = json.load(f)
+                
+                # Write SHA-256 cache manifest
+                manifest_path = resolve_cluster_path(street_id, "cha") / "_cache_manifest.json"
+                with open(manifest_path, "w") as f:
+                    json.dump({"input_hash": self._compute_cache_key(context)}, f)
 
         return AgentResult(
             success=action.status == "success",
@@ -233,19 +249,27 @@ class CHAAgent(BaseDomainAgent):
             errors=[action.error] if action.error else [],
         )
 
-    def _check_cha_cache(self, street_id: str) -> tuple[bool, Any]:
+    def _check_cha_cache(self, street_id: str, context: Dict = None) -> tuple[bool, Any]:
         from branitz_heat_decision.config import resolve_cluster_path
         output_dir = resolve_cluster_path(street_id, "cha")
 
         required = [
             output_dir / "cha_kpis.json",
             output_dir / "network.pickle",
+            output_dir / "_cache_manifest.json",
         ]
 
         if all(f.exists() for f in required):
             import json
-            with open(required[0]) as f:
-                return True, json.load(f)
+            with open(output_dir / "_cache_manifest.json") as f:
+                manifest = json.load(f)
+            
+            expected_hash = self._compute_cache_key(context or {})
+            if manifest.get("input_hash") == expected_hash:
+                with open(required[0]) as f:
+                    return True, json.load(f)
+            else:
+                logger.info(f"[{self.agent_name}] Cache hash mismatch. Recomputing.")
         return False, None
 
 
@@ -267,7 +291,7 @@ class DHAAgent(BaseDomainAgent):
         context = context or {}
 
         # Check cache
-        cache_hit, cached_data = self._check_dha_cache(street_id)
+        cache_hit, cached_data = self._check_dha_cache(street_id, context)
         if cache_hit and not context.get("force_recalc"):
             logger.info(f"[{self.agent_name}] Using cached DHA for {street_id}")
             return AgentResult(
@@ -300,6 +324,11 @@ class DHAAgent(BaseDomainAgent):
             if kpi_path.exists():
                 with open(kpi_path) as f:
                     kpis = json.load(f)
+                
+                # Write SHA-256 cache manifest
+                manifest_path = resolve_cluster_path(street_id, "dha") / "_cache_manifest.json"
+                with open(manifest_path, "w") as f:
+                    json.dump({"input_hash": self._compute_cache_key(context)}, f)
 
         return AgentResult(
             success=action.status == "success",
@@ -321,14 +350,26 @@ class DHAAgent(BaseDomainAgent):
             errors=[action.error] if action.error else [],
         )
 
-    def _check_dha_cache(self, street_id: str) -> tuple[bool, Any]:
+    def _check_dha_cache(self, street_id: str, context: Dict = None) -> tuple[bool, Any]:
         from branitz_heat_decision.config import resolve_cluster_path
         output_dir = resolve_cluster_path(street_id, "dha")
 
-        if (output_dir / "dha_kpis.json").exists():
+        required = [
+            output_dir / "dha_kpis.json",
+            output_dir / "_cache_manifest.json",
+        ]
+
+        if all(f.exists() for f in required):
             import json
-            with open(output_dir / "dha_kpis.json") as f:
-                return True, json.load(f)
+            with open(output_dir / "_cache_manifest.json") as f:
+                manifest = json.load(f)
+            
+            expected_hash = self._compute_cache_key(context or {})
+            if manifest.get("input_hash") == expected_hash:
+                with open(required[0]) as f:
+                    return True, json.load(f)
+            else:
+                logger.info(f"[{self.agent_name}] Cache hash mismatch. Recomputing.")
         return False, None
 
 
@@ -365,7 +406,7 @@ class EconomicsAgent(BaseDomainAgent):
             )
 
         # Check cache
-        cache_hit, cached_data = self._check_economics_cache(street_id)
+        cache_hit, cached_data = self._check_economics_cache(street_id, context)
         if cache_hit and not context.get("force_recalc"):
             logger.info(f"[{self.agent_name}] Using cached economics for {street_id}")
             return AgentResult(
@@ -397,6 +438,11 @@ class EconomicsAgent(BaseDomainAgent):
             if econ_path.exists():
                 with open(econ_path) as f:
                     econ_data = json.load(f)
+                
+                # Write SHA-256 cache manifest
+                manifest_path = resolve_cluster_path(street_id, "economics") / "_cache_manifest.json"
+                with open(manifest_path, "w") as f:
+                    json.dump({"input_hash": self._compute_cache_key(context)}, f)
 
         return AgentResult(
             success=action.status == "success",
@@ -432,14 +478,22 @@ class EconomicsAgent(BaseDomainAgent):
         from branitz_heat_decision.config import resolve_cluster_path
         return (resolve_cluster_path(street_id, "dha") / "dha_kpis.json").exists()
 
-    def _check_economics_cache(self, street_id: str) -> tuple[bool, Any]:
+    def _check_economics_cache(self, street_id: str, context: Dict = None) -> tuple[bool, Any]:
         from branitz_heat_decision.config import resolve_cluster_path
         econ_file = resolve_cluster_path(street_id, "economics") / "economics_deterministic.json"
+        manifest_file = resolve_cluster_path(street_id, "economics") / "_cache_manifest.json"
 
-        if econ_file.exists():
+        if econ_file.exists() and manifest_file.exists():
             import json
-            with open(econ_file) as f:
-                return True, json.load(f)
+            with open(manifest_file) as f:
+                manifest = json.load(f)
+            
+            expected_hash = self._compute_cache_key(context or {})
+            if manifest.get("input_hash") == expected_hash:
+                with open(econ_file) as f:
+                    return True, json.load(f)
+            else:
+                logger.info(f"[{self.agent_name}] Cache hash mismatch. Recomputing.")
         return False, None
 
 
@@ -474,7 +528,7 @@ class DecisionAgent(BaseDomainAgent):
             )
 
         # Check cache — decision file on disk
-        cache_hit, cached_data = self._check_decision_cache(street_id)
+        cache_hit, cached_data = self._check_decision_cache(street_id, context)
         if cache_hit and not context.get("force_recalc"):
             logger.info(f"[{self.agent_name}] Using cached decision for {street_id}")
             return AgentResult(
@@ -504,6 +558,13 @@ class DecisionAgent(BaseDomainAgent):
 
         # Load decision result
         decision_data = result.get("decision", {})
+        
+        # Write SHA-256 cache manifest
+        import json
+        from branitz_heat_decision.config import resolve_cluster_path
+        manifest_path = resolve_cluster_path(street_id, "decision") / "_cache_manifest.json"
+        with open(manifest_path, "w") as f:
+            json.dump({"input_hash": self._compute_cache_key(context)}, f)
 
         return AgentResult(
             success=action.status == "success",
@@ -531,13 +592,22 @@ class DecisionAgent(BaseDomainAgent):
         from branitz_heat_decision.config import resolve_cluster_path
         return (resolve_cluster_path(street_id, "economics") / "economics_deterministic.json").exists()
 
-    def _check_decision_cache(self, street_id: str) -> tuple[bool, Any]:
+    def _check_decision_cache(self, street_id: str, context: Dict = None) -> tuple[bool, Any]:
         from branitz_heat_decision.config import resolve_cluster_path
         dec_file = resolve_cluster_path(street_id, "decision") / f"decision_{street_id}.json"
-        if dec_file.exists():
+        manifest_file = resolve_cluster_path(street_id, "decision") / "_cache_manifest.json"
+        
+        if dec_file.exists() and manifest_file.exists():
             import json
-            with open(dec_file) as f:
-                return True, json.load(f)
+            with open(manifest_file) as f:
+                manifest = json.load(f)
+            
+            expected_hash = self._compute_cache_key(context or {})
+            if manifest.get("input_hash") == expected_hash:
+                with open(dec_file) as f:
+                    return True, json.load(f)
+            else:
+                logger.info(f"[{self.agent_name}] Cache hash mismatch. Recomputing.")
         return False, None
 
 
@@ -895,35 +965,35 @@ class WhatIfAgent(BaseDomainAgent):
 
     @staticmethod
     def _exclude_houses(net: Any, n_houses: int) -> Any:
-        """Disable the last *n_houses* heat consumers."""
-        if not hasattr(net, "heat_consumer") or net.heat_consumer is None or net.heat_consumer.empty:
-            raise ValueError("Network has no heat_consumer table")
+        """Disable the last *n_houses* terminal demand elements."""
+        table_name, table = WhatIfAgent._get_terminal_table(net)
+        if table_name is None or table is None or table.empty:
+            raise ValueError("Network has no heat_consumer or heat_exchanger table")
 
         consumers = (
-            net.heat_consumer[net.heat_consumer["in_service"] == True]
-            if "in_service" in net.heat_consumer.columns
-            else net.heat_consumer
+            table[table["in_service"] == True]
+            if "in_service" in table.columns
+            else table
         )
         if len(consumers) <= n_houses:
             raise ValueError(f"Cannot remove {n_houses} houses, only {len(consumers)} available")
 
         for idx in consumers.index[-n_houses:].tolist():
-            if "in_service" in net.heat_consumer.columns:
-                net.heat_consumer.loc[idx, "in_service"] = False
-            if "qext_w" in net.heat_consumer.columns:
-                net.heat_consumer.loc[idx, "qext_w"] = 0.0
+            if "in_service" in table.columns:
+                table.loc[idx, "in_service"] = False
+            for demand_col in ("qext_w", "controlled_mdot_kg_per_s"):
+                if demand_col in table.columns:
+                    table.loc[idx, demand_col] = 0.0
+
+        setattr(net, table_name, table)
         return net
 
     @staticmethod
     def _calculate_dh_co2(net: Any) -> float:
         """Approximate annual CO₂ from DH network."""
         try:
-            if hasattr(net, "res_heat_consumer") and net.res_heat_consumer is not None and not net.res_heat_consumer.empty:
-                col = "qext_w" if "qext_w" in net.res_heat_consumer.columns else None
-                total_w = net.res_heat_consumer[col].sum() if col else 0.0
-            elif hasattr(net, "heat_consumer") and net.heat_consumer is not None and not net.heat_consumer.empty:
-                total_w = net.heat_consumer["qext_w"].sum() if "qext_w" in net.heat_consumer.columns else 0.0
-            else:
+            total_w = WhatIfAgent._get_total_heat_w(net)
+            if total_w <= 0:
                 return 0.0
             return float(total_w * 1e-6 * 8760 * 0.15 * 0.2)
         except Exception:
@@ -953,17 +1023,47 @@ class WhatIfAgent(BaseDomainAgent):
         base_p = self._get_max_pressure(baseline)
         scen_p = self._get_max_pressure(scenario)
 
-        def _heat_mw(net: Any) -> float:
-            if hasattr(net, "res_heat_consumer") and net.res_heat_consumer is not None:
-                col = "qext_w" if "qext_w" in net.res_heat_consumer.columns else None
-                return net.res_heat_consumer[col].sum() * 1e-6 if col else 0.0
-            return 0.0
-
         return {
             "pressure_change_bar": scen_p - base_p,
-            "heat_delivered_change_mw": _heat_mw(scenario) - _heat_mw(baseline),
+            "heat_delivered_change_mw": (
+                self._get_total_heat_w(scenario) - self._get_total_heat_w(baseline)
+            ) * 1e-6,
             "violation_reduction": self._count_violations(baseline) - self._count_violations(scenario),
         }
+
+    @staticmethod
+    def _get_terminal_table(net: Any) -> tuple[Optional[str], Any]:
+        """Return the active terminal demand table used by this network."""
+        for table_name in ("heat_consumer", "heat_exchanger"):
+            table = getattr(net, table_name, None)
+            if table is not None and hasattr(table, "empty") and not table.empty:
+                return table_name, table
+        return None, None
+
+    @staticmethod
+    def _get_total_heat_w(net: Any) -> float:
+        """Best-effort heat extraction across supported pandapipes terminal tables."""
+        result_tables = (
+            ("res_heat_consumer", "qext_w"),
+            ("res_heat_exchanger", "qext_w"),
+        )
+        for table_name, value_col in result_tables:
+            table = getattr(net, table_name, None)
+            if table is not None and hasattr(table, "empty") and not table.empty:
+                if value_col in table.columns:
+                    return float(table[value_col].sum())
+
+        element_tables = (
+            ("heat_consumer", "qext_w"),
+            ("heat_exchanger", "qext_w"),
+        )
+        for table_name, value_col in element_tables:
+            table = getattr(net, table_name, None)
+            if table is not None and hasattr(table, "empty") and not table.empty:
+                if value_col in table.columns:
+                    return float(table[value_col].sum())
+
+        return 0.0
 
 
 # Agent Registry for easy access

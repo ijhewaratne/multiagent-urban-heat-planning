@@ -337,6 +337,7 @@ class DynamicExecutor:
         from branitz_heat_decision.config import resolve_cluster_path
 
         cha_dir = resolve_cluster_path(street_id, "cha")
+        dha_dir = resolve_cluster_path(street_id, "dha")
         map_paths: Dict[str, str] = {}
         for map_type, filename in [
             ("velocity", "interactive_map.html"),
@@ -346,6 +347,11 @@ class DynamicExecutor:
             p = cha_dir / filename
             if p.exists():
                 map_paths[map_type] = str(p)
+
+        # Add LV Grid map if it exists
+        p_dha = dha_dir / "hp_lv_map.html"
+        if p_dha.exists():
+            map_paths["lv grid"] = str(p_dha)
 
         return {
             "topology": topology,

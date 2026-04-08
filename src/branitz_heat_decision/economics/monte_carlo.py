@@ -68,16 +68,25 @@ def run_monte_carlo(
     Returns both per-sample values and a compact summary (median + P10/P90 + robustness).
     """
     logger = logging.getLogger(__name__)
-    rng = np.random.default_rng(int(mc.seed))
+    
     samples: List[Dict[str, float]] = []
+    
+    try:
+        from scipy.stats import qmc
+        sampler = qmc.LatinHypercube(d=6, seed=int(mc.seed))
+        lhs_matrix = sampler.random(n=int(mc.n))
+    except ImportError:
+        logger.warning("scipy not installed. Falling back to standard Monte Carlo.")
+        rng = np.random.default_rng(int(mc.seed))
+        lhs_matrix = rng.uniform(0, 1, size=(int(mc.n), 6))
 
-    for _ in range(int(mc.n)):
-        capex_mult = float(rng.uniform(mc.capex_mult_min, mc.capex_mult_max))
-        elec_price_mult = float(rng.uniform(mc.elec_price_mult_min, mc.elec_price_mult_max))
-        fuel_price_mult = float(rng.uniform(mc.fuel_price_mult_min, mc.fuel_price_mult_max))
-        grid_co2_mult = float(rng.uniform(mc.grid_co2_mult_min, mc.grid_co2_mult_max))
-        hp_cop = float(rng.uniform(mc.hp_cop_min, mc.hp_cop_max))
-        discount_rate = float(rng.uniform(mc.discount_rate_min, mc.discount_rate_max))
+    for i in range(int(mc.n)):
+        capex_mult = float(mc.capex_mult_min + lhs_matrix[i, 0] * (mc.capex_mult_max - mc.capex_mult_min))
+        elec_price_mult = float(mc.elec_price_mult_min + lhs_matrix[i, 1] * (mc.elec_price_mult_max - mc.elec_price_mult_min))
+        fuel_price_mult = float(mc.fuel_price_mult_min + lhs_matrix[i, 2] * (mc.fuel_price_mult_max - mc.fuel_price_mult_min))
+        grid_co2_mult = float(mc.grid_co2_mult_min + lhs_matrix[i, 3] * (mc.grid_co2_mult_max - mc.grid_co2_mult_min))
+        hp_cop = float(mc.hp_cop_min + lhs_matrix[i, 4] * (mc.hp_cop_max - mc.hp_cop_min))
+        discount_rate = float(mc.discount_rate_min + lhs_matrix[i, 5] * (mc.discount_rate_max - mc.discount_rate_min))
 
         p = apply_multipliers(
             base_params,
@@ -105,8 +114,14 @@ def run_monte_carlo(
                 "lcoh_hp_eur_per_mwh": float(l_hp),
                 "co2_dh_t_per_a": float(c_dh),
                 "co2_hp_t_per_a": float(c_hp),
+                "lcoh_dh": float(l_dh),
+                "lcoh_hp": float(l_hp),
+                "co2_dh": float(c_dh),
+                "co2_hp": float(c_hp),
                 "co2_dh_kg_per_mwh": float(c_dh_kg_per_mwh),
                 "co2_hp_kg_per_mwh": float(c_hp_kg_per_mwh),
+                "dh_cheaper": float(l_dh) < float(l_hp),
+                "dh_lower_co2": float(c_dh) < float(c_hp),
                 "capex_mult": float(capex_mult),
                 "elec_price_mult": float(elec_price_mult),
                 "fuel_price_mult": float(fuel_price_mult),
@@ -127,21 +142,46 @@ def run_monte_carlo(
     prob_dh_lower_co2 = sum(1 for s in samples if s["co2_dh_t_per_a"] < s["co2_hp_t_per_a"]) / max(1, len(samples))
 
     summary = {
-        "n": float(len(samples)),
-        "prob_dh_cheaper": float(prob_dh_cheaper),
-        "prob_dh_lower_co2": float(prob_dh_lower_co2),
-        "lcoh_dh_p10": percentile(l_dh_vals, 0.10),
-        "lcoh_dh_p50": percentile(l_dh_vals, 0.50),
-        "lcoh_dh_p90": percentile(l_dh_vals, 0.90),
-        "lcoh_hp_p10": percentile(l_hp_vals, 0.10),
-        "lcoh_hp_p50": percentile(l_hp_vals, 0.50),
-        "lcoh_hp_p90": percentile(l_hp_vals, 0.90),
-        "co2_dh_p10": percentile(c_dh_vals, 0.10),
-        "co2_dh_p50": percentile(c_dh_vals, 0.50),
-        "co2_dh_p90": percentile(c_dh_vals, 0.90),
-        "co2_hp_p10": percentile(c_hp_vals, 0.10),
-        "co2_hp_p50": percentile(c_hp_vals, 0.50),
-        "co2_hp_p90": percentile(c_hp_vals, 0.90),
+        "lcoh": {
+            "dh": {
+                "p05": percentile(l_dh_vals, 0.05),
+                "p50": percentile(l_dh_vals, 0.50),
+                "p95": percentile(l_dh_vals, 0.95),
+                "mean": float(np.mean(l_dh_vals)),
+                "std": float(np.std(l_dh_vals)),
+            },
+            "hp": {
+                "p05": percentile(l_hp_vals, 0.05),
+                "p50": percentile(l_hp_vals, 0.50),
+                "p95": percentile(l_hp_vals, 0.95),
+                "mean": float(np.mean(l_hp_vals)),
+                "std": float(np.std(l_hp_vals)),
+            },
+        },
+        "co2": {
+            "dh": {
+                "p05": percentile(c_dh_vals, 0.05),
+                "p50": percentile(c_dh_vals, 0.50),
+                "p95": percentile(c_dh_vals, 0.95),
+                "mean": float(np.mean(c_dh_vals)),
+                "std": float(np.std(c_dh_vals)),
+            },
+            "hp": {
+                "p05": percentile(c_hp_vals, 0.05),
+                "p50": percentile(c_hp_vals, 0.50),
+                "p95": percentile(c_hp_vals, 0.95),
+                "mean": float(np.mean(c_hp_vals)),
+                "std": float(np.std(c_hp_vals)),
+            },
+        },
+        "monte_carlo": {
+            "n_samples": float(len(samples)),
+            "n_valid": float(len(samples)),
+            "dh_wins_fraction": float(prob_dh_cheaper),
+            "hp_wins_fraction": max(0.0, 1.0 - float(prob_dh_cheaper)),
+            "dh_wins_co2_fraction": float(prob_dh_lower_co2),
+            "hp_wins_co2_fraction": max(0.0, 1.0 - float(prob_dh_lower_co2)),
+        },
     }
 
     return MonteCarloResult(samples=samples, summary=summary)
@@ -211,8 +251,7 @@ def _extract_mc_inputs_from_kpis(
 def _run_one_sample_for_cluster(
     *,
     sample_id: int,
-    seed_i: int,
-    randomness_config: Dict[str, Any],
+    sampled_params: Dict[str, float],
     base_params: EconomicParameters,
     annual_heat_mwh: float,
     total_length_m: float,
@@ -222,11 +261,6 @@ def _run_one_sample_for_cluster(
     max_loading_pct: float,
 ) -> Dict[str, Any]:
     logger = logging.getLogger(__name__)
-    rng_i = np.random.default_rng(int(seed_i))
-
-    sampled_params: Dict[str, float] = {}
-    for param_name, spec in randomness_config.items():
-        sampled_params[param_name] = sample_param(spec, rng_i)
 
     p = base_params
     sample_params = EconomicParameters(
@@ -367,8 +401,54 @@ def run_monte_carlo_for_cluster(
         _extract_mc_inputs_from_kpis(cha_kpis=cha_kpis, dha_kpis=dha_kpis, cluster_summary=cluster_summary)
     )
 
-    # Deterministic per-sample seeds (so parallel mode stays reproducible)
-    seeds = rng.integers(low=0, high=2**31 - 1, size=int(n_samples), dtype=np.int64).tolist()
+    n_params = len(randomness_config)
+    try:
+        from scipy.stats import qmc
+        sampler = qmc.LatinHypercube(d=n_params, seed=int(seed))
+        lhs_mat = sampler.random(n=int(n_samples))
+    except ImportError:
+        logger.warning("scipy not installed. Falling back to standard Monte Carlo.")
+        lhs_mat = rng.uniform(0, 1, size=(int(n_samples), n_params))
+
+    # Pre-compute all samples using Latin Hypercube mapping
+    all_sampled_params = [{} for _ in range(int(n_samples))]
+    for i, (param_name, spec) in enumerate(randomness_config.items()):
+        dist_type = spec["dist"]
+        lhs_col = lhs_mat[:, i]
+        
+        try:
+            from scipy.stats import norm, uniform, triang
+            has_scipy = True
+        except ImportError:
+            has_scipy = False
+
+        if not has_scipy:
+            vals = lhs_col
+        elif dist_type == "normal":
+            vals = norm.ppf(lhs_col, loc=float(spec["mean"]), scale=float(spec["std"]))
+        elif dist_type == "lognormal":
+            mean = float(spec["mean"])
+            std = float(spec["std"])
+            mu = float(np.log(mean))
+            sigma = float(std / mean) if mean != 0 else 0.0
+            vals = np.exp(norm.ppf(lhs_col, loc=mu, scale=sigma))
+        elif dist_type == "uniform":
+            vals = uniform.ppf(lhs_col, loc=float(spec["low"]), scale=float(spec["high"]) - float(spec["low"]))
+        elif dist_type == "triangular":
+            low = float(spec["low"])
+            mode = float(spec["mode"])
+            high = float(spec["high"])
+            c = (mode - low) / (high - low) if high - low != 0 else 0.5
+            vals = triang.ppf(lhs_col, c, loc=low, scale=high - low)
+        else:
+            raise ValueError(f"Unknown dist type {dist_type}")
+            
+        if "clip" in spec and spec["clip"] is not None:
+            min_val, max_val = spec["clip"]
+            vals = np.clip(vals, float(min_val), float(max_val))
+
+        for j in range(int(n_samples)):
+            all_sampled_params[j][param_name] = float(vals[j])
 
     results: List[Dict[str, Any]] = []
     if int(n_jobs) == 1:
@@ -376,8 +456,7 @@ def run_monte_carlo_for_cluster(
             results.append(
                 _run_one_sample_for_cluster(
                     sample_id=sample_id,
-                    seed_i=int(seeds[sample_id]),
-                    randomness_config=randomness_config,
+                    sampled_params=all_sampled_params[sample_id],
                     base_params=params,
                     annual_heat_mwh=annual_heat_mwh,
                     total_length_m=total_length_m,
@@ -408,8 +487,7 @@ def run_monte_carlo_for_cluster(
                 ex.submit(
                     _run_one_sample_for_cluster,
                     sample_id=i,
-                    seed_i=int(seeds[i]),
-                    randomness_config=randomness_config,
+                    sampled_params=all_sampled_params[i],
                     base_params=params,
                     annual_heat_mwh=annual_heat_mwh,
                     total_length_m=total_length_m,

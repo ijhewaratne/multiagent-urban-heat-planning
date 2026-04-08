@@ -1,0 +1,89 @@
+{
+  "claim_extractor": {
+    "LCOH_NUMERICAL": {
+      "count": 14,
+      "tp": 12,
+      "fp": 0,
+      "fn": 2,
+      "precision": 1.0,
+      "recall": 0.8571428571428571
+    },
+    "CO2_COMPARATIVE": {
+      "count": 12,
+      "tp": 16,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.9411764705882353,
+      "recall": 0.9411764705882353
+    },
+    "FEASIBILITY_BINARY": {
+      "count": 8,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "PRESSURE_VELOCITY": {
+      "count": 10,
+      "tp": 10,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.9090909090909091,
+      "recall": 1.0
+    },
+    "WIN_FRACTION": {
+      "count": 6,
+      "tp": 5,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.8333333333333334,
+      "recall": 1.0
+    },
+    "_overall": {
+      "precision": 0.9347826086956522,
+      "recall": 0.9347826086956522,
+      "tp": 43,
+      "fp": 3,
+      "fn": 3
+    }
+  },
+  "tnli": {
+    "Entailment": {
+      "count": 50,
+      "tp": 42,
+      "fp": 4,
+      "fn": 8,
+      "precision": 0.9130434782608695,
+      "recall": 0.84
+    },
+    "Contradiction": {
+      "count": 30,
+      "tp": 16,
+      "fp": 0,
+      "fn": 14,
+      "precision": 1.0,
+      "recall": 0.5333333333333333
+    },
+    "Neutral": {
+      "count": 20,
+      "tp": 20,
+      "fp": 18,
+      "fn": 0,
+      "precision": 0.5263157894736842,
+      "recall": 1.0
+    },
+    "hallucinations_missed": 14
+  },
+  "adversarial": {
+    "total": 20,
+    "accepted": 0,
+    "blocked": 20,
+    "false_acceptance_rate": 0.0,
+    "block_reasons": {
+      "ClaimExtractor": 9,
+      "TNLI": 10,
+      "threshold": 1
+    }
+  }
+}

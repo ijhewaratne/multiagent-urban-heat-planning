@@ -101,10 +101,28 @@ class KPIExtractor:
         # EN 13941-1 compliance
         compliance = self._check_en13941_compliance(aggregate, network_kpis)
         
+        # Compute specific Chapter 3 Gate 1 terms
+        # Maximum source-to-worst-consumer pressure drop in kPa.
+        # Important: this must be evaluated on the DH supply side only.
+        # Using global max(res_junction.p_bar) - min(res_junction.p_bar) mixes
+        # supply and return circuits and overstates the Chapter 3 Gate 1 Δp.
+        dp_max_kpa, pressure_max_details = self._compute_pressure_max_kpa()
+        
+        # Enforce Chapter 3 exact limits
+        ch3_dp_ok = dp_max_kpa <= 100.0
+        ch3_v_ok = aggregate['v_max_ms'] <= 1.5
+        ch3_t_ok = 70.0 <= aggregate['t_supply_c'] <= 95.0
+        feasibility_hyd = 1 if (ch3_dp_ok and ch3_v_ok and ch3_t_ok) else 0
+
         # Compile final result
         result = {
             'cluster_id': cluster_id,
             'design_hour': int(design_hour),
+            'pressure_max': dp_max_kpa,
+            'pressure_max_details': pressure_max_details,
+            'velocity_max': aggregate['v_max_ms'],
+            'heat_losses_percent': aggregate['loss_share_percent'],
+            'feasibility_hyd': feasibility_hyd,
             'aggregate': aggregate,
             'hydraulics': {
                 'velocity_ok': compliance['velocity_ok'],
@@ -149,6 +167,106 @@ class KPIExtractor:
         
         logger.info(f"KPI extraction complete. Feasible: {compliance['feasible']}")
         return result
+
+    def _compute_pressure_max_kpa(self) -> Tuple[float, Dict[str, Any]]:
+        """
+        Compute Chapter 3 Δp_max as supply pressure drop from the plant source
+        to the worst consumer inlet.
+
+        Preferred consumer-side junctions:
+        1. `heat_exchanger.from_junction`   -> substation inlet after flow control
+        2. `heat_consumer.from_junction`    -> direct DH consumer inlet
+        3. `flow_control.to_junction`       -> controlled substation inlet
+        4. named supply-side junctions      -> `substation_*`, `building_supply_*`
+
+        Returns:
+            (dp_max_kpa, details_dict)
+        """
+        details: Dict[str, Any] = {
+            "method": None,
+            "source_junction_id": None,
+            "source_pressure_bar": None,
+            "worst_consumer_junction_id": None,
+            "worst_consumer_pressure_bar": None,
+            "fallback_used": False,
+        }
+
+        source_junction_idx: Optional[int] = None
+
+        if hasattr(self.net, "ext_grid") and self.net.ext_grid is not None and not self.net.ext_grid.empty:
+            try:
+                source_junction_idx = int(self.net.ext_grid.iloc[0]["junction"])
+                details["method"] = "ext_grid_to_consumer_supply"
+            except Exception:
+                source_junction_idx = None
+
+        if source_junction_idx is None and hasattr(self.net, "junction") and self.net.junction is not None:
+            try:
+                plant_mask = self.net.junction["name"].astype(str) == "plant_supply"
+                if plant_mask.any():
+                    source_junction_idx = int(self.net.junction[plant_mask].index[0])
+                    details["method"] = "named_plant_supply_to_consumer_supply"
+            except Exception:
+                source_junction_idx = None
+
+        if source_junction_idx is None:
+            p_max_bar = float(self.net.res_junction["p_bar"].max())
+            p_min_bar = float(self.net.res_junction["p_bar"].min())
+            details["method"] = "fallback_global_pressure_span"
+            details["fallback_used"] = True
+            return (p_max_bar - p_min_bar) * 100.0, details
+
+        candidate_junctions: List[int] = []
+
+        if hasattr(self.net, "heat_exchanger") and self.net.heat_exchanger is not None and not self.net.heat_exchanger.empty:
+            candidate_junctions = [
+                int(v) for v in self.net.heat_exchanger["from_junction"].dropna().tolist()
+            ]
+            details["method"] = "ext_grid_to_heat_exchanger_inlet"
+        elif hasattr(self.net, "heat_consumer") and self.net.heat_consumer is not None and not self.net.heat_consumer.empty:
+            candidate_junctions = [
+                int(v) for v in self.net.heat_consumer["from_junction"].dropna().tolist()
+            ]
+            details["method"] = "ext_grid_to_heat_consumer_inlet"
+        elif hasattr(self.net, "flow_control") and self.net.flow_control is not None and not self.net.flow_control.empty:
+            candidate_junctions = [
+                int(v) for v in self.net.flow_control["to_junction"].dropna().tolist()
+            ]
+            details["method"] = "ext_grid_to_flow_control_outlet"
+
+        if not candidate_junctions and hasattr(self.net, "junction") and self.net.junction is not None:
+            try:
+                names = self.net.junction["name"].astype(str)
+                named_mask = names.str.startswith("substation_") | names.str.startswith("building_supply_")
+                candidate_junctions = [int(v) for v in self.net.junction[named_mask].index.tolist()]
+                details["method"] = "ext_grid_to_named_supply_junction"
+            except Exception:
+                candidate_junctions = []
+
+        # Keep only valid solved junctions and remove duplicates.
+        solved_index = set(int(i) for i in self.net.res_junction.index.tolist())
+        candidate_junctions = sorted({j for j in candidate_junctions if j in solved_index})
+
+        if not candidate_junctions:
+            p_max_bar = float(self.net.res_junction["p_bar"].max())
+            p_min_bar = float(self.net.res_junction["p_bar"].min())
+            details["method"] = "fallback_global_pressure_span"
+            details["fallback_used"] = True
+            return (p_max_bar - p_min_bar) * 100.0, details
+
+        source_pressure_bar = float(self.net.res_junction.loc[source_junction_idx, "p_bar"])
+        consumer_pressures = self.net.res_junction.loc[candidate_junctions, "p_bar"].astype(float)
+        worst_consumer_junction_idx = int(consumer_pressures.idxmin())
+        worst_consumer_pressure_bar = float(consumer_pressures.min())
+        dp_max_kpa = max(0.0, (source_pressure_bar - worst_consumer_pressure_bar) * 100.0)
+
+        details.update({
+            "source_junction_id": source_junction_idx,
+            "source_pressure_bar": source_pressure_bar,
+            "worst_consumer_junction_id": worst_consumer_junction_idx,
+            "worst_consumer_pressure_bar": worst_consumer_pressure_bar,
+        })
+        return dp_max_kpa, details
     
     def _extract_pipe_kpis(self) -> pd.DataFrame:
         """

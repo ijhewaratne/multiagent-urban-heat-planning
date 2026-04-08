@@ -37,6 +37,7 @@ from branitz_heat_decision.economics import (
     DHInputs,
     HPInputs,
     build_pipe_network_results_for_cluster,
+    compute_mc_summary,
     get_default_economics_params,
     get_default_monte_carlo_params,
     get_trunk_connection_length_m,
@@ -380,13 +381,18 @@ def main() -> None:
     mc = mc.__class__(**{**mc.__dict__, "n": int(args.n), "seed": int(args.seed)})
 
     mc_res = run_monte_carlo(dh_inputs=dh_inputs, hp_inputs=hp_inputs, base_params=params, mc=mc)
+    mc_df = pd.DataFrame(mc_res.samples)
+    mc_summary = compute_mc_summary(mc_df)
 
     out_dir = RESULTS_ROOT / "economics" / cluster_id
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "economics_deterministic.json").write_text(json.dumps(det, indent=2), encoding="utf-8")
-    (out_dir / "economics_monte_carlo.json").write_text(json.dumps(mc_res.summary, indent=2), encoding="utf-8")
+    # Write the validated nested schema used by the decision/report stack.
+    (out_dir / "economics_monte_carlo.json").write_text(json.dumps(mc_summary, indent=2), encoding="utf-8")
+    # Keep a legacy alias for readers that still discover monte_carlo_summary.json.
+    (out_dir / "monte_carlo_summary.json").write_text(json.dumps(mc_summary, indent=2), encoding="utf-8")
 
-    pd.DataFrame(mc_res.samples).to_csv(out_dir / "economics_monte_carlo_samples.csv", index=False)
+    mc_df.to_csv(out_dir / "economics_monte_carlo_samples.csv", index=False)
     print(f"Wrote: {out_dir}")
     
     # NEW: Sensitivity Analysis
@@ -434,4 +440,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

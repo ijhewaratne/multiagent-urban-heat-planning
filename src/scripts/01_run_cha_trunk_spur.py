@@ -9,6 +9,7 @@ import json
 import pickle
 import logging
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
@@ -18,7 +19,7 @@ import pandapipes as pp
 
 from branitz_heat_decision.config import (
     BUILDINGS_PATH, BUILDING_CLUSTER_MAP_PATH, DATA_PROCESSED, 
-    TECHNICAL_CATALOG_PATH, resolve_cluster_path
+    resolve_cluster_path
 )
 from branitz_heat_decision.data.loader import load_buildings_geojson, load_streets_geojson
 from branitz_heat_decision.cha.network_builder_trunk_spur import build_trunk_spur_network

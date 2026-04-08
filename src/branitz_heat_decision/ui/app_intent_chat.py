@@ -466,6 +466,37 @@ def _render_what_if(data: Dict[str, Any]):
                    f"Heat change: {comp.get('heat_delivered_change_mw', 0):.4f} MW")
 
 
+def _render_hypothetical_what_if_preview(preview: Dict[str, Any]):
+    st.markdown("### Hypothetical Preview")
+    st.caption(
+        preview.get(
+            "disclaimer",
+            "This preview is advisory only and does not mean the infrastructure change is supported.",
+        )
+    )
+
+    baseline = preview.get("baseline", {})
+    scenario = preview.get("scenario", {})
+    comparison = preview.get("comparison", {})
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Current model**")
+        st.metric("Approx. CO₂", f"{baseline.get('co2_tons', 0):.1f} t/year")
+        st.metric("Max pressure", f"{baseline.get('max_pressure_bar', 0):.3f} bar")
+    with c2:
+        st.markdown("**Hypothetical scenario**")
+        st.metric("Approx. CO₂", f"{scenario.get('co2_tons', 0):.1f} t/year")
+        st.metric("Max pressure", f"{scenario.get('max_pressure_bar', 0):.3f} bar")
+
+    if comparison:
+        st.info(
+            f"Pressure change: {comparison.get('pressure_change_bar', 0):.4f} bar | "
+            f"Heat delivered change: {comparison.get('heat_delivered_change_mw', 0):.4f} MW | "
+            f"Simplified violation reduction: {comparison.get('violation_reduction', 0)}"
+        )
+
+
 def _render_fallback_ui(response: Dict[str, Any], result_key: str = ""):
     """Display fallback with structured capability information (Phase 5)."""
     data = response.get("data", {})
@@ -492,6 +523,10 @@ def _render_fallback_ui(response: Dict[str, Any], result_key: str = ""):
             research_note = data.get("research_note") or response.get("research_note")
             if research_note:
                 st.caption(f"**Note**: {research_note}")
+
+    hypothetical_preview = data.get("hypothetical_preview")
+    if hypothetical_preview:
+        _render_hypothetical_what_if_preview(hypothetical_preview)
 
     # ── Alternative suggestions with icons ──
     alternatives = response.get("alternative_suggestions", [])
@@ -1099,4 +1134,3 @@ def _render_execution_graph(messages: list):
 
 if __name__ == "__main__":
     main()
-
