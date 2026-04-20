@@ -1,0 +1,490 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UHDC Report - ST010_HEINRICH_ZILLE_STRASSE</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- DataTables (Bootstrap 5 theme) -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <style>
+        /* Glassmorphism metric cards + visual hierarchy */
+        .metric-card {
+            border: none;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+        }
+        .metric-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+        .dh-icon { background: linear-gradient(135deg, #28a745, #20c997); color: white; }
+        .hp-icon { background: linear-gradient(135deg, #dc3545, #fd7e14); color: white; }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .metric-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .metric-ci {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+        .robust-badge { background-color: #28a745; }
+        .sensitive-badge { background-color: #ffc107; color: #000; }
+        .uncertain-badge { background-color: #6c757d; }
+        /* Hover tooltips for auditability: show contract JSON path */
+        .source-hint {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dotted #999;
+        }
+        .source-hint:hover::after {
+            content: attr(data-source);
+            position: absolute;
+            bottom: 120%;
+            left: 0;
+            background: #222;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12 d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                <div>
+                <h1 class="h2 mb-0">Urban Heat Decision Report</h1>
+                <small class="text-muted">Cluster: ST010_HEINRICH_ZILLE_STRASSE | Generated: 2026-04-07T22:48:09Z</small>
+                </div>
+                <div class="btn-group ms-3" role="group" aria-label="Export options">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadJSON()">📥 JSON</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadCSV()">📊 CSV</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.print()">🖨️ Print</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Decision Banner -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-success">
+                    <h2 class="h4 mb-0">
+                        Recommendation: <strong>DH</strong>
+                        <span class="badge robust-badge ms-2">
+                            Robust
+                        </span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Executive Summary Dashboard (at-a-glance) -->
+        <div class="row mb-5">
+            <div class="col-md-3">
+                <div class="card text-center metric-card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="metric-value text-success">
+                            <strong>DH</strong>
+                        </div>
+                        <div class="metric-label">Recommendation</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center metric-card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="metric-value">
+                            
+                                <span class="badge bg-success">✓ Robust</span>
+                            
+                        </div>
+                        <div class="metric-label">Confidence</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center metric-card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="metric-value">
+                            
+                            
+                            
+                                
+                                
+                                    <span class="text-danger">89.0% more expensive</span>
+                                
+                            
+                        </div>
+                        <div class="metric-label">Cost Impact</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center metric-card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="metric-value">
+                            
+                            
+                            
+                                
+                                    <span class="text-success">HP better</span>
+                                
+                            
+                        </div>
+                        <div class="metric-label">CO₂ Advantage</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Executive Summary</h5>
+                        <p class="card-text">**DH** is recommended for this cluster.
+
+This option is robust.
+
+Only district heating meets technical standards (HP has 0 grid violations).
+
+Economics clearly favor DH (LCOH difference: 58 €/MWh).
+
+Uncertainty analysis supports this in 100% of scenarios.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="row mb-4">
+            <!-- DH Metrics -->
+            <div class="col-md-6">
+                <div class="card metric-card">
+                    <div class="card-body">
+                        <div class="metric-icon dh-icon">🔥</div>
+                        <div class="metric-label">LCOH (median)</div>
+                        <div class="metric-value">
+                            <span class="source-hint" data-source="district_heating.lcoh.median">
+                                65.6
+                            </span> <span style="font-size: 1rem; font-weight: 600;">€/MWh</span>
+                        </div>
+                        <small class="metric-ci">
+                            95% CI:
+                            <span class="source-hint" data-source="district_heating.lcoh.p05">52.3</span>
+                            -
+                            <span class="source-hint" data-source="district_heating.lcoh.p95">79.2</span>
+                            €/MWh
+                        </small>
+                        <hr>
+                        <div class="row text-center g-2">
+                            <div class="col-4">
+                                <div class="metric-label">Feasible</div>
+                                <div class="h4 mb-0">✓</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-label">Max Velocity</div>
+                                <div class="h5 mb-0">
+                                    <span class="source-hint" data-source="district_heating.hydraulics.v_max_ms">
+                                        0.95
+                                    </span> m/s
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-label">Losses</div>
+                                <div class="h5 mb-0">
+                                    <span class="source-hint" data-source="district_heating.losses.loss_share_pct">
+                                        0.0
+                                    </span>%
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="metric-label">CO₂ (median)</div>
+                        <div class="h5 mb-0">
+                            <span class="source-hint" data-source="district_heating.co2.median">
+                                1116.0
+                            </span> kg/MWh
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HP Metrics -->
+            <div class="col-md-6">
+                <div class="card metric-card">
+                    <div class="card-body">
+                        <div class="metric-icon hp-icon">⚡</div>
+                        <div class="metric-label">LCOH (median)</div>
+                        <div class="metric-value">
+                            <span class="source-hint" data-source="heat_pumps.lcoh.median">
+                                123.7
+                            </span> <span style="font-size: 1rem; font-weight: 600;">€/MWh</span>
+                        </div>
+                        <small class="metric-ci">
+                            95% CI:
+                            <span class="source-hint" data-source="heat_pumps.lcoh.p05">97.8</span>
+                            -
+                            <span class="source-hint" data-source="heat_pumps.lcoh.p95">150.2</span>
+                            €/MWh
+                        </small>
+                        <hr>
+                        <div class="row text-center g-2">
+                            <div class="col-4">
+                                <div class="metric-label">Feasible</div>
+                                <div class="h4 mb-0">✗</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-label">Max Loading</div>
+                                <div class="h5 mb-0">
+                                    <span class="source-hint" data-source="heat_pumps.lv_grid.max_feeder_loading_pct">
+                                        202.0
+                                    </span>%
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-label">Violations</div>
+                                <div class="h5 mb-0">
+                                    
+                                    
+                                    
+                                    <span class="source-hint" data-source="heat_pumps.lv_grid">
+                                        116
+                                        
+                                            <small class="d-block text-muted" style="font-size: 0.7rem;">
+                                                (0 voltage, 116 line)
+                                            </small>
+                                        
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="metric-label">CO₂ (median)</div>
+                        <div class="h5 mb-0">
+                            <span class="source-hint" data-source="heat_pumps.co2.median">
+                                1007.0
+                            </span> kg/MWh
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Details Table -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Detailed Feasibility Assessment</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0" id="tech-details-table">
+                            <thead>
+                                <tr>
+                                    <th>Criteria</th>
+                                    <th>Standard</th>
+                                    <th>District Heating</th>
+                                    <th>Heat Pumps</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="table-success">
+                                    <td>Velocity</td>
+                                    <td>EN 13941-1 (≤1.5 m/s)</td>
+                                    <td><span class="source-hint" data-source="district_heating.hydraulics.v_max_ms">0.95 m/s</span></td>
+                                    <td>N/A</td>
+                                    <td>✓ Pass</td>
+                                </tr>
+                                <tr class="table-success">
+                                    <td>Pressure Drop</td>
+                                    <td>EN 13941-1 (≤0.3 bar/100m)</td>
+                                    <td>≤0.3 bar/100m</td>
+                                    <td>N/A</td>
+                                    <td>✓ Pass</td>
+                                </tr>
+                                <tr class="table-success">
+                                    <td>Voltage Band</td>
+                                    <td>VDE-AR-N 4100 (0.95-1.05 pu)</td>
+                                    <td>N/A</td>
+                                    <td><span class="source-hint" data-source="heat_pumps.lv_grid.voltage_violations_total">0</span> violations</td>
+                                    <td>✓ Pass</td>
+                                </tr>
+                                <tr class="table-danger">
+                                    <td>Line Loading</td>
+                                    <td>VDE-AR-N 4100 (≤100% operation)</td>
+                                    <td>201.5%</td>
+                                    <td><span class="source-hint" data-source="heat_pumps.lv_grid.line_violations_total">116</span> violations</td>
+                                    <td>✗ Fail</td>
+                                </tr>
+                                <tr class="table-warning">
+                                    <td>Feeder Loading</td>
+                                    <td>VDE-AR-N 4100 (≤80% planning)</td>
+                                    <td>N/A</td>
+                                    <td><span class="source-hint" data-source="heat_pumps.lv_grid.max_feeder_loading_pct">202.0%</span></td>
+                                    <td>⚠ Warning</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // DataTables: sortable + filterable technical details table (compact: no paging).
+            $(document).ready(function() {
+                if ($.fn && $.fn.DataTable) {
+                    $('#tech-details-table').DataTable({
+                        paging: false,
+                        searching: true,
+                        info: false,
+                        order: []
+                    });
+                }
+            });
+        </script>
+
+        <script>
+            // Export helpers: full report JSON + quick metrics CSV.
+            // JSON is embedded as base64 to avoid relying on Jinja tojson support.
+            function downloadJSON() {
+                try {
+                    const b64 = "eyJjbHVzdGVyX2lkIjogIlNUMDEwX0hFSU5SSUNIX1pJTExFX1NUUkFTU0UiLCAiY29udHJhY3QiOiB7InZlcnNpb24iOiAiMS4wIiwgImNsdXN0ZXJfaWQiOiAiU1QwMTBfSEVJTlJJQ0hfWklMTEVfU1RSQVNTRSIsICJtZXRhZGF0YSI6IHsiY3JlYXRlZF91dGMiOiAiMjAyNi0wNC0wN1QyMjo0ODowNVoiLCAiaW5wdXRzIjogeyJjaGFfa3Bpc19wYXRoIjogIi9Vc2Vycy9pc2hhbnRoYWhld2FyYXRuZS9Eb2N1bWVudHMvUmVzZXJjaCBOZXcvQnJhbml0ejIvcmVzdWx0cy9jaGEvU1QwMTBfSEVJTlJJQ0hfWklMTEVfU1RSQVNTRS9jaGFfa3Bpcy5qc29uIiwgImRoYV9rcGlzX3BhdGgiOiAiL1VzZXJzL2lzaGFudGhhaGV3YXJhdG5lL0RvY3VtZW50cy9SZXNlcmNoIE5ldy9CcmFuaXR6Mi9yZXN1bHRzL2RoYS9TVDAxMF9IRUlOUklDSF9aSUxMRV9TVFJBU1NFL2RoYV9rcGlzLmpzb24iLCAiZWNvbl9zdW1tYXJ5X3BhdGgiOiAiL1VzZXJzL2lzaGFudGhhaGV3YXJhdG5lL0RvY3VtZW50cy9SZXNlcmNoIE5ldy9CcmFuaXR6Mi9yZXN1bHRzL2Vjb25vbWljcy9TVDAxMF9IRUlOUklDSF9aSUxMRV9TVFJBU1NFL2Vjb25vbWljc19tb250ZV9jYXJsby5qc29uIiwgImRlY2lzaW9uX2NvbmZpZyI6ICJkZWZhdWx0cyJ9LCAibm90ZXMiOiBbXSwgImdpdF9jb21taXQiOiAiNzc5MjZhMTVjYzA1NTJjZWI4YmZmMzJlZDdjODdhNTM3NDlmYjczNyJ9LCAiZGlzdHJpY3RfaGVhdGluZyI6IHsiZmVhc2libGUiOiB0cnVlLCAicmVhc29ucyI6IFsiREhfT0siXSwgImxjb2giOiB7Im1lZGlhbiI6IDY1LjU4MzU2Mjk3Njc1OTE1LCAicDA1IjogNTIuMjU5NDc4OTA0OTgyMDYsICJwOTUiOiA3OS4yMzM2MzA0NzU2NzUwNiwgIm1lYW4iOiA2NS41ODAxMTU4MjcxODg5LCAic3RkIjogOC40NjgzNzc5ODQ3OTQ1MTV9LCAiY28yIjogeyJtZWRpYW4iOiAxMTE2LjMzOTQyNDczMTE4MjYsICJwMDUiOiAxMTE2LjMzOTQyNDczMTE4MjYsICJwOTUiOiAxMTE2LjMzOTQyNDczMTE4MjYsICJtZWFuIjogMTExNi4zMzk0MjQ3MzExOTYyLCAic3RkIjogMS4zNjU2MDgzNDQ0OTE3MTUyZS0xMX0sICJoeWRyYXVsaWNzIjogeyJ2ZWxvY2l0eV9vayI6IHRydWUsICJkcF9vayI6IHRydWUsICJ2X21heF9tcyI6IDAuOTU0ODgxNjg2NDY4MjU0LCAidl9taW5fbXMiOiAwLjAwMDcyOTE4OTIxMzk1MTIzMywgInZfc2hhcmVfd2l0aGluX2xpbWl0cyI6IDEuMCwgImRwX3Blcl8xMDBtX21heCI6IDAuMDUzMDAxNTg4OTgzNDMxODI0LCAiaGFyZF92aW9sYXRpb25zIjogW119LCAibG9zc2VzIjogeyJ0b3RhbF9sZW5ndGhfbSI6IDc5OTEuOTIyOTcwMzcyNjcxLCAidHJ1bmtfbGVuZ3RoX20iOiA1MTI5LjUzOTM0OTk1Mjk1NSwgInNlcnZpY2VfbGVuZ3RoX20iOiAyODYyLjM4MzYyMDQxOTcxNywgImxvc3Nfc2hhcmVfcGN0IjogMC4wLCAicHVtcF9wb3dlcl9rdyI6IDAuMH19LCAiaGVhdF9wdW1wcyI6IHsiZmVhc2libGUiOiBmYWxzZSwgInJlYXNvbnMiOiBbIkhQX09WRVJDVVJSRU5UX09SX09WRVJMT0FEIl0sICJsY29oIjogeyJtZWRpYW4iOiAxMjMuNjYyMjAyMDQwODY4NTIsICJwMDUiOiA5Ny44MDM0OTE0MzI5OTUyNiwgInA5NSI6IDE1MC4yMTA2NDM5OTUxNjMxLCAibWVhbiI6IDEyMy44MjQ1OTk5MzE2NTY2OCwgInN0ZCI6IDE2LjMzMjA3MTk4ODg1MTczN30sICJjbzIiOiB7Im1lZGlhbiI6IDEwMDYuODM4NTkzMTY0NCwgInAwNSI6IDY3My4xMDQxNzIxNDI5NTQ0LCAicDk1IjogMTQ2My4wNDIwMzA2OTU3MTk5LCAibWVhbiI6IDEwMzEuNzA3Njk2NjM3MzY2NiwgInN0ZCI6IDI0Mi4zNTUyOTAyNjU4Nzc3M30sICJsdl9ncmlkIjogeyJwbGFubmluZ193YXJuaW5nIjogdHJ1ZSwgIm1heF9mZWVkZXJfbG9hZGluZ19wY3QiOiAyMDEuNSwgInZvbHRhZ2VfdmlvbGF0aW9uc190b3RhbCI6IDAsICJsaW5lX3Zpb2xhdGlvbnNfdG90YWwiOiAxMTYsICJ3b3JzdF9idXNfaWQiOiBudWxsLCAid29yc3RfbGluZV9pZCI6IG51bGx9LCAiaHBfc3lzdGVtIjogeyJocF90b3RhbF9rd19kZXNpZ24iOiA5NjQuNDY1MzEyNTQwNTc2NywgImhwX3RvdGFsX2t3X3RvcG5fbWF4IjogOTY0LjQ2NTMxMjU0MDU3Njd9fSwgIm1vbnRlX2NhcmxvIjogeyJkaF93aW5zX2ZyYWN0aW9uIjogMS4wLCAiaHBfd2luc19mcmFjdGlvbiI6IDAuMCwgIm5fc2FtcGxlcyI6IDUwMCwgInNlZWQiOiBudWxsfX0sICJkZWNpc2lvbiI6IHsiY2hvaWNlIjogIkRIIiwgInJvYnVzdCI6IHRydWUsICJyZWFzb25fY29kZXMiOiBbIk9OTFlfREhfRkVBU0lCTEUiLCAiUk9CVVNUX0RFQ0lTSU9OIl0sICJtZXRyaWNzX3VzZWQiOiB7Imxjb2hfZGhfbWVkaWFuIjogNjUuNTgzNTYyOTc2NzU5MTUsICJsY29oX2hwX21lZGlhbiI6IDEyMy42NjIyMDIwNDA4Njg1MiwgImNvMl9kaF9tZWRpYW4iOiAxMTE2LjMzOTQyNDczMTE4MjYsICJjbzJfaHBfbWVkaWFuIjogMTAwNi44Mzg1OTMxNjQ0LCAiZGhfd2luc19mcmFjdGlvbiI6IDEuMCwgImhwX3dpbnNfZnJhY3Rpb24iOiAwLjB9fSwgImV4cGxhbmF0aW9uIjogIioqREgqKiBpcyByZWNvbW1lbmRlZCBmb3IgdGhpcyBjbHVzdGVyLlxuXG5UaGlzIG9wdGlvbiBpcyByb2J1c3QuXG5cbk9ubHkgZGlzdHJpY3QgaGVhdGluZyBtZWV0cyB0ZWNobmljYWwgc3RhbmRhcmRzIChIUCBoYXMgMCBncmlkIHZpb2xhdGlvbnMpLlxuXG5FY29ub21pY3MgY2xlYXJseSBmYXZvciBESCAoTENPSCBkaWZmZXJlbmNlOiA1OCDigqwvTVdoKS5cblxuVW5jZXJ0YWludHkgYW5hbHlzaXMgc3VwcG9ydHMgdGhpcyBpbiAxMDAlIG9mIHNjZW5hcmlvcy4iLCAic291cmNlcyI6IHt9LCAibWV0YWRhdGEiOiB7InRpbWVzdGFtcCI6ICIyMDI2LTA0LTA3VDIyOjQ4OjA5WiJ9fQ==";
+                    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                    const jsonText = new TextDecoder('utf-8').decode(bytes);
+                    const blob = new Blob([jsonText], {type: 'application/json'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'uhdc_report_ST010_HEINRICH_ZILLE_STRASSE.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } catch (e) {
+                    console.error("downloadJSON failed", e);
+                }
+            }
+
+            function downloadCSV() {
+                const dhLcoh = 65.58356297675915;
+                const hpLcoh = 123.66220204086852;
+                const dhCo2 = 1116.3394247311826;
+                const hpCo2 = 1006.8385931644;
+                const lines = [];
+                lines.push("Metric,DH,HP");
+                lines.push("LCOH_median," + (dhLcoh ?? "") + "," + (hpLcoh ?? ""));
+                lines.push("CO2_median," + (dhCo2 ?? "") + "," + (hpCo2 ?? ""));
+                const csv = lines.join("\n") + "\n";
+                const blob = new Blob([csv], {type: 'text/csv'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'uhdc_metrics_ST010_HEINRICH_ZILLE_STRASSE.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        </script>
+
+        <!-- DHA Violations Table (if available) -->
+        
+
+        <!-- Reason Codes -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Decision Reason Codes</h5>
+                    </div>
+                    <div class="card-body">
+                        <ol>
+                        
+                            <li><strong>ONLY_DH_FEASIBLE</strong>: Only district heating is technically feasible</li>
+                        
+                            <li><strong>ROBUST_DECISION</strong>: Monte Carlo win fraction ≥70% → decision stable</li>
+                        
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Standards Footer -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Standards Referenced</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0">
+                        
+                            <li>
+                                <a href="https://cdn.standards.iteh.ai/samples/63107/9679243e93d447d8b7fff49c655c8eba/EN-13941-1-2023.pdf" target="_blank" rel="noopener noreferrer">DIN EN 13941-1:2023</a>
+                                <span class="text-muted">— District heating pipes - Design and installation</span>
+                            </li>
+                        
+                            <li>
+                                <a href="https://cdn.standards.iteh.ai/samples/63107/9679243e93d447d8b7fff49c655c8eba/EN-13941-1-2023.pdf" target="_blank" rel="noopener noreferrer">DIN EN 13941-1:2023</a>
+                                <span class="text-muted">— District heating pipes - Design and installation</span>
+                            </li>
+                        
+                            <li>
+                                <a href="https://cdn.standards.iteh.ai/samples/63107/9679243e93d447d8b7fff49c655c8eba/EN-13941-1-2023.pdf" target="_blank" rel="noopener noreferrer">DIN EN 13941-1:2023</a>
+                                <span class="text-muted">— District heating pipes - Design and installation</span>
+                            </li>
+                        
+                            <li>
+                                <a href="https://www.vde.com/resource/blob/951050/aa29e1e9b568a3d9e59b83006b00e4bf/vde-ar-n-4100-2022-06-data.pdf" target="_blank" rel="noopener noreferrer">VDE-AR-N 4100:2022</a>
+                                <span class="text-muted">— Technical connection rules for low-voltage grids</span>
+                            </li>
+                        
+                            <li>
+                                <a href="https://www.vde.com/resource/blob/951050/aa29e1e9b568a3d9e59b83006b00e4bf/vde-ar-n-4100-2022-06-data.pdf" target="_blank" rel="noopener noreferrer">VDE-AR-N 4100:2022</a>
+                                <span class="text-muted">— Technical connection rules for low-voltage grids</span>
+                            </li>
+                        
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+</body>
+</html>

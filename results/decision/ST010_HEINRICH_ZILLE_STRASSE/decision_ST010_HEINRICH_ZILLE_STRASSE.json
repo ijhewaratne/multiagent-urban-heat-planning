@@ -1,0 +1,78 @@
+{
+  "choice": "DH",
+  "robust": true,
+  "reason_codes": [
+    "ONLY_DH_FEASIBLE",
+    "ROBUST_DECISION"
+  ],
+  "metrics_used": {
+    "lcoh_dh_median": 65.58356297675915,
+    "lcoh_hp_median": 123.66220204086852,
+    "co2_dh_median": 1116.3394247311826,
+    "co2_hp_median": 1006.8385931644,
+    "dh_wins_fraction": 1.0,
+    "hp_wins_fraction": 0.0
+  },
+  "validation": {
+    "cluster_id": "ST010_HEINRICH_ZILLE_STRASSE",
+    "timestamp": "2026-04-07T22:48:09.112532",
+    "validation_status": "pass",
+    "overall_confidence": 1.0,
+    "statements_validated": 4,
+    "sentence_results": [
+      {
+        "statement": "Only DH is feasible",
+        "status": "ENTAILMENT",
+        "confidence": 1.0,
+        "evidence": "dh_feasible=True == True=True: \u2705 TRUE",
+        "label": "Entailment"
+      },
+      {
+        "statement": "HP is not feasible",
+        "status": "ENTAILMENT",
+        "confidence": 1.0,
+        "evidence": "hp_feasible=False == False=False: \u2705 TRUE",
+        "label": "Entailment"
+      },
+      {
+        "statement": "DH has robust win fraction (\u226570%)",
+        "status": "ENTAILMENT",
+        "confidence": 1.0,
+        "evidence": "dh_wins_fraction=1.0 >= 0.7=0.7: \u2705 TRUE",
+        "label": "Entailment"
+      },
+      {
+        "statement": "Recommended choice is DH",
+        "status": "ENTAILMENT",
+        "confidence": 1.0,
+        "evidence": "recommended_choice=DH == DH=DH: \u2705 TRUE",
+        "label": "Entailment"
+      }
+    ],
+    "contradictions": [],
+    "warnings": [],
+    "feedback_iterations": 0,
+    "verified_count": 4,
+    "unverified_count": 0,
+    "contradiction_count": 0,
+    "verified_rate": 1.0,
+    "unverified_rate": 0.0,
+    "contradiction_rate": 0.0,
+    "pass_rate": 1.0,
+    "evidence": {
+      "kpis": {
+        "lcoh_dh_median": "65.58356297675915",
+        "lcoh_hp_median": "123.66220204086852",
+        "co2_dh_median": "1116.3394247311826",
+        "co2_hp_median": "1006.8385931644",
+        "dh_wins_fraction": "1.0",
+        "hp_wins_fraction": "0.0",
+        "choice": "DH",
+        "robust": "True",
+        "reason_codes": "['ONLY_DH_FEASIBLE', 'ROBUST_DECISION']",
+        "dh_feasible": "True",
+        "hp_feasible": "False"
+      }
+    }
+  }
+}

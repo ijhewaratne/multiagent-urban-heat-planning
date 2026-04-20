@@ -1,0 +1,53 @@
+{
+  "feasible": false,
+  "hours_total": 10,
+  "hours_converged": 10,
+  "voltage_violations_total": 0,
+  "line_violations_total": 116,
+  "trafo_violations_total": 0,
+  "planning_warnings_total": 77,
+  "voltage_violated_hours": 0,
+  "line_overload_hours": 10,
+  "trafo_overload_hours": 0,
+  "critical_hours_count": 10,
+  "critical_hours_fraction": 1.0,
+  "worst_vmin_pu": 0.9657831073728651,
+  "worst_vmin_bus": null,
+  "worst_vmin_hour": null,
+  "max_feeder_loading_pct": 201.5,
+  "max_loading_line": "1449",
+  "max_feeder_loading_hour": 6667,
+  "max_trafo_loading_pct": null,
+  "max_loading_trafo": null,
+  "max_loading_trafo_hour": null,
+  "peak_p_base_kw_total": 66.2256,
+  "peak_p_hp_kw_total": 964.4653125405767,
+  "peak_p_total_kw_total": 1030.6909125405766,
+  "peak_p_total_hour": 6667,
+  "mitigations": {
+    "mitigation_class": "reinforcement",
+    "recommendations": [
+      {
+        "code": "MIT_LINE_OVERLOAD",
+        "severity": "high",
+        "category": "reinforcement",
+        "title": "Line overload - cable capacity insufficient",
+        "actions": [
+          "Install parallel cable on overloaded segments",
+          "Upgrade to higher-capacity cable",
+          "Implement feeder meshing (connect multiple feeders)"
+        ],
+        "evidence": {
+          "max_loading_line": "1449",
+          "max_loading_pct": 201.5,
+          "limit_pct": 100.0,
+          "affected_hours": 10
+        },
+        "estimated_cost_class": "medium"
+      }
+    ],
+    "feasible_with_mitigation": true,
+    "summary": "Grid reinforcement needed for 1 components"
+  },
+  "worst_hour": 6667
+}
