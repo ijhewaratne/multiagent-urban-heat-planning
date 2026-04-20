@@ -1,0 +1,46 @@
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#FFFACD',
+      'primaryTextColor': '#000',
+      'primaryBorderColor': '#333',
+      'lineColor': '#333',
+      'secondaryColor': '#C8E6C9',
+      'tertiaryColor': '#FFCCBC',
+      'fontFamily': 'sans-serif',
+      'fontSize': '14px'
+    },
+    'flowchart': {
+      'htmlLabels': true,
+      'curve': 'basis'
+    }
+  }
+}%%
+
+flowchart TD
+    A([User Query → Intent → Agent Plan]) --> B{For each agent k<br/>k ∈ Domain(Cache)?}
+    
+    B -- YES --> C[Read cached result]
+    C --> D[(Sub-second retrieval<br/>~0.001–0.05 s)]
+    
+    B -- NO --> E[Delegate to ADK Agent]
+    E --> F[Run simulation]
+    F --> G[Write result to cache]
+    G --> H{More agents?}
+    
+    D --> H
+    H -- YES --> B
+    H -- NO --> I[Integrate Results]
+    I --> J([Return Response])
+    
+    style A fill:#E8E8E8,stroke:#333,stroke-width:2px
+    style B fill:#FFFACD,stroke:#333,stroke-width:2px
+    style C fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px
+    style D fill:#A5D6A7,stroke:#2E7D32,stroke-width:2px
+    style E fill:#FFCCBC,stroke:#C62828,stroke-width:2px
+    style F fill:#FFAB91,stroke:#C62828,stroke-width:2px
+    style G fill:#FFAB91,stroke:#C62828,stroke-width:2px
+    style H fill:#BBDEFB,stroke:#333,stroke-width:2px
+    style I fill:#BBDEFB,stroke:#333,stroke-width:2px
+    style J fill:#E1BEE7,stroke:#333,stroke-width:2px

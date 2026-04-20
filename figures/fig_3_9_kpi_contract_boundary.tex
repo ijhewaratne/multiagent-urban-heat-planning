@@ -1,0 +1,267 @@
+% File: thesis/figures/fig_3_9_kpi_contract_boundary.tex
+\documentclass{article}
+\usepackage[margin=0cm,paperwidth=20cm,paperheight=12cm]{geometry}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\usetikzlibrary{
+    shapes.geometric, 
+    arrows.meta, 
+    positioning, 
+    fit, 
+    backgrounds, 
+    calc,
+    decorations.pathmorphing,
+    shadows
+}
+
+% Color palette consistent with repository
+\definecolor{domainblue}{RGB}{46,134,171}      % CHA/DHA agents
+\definecolor{llmpurple}{RGB}{162,59,114}       % LLM/UHDC
+\definecolor{contractgold}{RGB}{218,165,32}    % KPI Contract
+\definecolor{successgreen}{RGB}{76,175,80}     % Validated
+\definecolor{failurered}{RGB}{220,53,69}       % Blocked/Hazard
+\definecolor{lightgray}{RGB}{245,245,245}      % Background
+\definecolor{darkgray}{RGB}{64,64,64}          % Text
+
+\begin{document}
+\begin{tikzpicture}[
+    node distance=2cm and 3cm,
+    font=\small\sffamily,
+    >=Stealth,
+    thick
+]
+
+% === LAYER DEFINITIONS ===
+% Domain Agents (Left side - producers of data)
+\node[
+    rectangle, 
+    rounded corners=8pt,
+    draw=darkgray,
+    fill=domainblue!20,
+    text width=2.5cm,
+    minimum height=1.2cm,
+    align=center,
+    drop shadow={shadow xshift=2pt, shadow yshift=-2pt, opacity=0.3}
+] (cha) {\textbf{CHA Agent}\\(pandapipes)\\\tiny Thermo-hydraulic};
+
+\node[
+    rectangle, 
+    rounded corners=8pt,
+    draw=darkgray,
+    fill=domainblue!20,
+    text width=2.5cm,
+    minimum height=1.2cm,
+    align=center,
+    below=1.2cm of cha,
+    drop shadow={shadow xshift=2pt, shadow yshift=-2pt, opacity=0.3}
+] (dha) {\textbf{DHA Agent}\\(pandapower)\\\tiny LV Grid Analysis};
+
+\node[
+    rectangle, 
+    rounded corners=8pt,
+    draw=darkgray,
+    fill=domainblue!20,
+    text width=2.5cm,
+    minimum height=1.2cm,
+    align=center,
+    below=1.2cm of dha,
+    drop shadow={shadow xshift=2pt, shadow yshift=-2pt, opacity=0.3}
+] (econ) {\textbf{Econ Agent}\\(Monte Carlo)\\\tiny LCOH/CO$_2$};
+
+% Group domain agents
+\begin{scope}[on background layer]
+    \node[
+        rectangle,
+        draw=darkgray,
+        dashed,
+        fill=domainblue!5,
+        inner sep=0.5cm,
+        fit=(cha) (dha) (econ),
+        label={[anchor=north, font=\bfseries\small]above:Domain Agents (Layer C)}
+    ] (domainlayer) {};
+\end{scope}
+
+% === KPI CONTRACT (Center) - The Firewall ===
+\node[
+    cylinder, 
+    shape border rotate=90,
+    aspect=0.25,
+    draw=contractgold,
+    fill=contractgold!15,
+    text width=3cm,
+    minimum height=4cm,
+    align=center,
+    right=2.5cm of cha,
+    yshift=-1.2cm,
+    drop shadow={shadow xshift=3pt, shadow yshift=-3pt, opacity=0.4},
+    font=\bfseries
+] (kpi) {%
+    \textbf{KPI Contract}\\[3pt]
+    $\mathcal{K} = \{\mathcal{M}, \delta, \mathcal{R}, \tau\}$\\[2pt]
+    \tiny
+    \begin{tabular}{c}
+    $k_{lcoh}, k_{co2},$\\
+    $k_{feas}, k_{phys},$\\
+    $k_{robust}$
+    \end{tabular}
+};
+
+% === UHDC / LLM (Right side - consumer of data) ===
+\node[
+    rectangle, 
+    rounded corners=12pt,
+    draw=llmpurple,
+    fill=llmpurple!15,
+    text width=3cm,
+    minimum height=2cm,
+    align=center,
+    right=2.5cm of kpi,
+    drop shadow={shadow xshift=3pt, shadow yshift=-3pt, opacity=0.4}
+] (uhdc) {%
+    \textbf{UHDC Agent}\\(Layer A)\\
+    \tiny Urban Heat Decision\\Coordinator
+};
+
+\node[
+    rectangle, 
+    rounded corners=12pt,
+    draw=llmpurple,
+    fill=llmpurple!25,
+    text width=2.8cm,
+    minimum height=1.2cm,
+    align=center,
+    above=0.8cm of uhdc,
+    drop shadow={shadow xshift=2pt, shadow yshift=-2pt, opacity=0.3}
+] (llm) {%
+    \textbf{LLM}\\\tiny (Gemini)\\
+    \tiny$T=0.0$\\[-2pt]\tiny deterministic
+};
+
+\node[
+    rectangle, 
+    rounded corners=8pt,
+    draw=successgreen,
+    fill=successgreen!15,
+    text width=2.8cm,
+    minimum height=1cm,
+    align=center,
+    below=0.8cm of uhdc,
+    drop shadow={shadow xshift=2pt, shadow yshift=-2pt, opacity=0.3}
+] (explanation) {%
+    \textbf{Explanation}\\\tiny validated output\\
+    \tiny for stakeholders
+};
+
+% === FORBIDDEN PATHS (Red X) ===
+% This shows what is NOT allowed
+\coordinate (forbidden1) at ($(kpi.west)!0.5!(domainlayer.east)$);
+\coordinate (forbidden2) at ($(kpi.east)!0.5!(uhdc.west)$);
+
+% Red X marks for forbidden direct access
+\node[
+    circle,
+    draw=failurered,
+    line width=2pt,
+    fill=white,
+    inner sep=2pt,
+    minimum size=0.8cm
+] (x1) at ($(llm.west)!0.5!(domainlayer.east)$) {\Large\bfseries\textcolor{failurered}{×}};
+
+\node[
+    circle,
+    draw=failurered,
+    line width=2pt,
+    fill=white,
+    inner sep=2pt,
+    minimum size=0.8cm,
+    below=0.8cm of x1
+] (x2) at ($(llm.south west)!0.3!(cha.north east)$) {\Large\bfseries\textcolor{failurered}{×}};
+
+% === ARROWS - VALID DATA FLOWS (Solid Green/Blue) ===
+% Domain agents write to KPI contract
+\draw[->, line width=2pt, domainblue] (cha.east) -- (kpi.west |- cha.east) 
+    node[midway, above, font=\tiny] {writes};
+\draw[->, line width=2pt, domainblue] (dha.east) -- (kpi.west |- dha.east) 
+    node[midway, above, font=\tiny] {writes};
+\draw[->, line width=2pt, domainblue] (econ.east) -- (kpi.west |- econ.east) 
+    node[midway, above, font=\tiny] {writes};
+
+% UHDC reads from KPI contract
+\draw[->, line width=2pt, llmpurple, dashed] (kpi.east) -- (uhdc.west) 
+    node[midway, above, font=\tiny] {read-only};
+
+% UHDC uses LLM
+\draw[->, line width=1.5pt, llmpurple] (uhdc.north) -- (llm.south);
+
+% UHDC produces explanation
+\draw[->, line width=2pt, successgreen] (uhdc.south) -- (explanation.north);
+
+% === ARROWS - FORBIDDEN (Red, with explanation) ===
+\draw[failurered, line width=1.5pt, opacity=0.5, decorate, decoration={zigzag, segment length=4pt, amplitude=2pt}] 
+    (llm.south west) -- (cha.north east) node[midway, font=\tiny\bfseries, failurered, fill=white, inner sep=1pt] {FORBIDDEN};
+
+\draw[failurered, line width=1.5pt, opacity=0.5, decorate, decoration={zigzag, segment length=4pt, amplitude=2pt}] 
+    (llm.west) -- (domainlayer.east) node[midway, font=\tiny\bfseries, failurered, fill=white, inner sep=1pt] {BLOCKED};
+
+% === ANNOTATIONS ===
+\node[
+    text width=4cm,
+    align=center,
+    font=\tiny\itshape,
+    below=0.3cm of domainlayer,
+    text=darkgray
+] {Deterministic Simulation\\(Layers C–E)};
+
+\node[
+    text width=3cm,
+    align=center,
+    font=\tiny\itshape,
+    below=0.3cm of kpi,
+    text=contractgold!80!black
+] {Immutable\\Information Boundary};
+
+\node[
+    text width=3cm,
+    align=center,
+    font=\tiny\itshape,
+    below=0.3cm of explanation,
+    text=llmpurple!80!black
+] {AI Explanation\\(Layer A)};
+
+% === SAFETY LABELS ===
+\node[
+    rectangle,
+    draw=successgreen,
+    fill=successgreen!10,
+    rounded corners=3pt,
+    font=\tiny\bfseries,
+    inner sep=3pt,
+    right=0.5cm of kpi.north east,
+    anchor=west
+] {Schema-Validated};
+
+\node[
+    rectangle,
+    draw=failurered,
+    fill=failurered!10,
+    rounded corners=3pt,
+    font=\tiny\bfseries,
+    inner sep=3pt,
+    below=0.2cm of x1,
+    yshift=-0.3cm
+] {LLM cannot access\\raw simulation data};
+
+% === TITLE ===
+\node[above=1.5cm of kpi, font=\large\bfseries\sffamily] {%
+    KPI Contract $\mathcal{K}$ as Information Boundary%
+};
+
+\node[below=0.3cm of domainlayer, font=\small\sffamily, text=darkgray] {%
+    \textit{``The LLM is a narrator, not a decider''}%
+};
+
+\end{tikzpicture}
+\end{document}
