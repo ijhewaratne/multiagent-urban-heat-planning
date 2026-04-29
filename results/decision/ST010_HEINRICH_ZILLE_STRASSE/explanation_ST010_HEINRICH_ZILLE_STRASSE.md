@@ -1,20 +1,13 @@
 # UHDC Report: ST010_HEINRICH_ZILLE_STRASSE
-**Generated:** 2026-04-07T22:48:09Z
+**Generated:** 2026-04-29T15:28:13Z
 
 ## Recommendation: **DH**
 Robust: ✓
 
 ## Executive Summary
 
-**DH** is recommended for this cluster.
-
-This option is robust.
-
-Only district heating meets technical standards (HP has 0 grid violations).
-
-Economics clearly favor DH (LCOH difference: 58 €/MWh).
-
-Uncertainty analysis supports this in 100% of scenarios.
+Summary
+The analysis recommends District Heating (DH) as the preferred solution for municipal heating. District
 
 ## Key Metrics
 

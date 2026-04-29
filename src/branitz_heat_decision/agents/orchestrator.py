@@ -168,7 +168,7 @@ Keep your response concise (2-4 sentences)."""
         client = genai.Client(api_key=key)
         cfg = types.GenerateContentConfig(temperature=0.0, max_output_tokens=300)
         resp = client.models.generate_content(
-            model=os.getenv("GOOGLE_MODEL", "gemini-2.0-flash"),
+            model=os.getenv("GOOGLE_MODEL", "gemini-2.5-flash"),
             contents=prompt,
             config=cfg,
         )
@@ -436,7 +436,23 @@ class BranitzOrchestrator:
             resp["agent_trace"] = agent_trace
             return resp
 
-        # 2. UNKNOWN / CAPABILITY → Fallback
+        # 2. DATA_QUERY → Load and display building data directly
+        if intent == "DATA_QUERY":
+            agent_trace.append({
+                "agent": "Data Query Agent",
+                "duty": "Load building data from processed files",
+                "outcome": "loading",
+            })
+            data_response = self._handle_data_query(
+                user_query=user_query,
+                cluster_id=cluster_id,
+                entities=enriched_intent.get("entities", {}),
+            )
+            data_response["intent_data"] = enriched_intent
+            data_response["agent_trace"] = agent_trace
+            return data_response
+
+        # 3. UNKNOWN / CAPABILITY → Fallback
         if intent in ("UNKNOWN", "CAPABILITY_QUERY"):
             agent_trace.append({
                 "agent": "Fallback Agent",
@@ -1067,6 +1083,107 @@ class BranitzOrchestrator:
                 missing.append(phase)
         return [p for p in order if p in missing]
 
-    # NOTE: _handle_explain_request removed — EXPLAIN_DECISION is now routed
-    # through the DynamicExecutor (DecisionAgent) with _enrich_decision_data
-    # and _format_decision_answer handling the rich formatting.
+    def _handle_data_query(self, user_query: str, cluster_id: str, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """Load building data directly from processed data files to answer data queries."""
+        from branitz_heat_decision.config import DATA_PROCESSED
+        import pandas as pd
+        
+        buildings_path = DATA_PROCESSED / "buildings.parquet"
+        cluster_map_path = DATA_PROCESSED / "building_cluster_map.parquet"
+        
+        if not buildings_path.exists() or not cluster_map_path.exists():
+            return {
+                "type": "data_query",
+                "execution_plan": [],
+                "data": {},
+                "answer": "I cannot provide the data because the processed data files (buildings.parquet or building_cluster_map.parquet) are missing.",
+                "sources": [],
+                "can_proceed": False
+            }
+            
+        try:
+            # Read buildings and map
+            buildings = pd.read_parquet(buildings_path)
+            cluster_map = pd.read_parquet(cluster_map_path)
+            
+            # Merge to filter by cluster
+            merged = pd.merge(buildings, cluster_map, on="building_id", how="inner")
+            
+            if cluster_id:
+                # Filter for the specific street (case insensitive)
+                merged = merged[merged["cluster_id"].str.upper() == cluster_id.upper()]
+                street_display = cluster_id.replace("_", " ")
+            else:
+                street_display = "the district"
+                
+            if merged.empty:
+                return {
+                    "type": "data_query",
+                    "execution_plan": [],
+                    "data": {},
+                    "answer": f"No buildings found for {street_display}.",
+                    "sources": ["Data Query"],
+                    "can_proceed": False
+                }
+                
+            # Compute stats
+            total_buildings = len(merged)
+            
+            # Formulate answer based on the requested metric
+            metric = entities.get("metric", "heat_demand")
+            
+            if metric == "design_hour":
+                # Look up design load from design_topn.json
+                design_path = DATA_PROCESSED / "cluster_design_topn.json"
+                if design_path.exists():
+                    import json
+                    with open(design_path, "r", encoding="utf-8") as f:
+                        design_data = json.load(f)
+                    cluster_data = {}
+                    for k, v in design_data.get("clusters", {}).items():
+                        if k.upper() == cluster_id.upper():
+                            cluster_data = v
+                            break
+                    design_load_kw = cluster_data.get("design_load_kw", 0)
+                    answer = f"The design hour heat load for {street_display} is **{design_load_kw:.2f} kW** (sum for {total_buildings} buildings)."
+                else:
+                    answer = f"Design hour data is not available (missing cluster_design_topn.json)."
+            else:
+                # Default: heat demand
+                if "annual_heat_demand_kwh_a" in merged.columns and "specific_heat_demand_kwh_m2a" in merged.columns:
+                    total_demand = merged["annual_heat_demand_kwh_a"].sum()
+                    avg_spec_demand = merged["specific_heat_demand_kwh_m2a"].mean()
+                    
+                    # Create a small summary text
+                    answer = f"In {street_display}, there are **{total_buildings} residential buildings**.\n"
+                    answer += f"- Total annual heat demand: **{total_demand:,.0f} kWh/a**\n"
+                    answer += f"- Average specific heat demand: **{avg_spec_demand:.1f} kWh/(m²a)**\n\n"
+                    
+                    # Create a breakdown by renovation state
+                    if "sanierungszustand" in merged.columns:
+                        breakdown = merged.groupby("sanierungszustand")["building_id"].count()
+                        answer += "Renovation state breakdown:\n"
+                        for state, count in breakdown.items():
+                            answer += f"- {state}: {count} buildings\n"
+                else:
+                    answer = f"Detailed heat demand columns are missing in the dataset for {street_display}."
+
+            return {
+                "type": "data_query",
+                "execution_plan": [],
+                "data": {"buildings_count": total_buildings},
+                "answer": answer,
+                "sources": ["buildings.parquet", "building_cluster_map.parquet"],
+                "can_proceed": True
+            }
+            
+        except Exception as e:
+            logger.exception("Failed to handle DATA_QUERY")
+            return {
+                "type": "ERROR",
+                "execution_plan": [],
+                "data": {},
+                "answer": f"Error loading data: {str(e)}",
+                "sources": [],
+                "can_proceed": False
+            }

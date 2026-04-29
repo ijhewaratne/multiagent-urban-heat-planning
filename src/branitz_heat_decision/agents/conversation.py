@@ -195,7 +195,7 @@ class ConversationManager:
                     "reuse_baseline": True,
                 }
 
-        if any(word in user_query.lower() for word in ["why", "how", "explain"]):
+        if current_intent != "EXPLAIN_DECISION" and any(word in user_query.lower() for word in ["why", "how", "explain"]):
             if self.memory.last_calculation:
                 return self._generate_clarification(user_query, self.memory.last_calculation)
 

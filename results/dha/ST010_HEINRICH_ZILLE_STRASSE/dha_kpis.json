@@ -11,7 +11,7 @@
   "trafo_overload_hours": 0,
   "critical_hours_count": 10,
   "critical_hours_fraction": 1.0,
-  "worst_vmin_pu": 0.9657831073728651,
+  "worst_vmin_pu": 0.9657831073728351,
   "worst_vmin_bus": null,
   "worst_vmin_hour": null,
   "max_feeder_loading_pct": 201.5,

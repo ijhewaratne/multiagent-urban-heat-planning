@@ -100,6 +100,12 @@ SPEC_DEMAND_TABLE: Dict[tuple, float] = {
     ('residential_sfh', 'pre_1978', 'unrenovated'): 250,
     ('residential_sfh', 'pre_1978', 'full'): 60,
     ('residential_sfh', 'post_2010', 'full'): 40,
+    ('residential_sfh', '1995_2009', 'unrenovated'): 110.5,
+    ('residential_sfh', '1995_2009', 'partial'): 97.6,
+    ('residential_sfh', '1995_2009', 'full'): 39.6,
+    ('residential_mfh', '1995_2009', 'unrenovated'): 91.1,
+    ('residential_mfh', '1995_2009', 'partial'): 68.8,
+    ('residential_mfh', '1995_2009', 'full'): 48.9,
     # ... add all combinations
 }
 
@@ -191,8 +197,8 @@ def estimate_envelope(buildings: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if 'year_of_construction' in df.columns:
         df['construction_band'] = df['year_of_construction'].apply(classify_construction_band)
     else:
-        df['construction_band'] = 'unknown'
-        logger.warning("No year_of_construction, setting construction_band='unknown'")
+        df['construction_band'] = '1995_2009'
+        logger.warning("No year_of_construction, setting construction_band='1995_2009'")
     
     # Default renovation state (to be updated later)
     if 'renovation_state' not in df.columns:

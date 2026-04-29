@@ -15,6 +15,7 @@ INTENT_TO_PLAN: Dict[str, List[str]] = {
     "NETWORK_DESIGN": ["cha"],
     "WHAT_IF_SCENARIO": ["cha"],
     "EXPLAIN_DECISION": ["decision"],
+    "DATA_QUERY": [],
     "CAPABILITY_QUERY": [],
     "UNKNOWN": [],
 }

@@ -530,19 +530,37 @@ class DecisionAgent(BaseDomainAgent):
         # Check cache — decision file on disk
         cache_hit, cached_data = self._check_decision_cache(street_id, context)
         if cache_hit and not context.get("force_recalc"):
-            logger.info(f"[{self.agent_name}] Using cached decision for {street_id}")
-            return AgentResult(
-                success=True,
-                data={"decision": cached_data, "outputs": {}},
-                execution_time=time.time() - start,
-                cache_hit=True,
-                agent_name=self.agent_name,
-                metadata={
-                    "cache_source": "file_system",
-                    "choice": cached_data.get("choice") or cached_data.get("recommendation"),
-                    "robust": cached_data.get("robust"),
-                },
-            )
+            sidecars = self._load_decision_sidecars(street_id)
+            if context.get("require_validated_explanation") and (
+                not sidecars["llm_explanation"] or not sidecars["validation"]
+            ):
+                logger.info(
+                    "[%s] Cached decision for %s missing validated explanation; regenerating.",
+                    self.agent_name,
+                    street_id,
+                )
+            else:
+                logger.info(f"[{self.agent_name}] Using cached decision for {street_id}")
+                return AgentResult(
+                    success=True,
+                    data={
+                        "decision": cached_data,
+                        "outputs": {},
+                        "llm_explanation": sidecars["llm_explanation"],
+                        "validation": sidecars["validation"],
+                    },
+                    execution_time=time.time() - start,
+                    cache_hit=True,
+                    agent_name=self.agent_name,
+                    metadata={
+                        "cache_source": "file_system",
+                        "choice": cached_data.get("choice") or cached_data.get("recommendation"),
+                        "robust": cached_data.get("robust"),
+                        "validation_status": (
+                            sidecars["validation"] or {}
+                        ).get("validation_status"),
+                    },
+                )
 
         # Delegate to ADK DecisionAgent
         adk = _get_adk_agents()
@@ -558,7 +576,17 @@ class DecisionAgent(BaseDomainAgent):
 
         # Load decision result
         decision_data = result.get("decision", {})
-        
+        llm_explanation = result.get("explanation")
+        validation = result.get("validation")
+        if llm_explanation and not validation:
+            logger.warning(
+                "[%s] Explanation generated for %s without validation artifact; "
+                "suppressing long-form explanation.",
+                self.agent_name,
+                street_id,
+            )
+            llm_explanation = None
+
         # Write SHA-256 cache manifest
         import json
         from branitz_heat_decision.config import resolve_cluster_path
@@ -574,6 +602,8 @@ class DecisionAgent(BaseDomainAgent):
                 "recommendation": decision_data.get("recommendation"),
                 "robust": decision_data.get("robust", False),
                 "outputs": result.get("outputs", {}),
+                "llm_explanation": llm_explanation,
+                "validation": validation,
             },
             execution_time=execution_time,
             cache_hit=False,
@@ -583,6 +613,7 @@ class DecisionAgent(BaseDomainAgent):
                 "robust": decision_data.get("robust"),
                 "winner": decision_data.get("winner"),
                 "reason_code": decision_data.get("reason_code"),
+                "validation_status": (validation or {}).get("validation_status"),
                 "adk_timestamp": action.timestamp,
             },
             errors=[action.error] if action.error else [],
@@ -609,6 +640,47 @@ class DecisionAgent(BaseDomainAgent):
             else:
                 logger.info(f"[{self.agent_name}] Cache hash mismatch. Recomputing.")
         return False, None
+
+    def _load_decision_sidecars(self, street_id: str) -> Dict[str, Any]:
+        from branitz_heat_decision.config import resolve_cluster_path
+        import json
+
+        output_dir = resolve_cluster_path(street_id, "decision")
+        explanation_text = None
+        validation = None
+
+        explanation_path = output_dir / f"explanation_{street_id}.md"
+        if explanation_path.exists():
+            try:
+                explanation_text = explanation_path.read_text(encoding="utf-8")
+            except Exception as exc:
+                logger.warning(
+                    "[%s] Failed to load explanation for %s: %s",
+                    self.agent_name,
+                    street_id,
+                    exc,
+                )
+
+        validation_path = output_dir / f"validation_{street_id}.json"
+        if validation_path.exists():
+            try:
+                with open(validation_path, "r", encoding="utf-8") as f:
+                    validation = json.load(f)
+            except Exception as exc:
+                logger.warning(
+                    "[%s] Failed to load validation for %s: %s",
+                    self.agent_name,
+                    street_id,
+                    exc,
+                )
+
+        if explanation_text and not validation:
+            explanation_text = None
+
+        return {
+            "llm_explanation": explanation_text,
+            "validation": validation,
+        }
 
 
 class ValidationAgent(BaseDomainAgent):

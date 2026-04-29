@@ -2,7 +2,7 @@
   "version": "1.0",
   "cluster_id": "ST010_HEINRICH_ZILLE_STRASSE",
   "metadata": {
-    "created_utc": "2026-04-07T22:48:05Z",
+    "created_utc": "2026-04-29T15:28:09Z",
     "inputs": {
       "cha_kpis_path": "/Users/ishanthahewaratne/Documents/Reserch New/Branitz2/results/cha/ST010_HEINRICH_ZILLE_STRASSE/cha_kpis.json",
       "dha_kpis_path": "/Users/ishanthahewaratne/Documents/Reserch New/Branitz2/results/dha/ST010_HEINRICH_ZILLE_STRASSE/dha_kpis.json",
@@ -10,7 +10,7 @@
       "decision_config": "defaults"
     },
     "notes": [],
-    "git_commit": "77926a15cc0552ceb8bff32ed7c87a53749fb737"
+    "git_commit": "8fc5858a232fcddc4e61155df8dd83d22f269961"
   },
   "district_heating": {
     "feasible": true,
@@ -37,14 +37,14 @@
       "v_max_ms": 0.954881686468254,
       "v_min_ms": 0.000729189213951233,
       "v_share_within_limits": 1.0,
-      "dp_per_100m_max": 0.053001588983431824,
+      "dp_per_100m_max": 0.053001588983459406,
       "hard_violations": []
     },
     "losses": {
       "total_length_m": 7991.922970372671,
       "trunk_length_m": 5129.539349952955,
       "service_length_m": 2862.383620419717,
-      "loss_share_pct": 0.0,
+      "loss_share_pct": NaN,
       "pump_power_kw": 0.0
     }
   },

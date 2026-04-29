@@ -44,6 +44,7 @@ class BranitzIntent(Enum):
     NETWORK_DESIGN = "network_design"
     WHAT_IF_SCENARIO = "what_if_scenario"
     EXPLAIN_DECISION = "explain_decision"
+    DATA_QUERY = "data_query"
     CAPABILITY_QUERY = "capability_query"
     UNKNOWN = "unknown"
 
@@ -59,6 +60,7 @@ Available intents (return ONLY one):
 - NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid, for ONE specific street. Use for "how many buildings" or "building count" ONLY when referring to a single street's network. NOT for "list all streets" or "streets in the district and buildings per street".
 - WHAT_IF_SCENARIO: User asks hypotheticals: "what if we remove houses", "different temperatures"
 - EXPLAIN_DECISION: User asks why a decision was made, wants KPI explanation, asks "what is recommended", "what's the recommendation", or asks for decision summary (needs cached results only)
+- DATA_QUERY: User asks about raw building data: heat demands, specific heat demand, annual demand, design hour demand, building areas, U-values, construction year, envelope data, thermal properties. Use this when the user wants to SEE or LIST building-level data (not run a simulation or compare options).
 - CAPABILITY_QUERY: User asks "what can you do?", "help", capabilities, OR asks for a LIST of streets / available data: "what streets", "which streets", "list the streets", "streets in the district", "streets and the number of residential buildings in each street", "buildings in each street" (use this whenever the user wants ALL streets or a list with counts per street, not one street's network)
 - UNKNOWN: Outside capabilities (adding consumers, changing building geometry, legal advice, etc.)
 
@@ -72,6 +74,8 @@ Examples:
 "What if we remove 2 houses?" -> {"intent": "WHAT_IF_SCENARIO", "entities": {"modification": "remove 2 houses"}, ...}
 "Can I see the interactive maps" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants to view network maps"}
 "Show me the heating grid layout" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants network visualization"}
+"What are the heat demands of the buildings" -> {"intent": "DATA_QUERY", "confidence": 0.95, "entities": {"metric": "heat_demand"}, "reasoning": "User wants to see building heat demand data"}
+"Design hour heat demand" -> {"intent": "DATA_QUERY", "confidence": 0.9, "entities": {"metric": "design_hour"}, "reasoning": "User wants design hour load data"}
 "Add a new consumer" -> {"intent": "UNKNOWN", "confidence": 0.9, "reasoning": "Cannot modify network topology"}
 "What are the streets in the district and the number of residential buildings in each street?" -> {"intent": "CAPABILITY_QUERY", "confidence": 0.95, "entities": {"sub_query": "list_streets"}, "reasoning": "User wants list of all streets with building counts per street"}
 """
@@ -91,7 +95,7 @@ def _call_genai_new_sdk(user_query: str) -> str:
     client = genai.Client(api_key=key)
     cfg = types.GenerateContentConfig(temperature=0.0, max_output_tokens=500)
     resp = client.models.generate_content(
-        model=os.getenv("GOOGLE_MODEL", "gemini-2.0-flash"),
+        model=os.getenv("GOOGLE_MODEL", "gemini-2.5-flash"),
         contents=f"{CLASSIFIER_SYSTEM_PROMPT}\n\nUser: {user_query}",
         config=cfg,
     )
@@ -269,6 +273,15 @@ def _keyword_fallback(user_query: str) -> Dict[str, Any]:
             "confidence": 0.6,
             "entities": {},
             "reasoning": "Keyword fallback",
+        }
+    if any(w in q for w in ["heat demand", "heat demands", "specific heat", "annual demand",
+                              "design hour", "design load", "u-value", "u value",
+                              "building data", "thermal", "envelope"]):
+        return {
+            "intent": "DATA_QUERY",
+            "confidence": 0.7,
+            "entities": {"metric": "heat_demand"},
+            "reasoning": "Keyword fallback: building data query",
         }
     if any(w in q for w in ["which street", "what street", "list street", "list streets", "list the street", "list the streets",
                               "available street", "streets in the", "all streets", "show street",

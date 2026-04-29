@@ -47,7 +47,7 @@ if not LLM_AVAILABLE:
     logger.warning("Google GenAI SDK not installed. LLM explainer will fallback to template.")
 
 # Optional runtime toggles (via .env / env vars)
-GOOGLE_MODEL_DEFAULT = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash")
+GOOGLE_MODEL_DEFAULT = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "30"))
 UHDC_FORCE_TEMPLATE = os.getenv("UHDC_FORCE_TEMPLATE", "false").strip().lower() == "true"
 

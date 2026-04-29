@@ -450,23 +450,41 @@ def run_decision_tool(
             "contract": (output_dir / f"kpi_contract_{cluster_id}.json").exists(),
             "decision": (output_dir / f"decision_{cluster_id}.json").exists(),
             "explanation": (output_dir / f"explanation_{cluster_id}.md").exists(),
+            "validation": (output_dir / f"validation_{cluster_id}.json").exists(),
         }
-        
+
         # Load decision result
         decision_result = None
+        explanation_text = None
+        validation_result = None
         if outputs["decision"]:
             try:
                 with open(output_dir / f"decision_{cluster_id}.json", "r") as f:
                     decision_result = json.load(f)
             except Exception:
                 pass
-        
+        if outputs["explanation"]:
+            try:
+                explanation_text = (
+                    output_dir / f"explanation_{cluster_id}.md"
+                ).read_text(encoding="utf-8")
+            except Exception:
+                pass
+        if outputs["validation"]:
+            try:
+                with open(output_dir / f"validation_{cluster_id}.json", "r") as f:
+                    validation_result = json.load(f)
+            except Exception:
+                pass
+
         return {
             "status": "success",
             "stdout": result.stdout,
             "stderr": result.stderr,
             "outputs": outputs,
             "decision": decision_result,
+            "explanation": explanation_text,
+            "validation": validation_result,
         }
     except subprocess.CalledProcessError as e:
         return {

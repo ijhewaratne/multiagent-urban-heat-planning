@@ -106,7 +106,11 @@ class DynamicExecutor:
             error:          str | None  — set only on failure
             ...plus intent-specific data keys the UI expects
         """
-        context = context or {}
+        context = {
+            **(context or {}),
+            "requested_intent": intent,
+            "require_validated_explanation": intent == "EXPLAIN_DECISION",
+        }
         self._ensure_agents()
 
         start = time.perf_counter()
@@ -363,7 +367,10 @@ class DynamicExecutor:
     # -- Decision -----------------------------------------------------------
     def _format_decision(self, results: Dict, street_id: str) -> Dict[str, Any]:
         if "decision" in results and results["decision"].success:
-            dec_data = results["decision"].data.get("decision", {})
+            decision_result = results["decision"]
+            dec_data = decision_result.data.get("decision", {})
+            validation = decision_result.data.get("validation")
+            llm_explanation = decision_result.data.get("llm_explanation")
             return {
                 "choice": dec_data.get("recommendation") or dec_data.get("choice"),
                 "recommendation": dec_data.get("recommendation") or dec_data.get("choice"),
@@ -371,6 +378,8 @@ class DynamicExecutor:
                 "reason": dec_data.get("reason", ""),
                 "reason_codes": dec_data.get("reason_codes", []),
                 "metrics_used": dec_data.get("metrics_used", {}),
+                "llm_explanation": llm_explanation if validation else None,
+                "validation": validation,
             }
         return {}
 

@@ -383,7 +383,7 @@ Keep it concise (3-4 sentences) and helpful."""
             client = genai.Client(api_key=self.api_key)
             cfg = types.GenerateContentConfig(temperature=0.3, max_output_tokens=200)
             resp = client.models.generate_content(
-                model=os.getenv("GOOGLE_MODEL", "gemini-2.0-flash"),
+                model=os.getenv("GOOGLE_MODEL", "gemini-2.5-flash"),
                 contents=prompt,
                 config=cfg,
             )
