@@ -289,33 +289,41 @@ def create_interactive_map(
         get_value = _pipe_temp_value_c
         value_unit = "°C"
     elif color_by == "pressure":
-        p_all = pipe_features_df.apply(_pipe_pressure_value_bar, axis=1)
-        p_all = pd.to_numeric(p_all, errors="coerce")
-        p_all = p_all[np.isfinite(p_all)].dropna()
-        if scale_to_data_range and len(p_all) > 0:
-            pmin_used = float(p_all.min())
-            pmax_used = float(p_all.max())
+        # Use per-circuit pressure ranges so within-circuit pressure drops are visible.
+        # A single combined scale (supply ~7-8 bar, return ~5-5.5 bar) would compress
+        # the ≈0.4 bar intra-circuit variation to ~13% of the scale — invisible as colour.
+        p_supply_vals = trunk_supply_pipes.apply(_pipe_pressure_value_bar, axis=1)
+        p_supply_vals = pd.to_numeric(p_supply_vals, errors="coerce").dropna()
+        p_return_vals = trunk_return_pipes.apply(_pipe_pressure_value_bar, axis=1)
+        p_return_vals = pd.to_numeric(p_return_vals, errors="coerce").dropna()
+
+        if len(p_supply_vals) > 0:
+            ps_min = float(p_supply_vals.min())
+            ps_max = float(p_supply_vals.max())
         else:
-            # fallback: typical district heating pressures
-            pmin_used = 0.5
-            pmax_used = 3.0
-            if len(p_all) > 0:
-                pmin_used = min(pmin_used, float(p_all.min()))
-                pmax_used = max(pmax_used, float(p_all.max()))
-        if not np.isfinite(pmax_used) or pmax_used <= pmin_used:
-            pmax_used = pmin_used + 1e-6
+            ps_min, ps_max = 5.0, 8.0
+        if not np.isfinite(ps_max) or ps_max <= ps_min:
+            ps_max = ps_min + 0.01
+
+        if len(p_return_vals) > 0:
+            pr_min = float(p_return_vals.min())
+            pr_max = float(p_return_vals.max())
+        else:
+            pr_min, pr_max = 4.0, 6.0
+        if not np.isfinite(pr_max) or pr_max <= pr_min:
+            pr_max = pr_min + 0.01
 
         supply_cmap = cm.LinearColormap(
             colors=['#fee5d9', '#fcae91', '#fb6a4a', '#cb181d'],
-            vmin=pmin_used,
-            vmax=pmax_used,
-            caption='Supply pressure (bar)'
+            vmin=ps_min,
+            vmax=ps_max,
+            caption=f'Supply pressure (bar)  [{ps_min:.2f} – {ps_max:.2f}]'
         )
         return_cmap = cm.LinearColormap(
             colors=['#deebf7', '#9ecae1', '#3182bd', '#08519c'],
-            vmin=pmin_used,
-            vmax=pmax_used,
-            caption='Return pressure (bar)'
+            vmin=pr_min,
+            vmax=pr_max,
+            caption=f'Return pressure (bar)  [{pr_min:.2f} – {pr_max:.2f}]'
         )
         get_value = _pipe_pressure_value_bar
         value_unit = "bar"
@@ -352,18 +360,25 @@ def create_interactive_map(
 
     supply_cmap.add_to(m)
     return_cmap.add_to(m)
-    
+
+    # Human-readable label for the primary coloring metric (used in popups)
+    value_label = {
+        "velocity": "Velocity",
+        "temperature": "Temperature",
+        "pressure": "Pressure (mean)",
+    }[color_by]
+
     # Fixed circuit colors (for sizing / DN thickness visualization)
     supply_fixed = SUPPLY_COLOR_FIXED
     return_fixed = RETURN_COLOR_FIXED
 
     # Trunk Supply Pipes (blue gradient)
     trunk_supply_layer = folium.FeatureGroup(name="Supply Pipes (Trunk)", show=True)
-    
+
     for _, pipe in trunk_supply_pipes.iterrows():
         velocity = float(pipe.get('velocity_ms', 0.0))
         if not np.isfinite(velocity):
-            velocity = vmin_used
+            velocity = 0.0  # safe fallback — vmin_used only exists in velocity branch
         value = float(get_value(pipe))
         color = supply_cmap(value) if np.isfinite(value) else supply_cmap(supply_cmap.vmin)
         
@@ -376,23 +391,22 @@ def create_interactive_map(
         is_trunk = 'pipe_S_' in str(pipe_name) or 'pipe_R_' in str(pipe_name)
         pipe_type_label = "Trunk Supply" if is_trunk else "Supply"
         
+        primary_val_str = f"{value:.3f} {value_unit}" if np.isfinite(value) else "N/A"
         popup_html = f"""
         <div style="font-family: Arial, sans-serif;">
             <h4 style="margin: 0 0 10px 0; color: #cb181d;">{pipe_type_label} Pipe</h4>
-            <b>ID:</b> {pipe['pipe_id']}<br>
-            <b>Name:</b> {pipe_name}<br>
-            <b>DN:</b> {dn if dn else pipe.get('std_type', 'N/A')}<br>
-            <b>Diameter:</b> {diam_mm:.0f} mm<br>
-            <b>Length:</b> {pipe['length_m']:.1f} m<br>
-            <b>Velocity:</b> {velocity:.2f} m/s<br>
-            <b>Pressure Drop:</b> {pipe['pressure_drop_bar']:.3f} bar<br>
+            <b>{value_label}:</b> {primary_val_str}<br>
+            <b>Velocity:</b> {velocity:.3f} m/s<br>
+            <b>Pressure Drop:</b> {pipe['pressure_drop_bar']:.4f} bar<br>
             <b>T_from:</b> {pipe.get('t_from_c', float('nan')):.1f} °C<br>
             <b>T_to:</b> {pipe.get('t_to_c', float('nan')):.1f} °C<br>
             <b>ΔT (pipe):</b> {pipe.get('temp_drop_c', float('nan')):.2f} °C<br>
-            <b>Flow Direction:</b> Plant → Buildings
+            <b>DN:</b> {dn if dn else pipe.get('std_type', 'N/A')} &nbsp;|&nbsp;
+            <b>L:</b> {pipe['length_m']:.1f} m<br>
+            <b>Flow:</b> Plant → Buildings
         </div>
         """
-        
+
         role = "trunk"
         weight = pipe_weight(pipe.get("diameter_mm", np.nan), role)
         folium.PolyLine(
@@ -402,46 +416,43 @@ def create_interactive_map(
             opacity=0.95,
             popup=folium.Popup(popup_html, max_width=350),
             tooltip=(
-                f"Trunk Supply: {value:.2f} {value_unit}, DN: {dn if dn else 'N/A'}"
-                if np.isfinite(value) else f"Trunk Supply: DN {dn if dn else 'N/A'}"
+                f"Supply {value_label}: {value:.3f} {value_unit}, DN {dn if dn else 'N/A'}"
+                if np.isfinite(value) else f"Trunk Supply DN {dn if dn else 'N/A'}"
             ),
         ).add_to(trunk_supply_layer)
-    
+
     trunk_supply_layer.add_to(m)
-    
-    # Trunk Return Pipes (red gradient)
+
+    # Trunk Return Pipes
     trunk_return_layer = folium.FeatureGroup(name="Return Pipes (Trunk)", show=True)
-    
+
     for _, pipe in trunk_return_pipes.iterrows():
         velocity = float(pipe.get('velocity_ms', 0.0))
         if not np.isfinite(velocity):
-            velocity = vmin_used
+            velocity = 0.0
         value = float(get_value(pipe))
         color = return_cmap(value) if np.isfinite(value) else return_cmap(return_cmap.vmin)
-        
+
         dn = pipe.get('dn', None) or _parse_dn_from_std_type(pipe.get('std_type', ''))
         diam_mm = pipe.get('diameter_mm', np.nan)
-        line_weight = DN_TO_WIDTH.get(dn, 6)  # Thicker for trunk pipes
-        
-        # Enhanced popup with topology information
+
         pipe_name = pipe.get('name', f"pipe_{pipe['pipe_id']}")
         is_trunk = 'pipe_S_' in str(pipe_name) or 'pipe_R_' in str(pipe_name)
         pipe_type_label = "Trunk Return" if is_trunk else "Return"
-        
+
+        primary_val_str = f"{value:.3f} {value_unit}" if np.isfinite(value) else "N/A"
         popup_html = f"""
         <div style="font-family: Arial, sans-serif;">
             <h4 style="margin: 0 0 10px 0; color: #08519c;">{pipe_type_label} Pipe</h4>
-            <b>ID:</b> {pipe['pipe_id']}<br>
-            <b>Name:</b> {pipe_name}<br>
-            <b>DN:</b> {dn if dn else pipe.get('std_type', 'N/A')}<br>
-            <b>Diameter:</b> {diam_mm:.0f} mm<br>
-            <b>Length:</b> {pipe['length_m']:.1f} m<br>
-            <b>Velocity:</b> {velocity:.2f} m/s<br>
-            <b>Pressure Drop:</b> {pipe['pressure_drop_bar']:.3f} bar<br>
+            <b>{value_label}:</b> {primary_val_str}<br>
+            <b>Velocity:</b> {velocity:.3f} m/s<br>
+            <b>Pressure Drop:</b> {pipe['pressure_drop_bar']:.4f} bar<br>
             <b>T_from:</b> {pipe.get('t_from_c', float('nan')):.1f} °C<br>
             <b>T_to:</b> {pipe.get('t_to_c', float('nan')):.1f} °C<br>
             <b>ΔT (pipe):</b> {pipe.get('temp_drop_c', float('nan')):.2f} °C<br>
-            <b>Flow Direction:</b> Buildings → Plant
+            <b>DN:</b> {dn if dn else pipe.get('std_type', 'N/A')} &nbsp;|&nbsp;
+            <b>L:</b> {pipe['length_m']:.1f} m<br>
+            <b>Flow:</b> Buildings → Plant
         </div>
         """
         
@@ -468,23 +479,21 @@ def create_interactive_map(
         building_id = pipe.get('building_id', 'N/A')
         velocity = float(pipe.get('velocity_ms', 0.0))
         if not np.isfinite(velocity):
-            velocity = vmin_used
+            velocity = 0.0
         value = float(get_value(pipe))
         service_color = supply_cmap(value) if np.isfinite(value) else supply_cmap(supply_cmap.vmin)
         pipe_name = pipe.get('name', f"pipe_{pipe['pipe_id']}")
         dn = pipe.get('dn', 'N/A')
-        
+
+        primary_val_str = f"{value:.3f} {value_unit}" if np.isfinite(value) else "N/A"
         popup_html = f"""
         <div style="font-family: Arial, sans-serif;">
             <h4 style="margin: 0 0 10px 0; color: #74add1;">Service Supply Pipe</h4>
-            <b>ID:</b> {pipe['pipe_id']}<br>
-            <b>Name:</b> {pipe_name}<br>
+            <b>{value_label}:</b> {primary_val_str}<br>
+            <b>Velocity:</b> {velocity:.3f} m/s<br>
             <b>Building:</b> {building_id}<br>
-            <b>DN:</b> {dn}<br>
-            <b>Length:</b> {pipe['length_m']:.1f} m<br>
-            <b>Velocity:</b> {velocity:.2f} m/s<br>
-            <b>Flow Direction:</b> Trunk → Building<br>
-            <b>Connection:</b> Trunk Service Junction → Building Supply Junction
+            <b>DN:</b> {dn} &nbsp;|&nbsp; <b>L:</b> {pipe['length_m']:.1f} m<br>
+            <b>Flow:</b> Trunk → Building
         </div>
         """
         
@@ -512,23 +521,21 @@ def create_interactive_map(
         building_id = pipe.get('building_id', 'N/A')
         velocity = float(pipe.get('velocity_ms', 0.0))
         if not np.isfinite(velocity):
-            velocity = vmin_used
+            velocity = 0.0
         value = float(get_value(pipe))
         service_color = return_cmap(value) if np.isfinite(value) else return_cmap(return_cmap.vmin)
         pipe_name = pipe.get('name', f"pipe_{pipe['pipe_id']}")
         dn = pipe.get('dn', 'N/A')
-        
+
+        primary_val_str = f"{value:.3f} {value_unit}" if np.isfinite(value) else "N/A"
         popup_html = f"""
         <div style="font-family: Arial, sans-serif;">
             <h4 style="margin: 0 0 10px 0; color: #fdae61;">Service Return Pipe</h4>
-            <b>ID:</b> {pipe['pipe_id']}<br>
-            <b>Name:</b> {pipe_name}<br>
+            <b>{value_label}:</b> {primary_val_str}<br>
+            <b>Velocity:</b> {velocity:.3f} m/s<br>
             <b>Building:</b> {building_id}<br>
-            <b>DN:</b> {dn}<br>
-            <b>Length:</b> {pipe['length_m']:.1f} m<br>
-            <b>Velocity:</b> {velocity:.2f} m/s<br>
-            <b>Flow Direction:</b> Building → Trunk<br>
-            <b>Connection:</b> Building Return Junction → Trunk Service Junction
+            <b>DN:</b> {dn} &nbsp;|&nbsp; <b>L:</b> {pipe['length_m']:.1f} m<br>
+            <b>Flow:</b> Building → Trunk
         </div>
         """
         

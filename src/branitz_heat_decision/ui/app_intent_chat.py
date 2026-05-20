@@ -68,6 +68,9 @@ st.markdown("""
     /* Tighter padding for wide layout */
     .block-container { padding-top: 1.5rem; padding-bottom: 0; }
 
+    /* Prevent tab strip from clipping under the page top edge */
+    [data-testid="column"]:last-child .stTabs { margin-top: 0.4rem; }
+
     /* Left panel: scrollable chat */
     [data-testid="column"]:first-child {
         border-right: 1px solid #e0e0e0;
@@ -77,27 +80,16 @@ st.markdown("""
     /* Chat messages tighter */
     .stChatMessage { margin-bottom: 0.25rem; }
 
-    /* Header bar */
-    .header-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.5rem 0;
-        border-bottom: 2px solid #1e3c72;
-        margin-bottom: 0.75rem;
-    }
-    .header-bar h2 { margin: 0; color: #1e3c72; }
-
     /* Context pill */
     .context-pill {
         display: inline-block;
         background: #eef2ff;
         border: 1px solid #1e3c72;
         border-radius: 20px;
-        padding: 0.3rem 0.85rem;
-        font-size: 1.2rem;
+        padding: 0.25rem 0.75rem;
+        font-size: 1.05rem;
         color: #1e3c72;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.4rem;
     }
 
     /* Right panel header */
@@ -110,208 +102,96 @@ st.markdown("""
         text-align: center;
     }
     .viz-header h3 { font-size: 1.6rem; }
+
+    /* Compact app header */
+    .app-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: linear-gradient(135deg, #080f1f 0%, #0d2244 55%, #071830 100%);
+        border-radius: 14px;
+        padding: 0.85rem 1.2rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid rgba(64, 224, 208, 0.18);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .app-header-title {
+        font-weight: 800;
+        font-size: 1.12rem;
+        letter-spacing: 0.025em;
+        margin: 0;
+        background: linear-gradient(95deg, #ffffff 0%, #40e0d0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .app-header-sub {
+        color: #5b8fae;
+        font-size: 0.76rem;
+        margin: 0;
+        margin-top: 0.15rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    /* Recommendation badge */
+    .rec-badge {
+        display: inline-block;
+        border-radius: 6px;
+        padding: 0.35rem 0.9rem;
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    .rec-dh { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .rec-hp { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── AI Orb Avatar ──
-
-AVATAR_CSS = """
-<style>
-.ai-orb-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-}
-
-.ai-orb {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #1e3a5f 0%, #0d1f33 50%, #050a10 100%);
-    position: relative;
-    box-shadow:
-        0 0 20px rgba(64, 224, 208, 0.3),
-        0 0 40px rgba(64, 224, 208, 0.1),
-        inset 0 0 20px rgba(255, 255, 255, 0.05);
-    animation: orb-breathe 4s ease-in-out infinite;
-    overflow: hidden;
-}
-
-/* Inner neural network pattern */
-.ai-orb::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60%;
-    height: 60%;
-    background-image:
-        radial-gradient(circle at 20% 30%, rgba(64, 224, 208, 0.8) 1.5px, transparent 1.5px),
-        radial-gradient(circle at 50% 20%, rgba(64, 224, 208, 0.6) 1px, transparent 1px),
-        radial-gradient(circle at 80% 40%, rgba(64, 224, 208, 0.7) 1.2px, transparent 1.2px),
-        radial-gradient(circle at 30% 70%, rgba(64, 224, 208, 0.5) 1px, transparent 1px),
-        radial-gradient(circle at 70% 80%, rgba(64, 224, 208, 0.6) 1.3px, transparent 1.3px),
-        radial-gradient(circle at 50% 50%, rgba(64, 224, 208, 0.4) 0.8px, transparent 0.8px);
-    background-size: 100% 100%;
-    opacity: 0.7;
-    animation: nodes-pulse 3s ease-in-out infinite;
-}
-
-/* Connection lines */
-.ai-orb::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 50%;
-    height: 50%;
-    background:
-        linear-gradient(45deg, transparent 48%, rgba(64, 224, 208, 0.3) 49%, rgba(64, 224, 208, 0.3) 51%, transparent 52%),
-        linear-gradient(-45deg, transparent 48%, rgba(64, 224, 208, 0.2) 49%, rgba(64, 224, 208, 0.2) 51%, transparent 52%),
-        linear-gradient(90deg, transparent 48%, rgba(64, 224, 208, 0.25) 49%, rgba(64, 224, 208, 0.25) 51%, transparent 52%);
-    opacity: 0.5;
-    animation: connections-fade 4s ease-in-out infinite;
-}
-
-/* Waveform ring */
-.orb-ring {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90%;
-    height: 90%;
-    border: 1px solid rgba(64, 224, 208, 0.2);
-    border-radius: 50%;
-    animation: ring-rotate 8s linear infinite;
-}
-
-.orb-ring::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: 50%;
-    width: 4px;
-    height: 4px;
-    background: rgba(64, 224, 208, 0.8);
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(64, 224, 208, 0.8);
-}
-
-/* Specular highlight */
-.orb-highlight {
-    position: absolute;
-    top: 15%;
-    left: 20%;
-    width: 25%;
-    height: 15%;
-    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
-    border-radius: 50%;
-    transform: rotate(-45deg);
-}
-
-/* Animations */
-@keyframes orb-breathe {
-    0%, 100% {
-        box-shadow:
-            0 0 20px rgba(64, 224, 208, 0.3),
-            0 0 40px rgba(64, 224, 208, 0.1),
-            inset 0 0 20px rgba(255, 255, 255, 0.05);
-        transform: scale(1);
-    }
-    50% {
-        box-shadow:
-            0 0 30px rgba(64, 224, 208, 0.4),
-            0 0 60px rgba(64, 224, 208, 0.15),
-            inset 0 0 30px rgba(255, 255, 255, 0.08);
-        transform: scale(1.02);
-    }
-}
-
-@keyframes nodes-pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 0.9; }
-}
-
-@keyframes connections-fade {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.6; }
-}
-
-@keyframes ring-rotate {
-    from { transform: translate(-50%, -50%) rotate(0deg); }
-    to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-/* Light variant */
-.ai-orb.light {
-    background: radial-gradient(circle at 30% 30%, #e8f4f8 0%, #d0e8f0 50%, #b8dce8 100%);
-    box-shadow:
-        0 0 20px rgba(64, 224, 208, 0.2),
-        0 0 40px rgba(64, 224, 208, 0.1),
-        inset 0 0 20px rgba(255, 255, 255, 0.5);
-}
-
-.ai-orb.light::before {
-    background-image:
-        radial-gradient(circle at 20% 30%, rgba(30, 58, 95, 0.8) 1.5px, transparent 1.5px),
-        radial-gradient(circle at 50% 20%, rgba(30, 58, 95, 0.6) 1px, transparent 1px),
-        radial-gradient(circle at 80% 40%, rgba(30, 58, 95, 0.7) 1.2px, transparent 1.2px),
-        radial-gradient(circle at 30% 70%, rgba(30, 58, 95, 0.5) 1px, transparent 1px),
-        radial-gradient(circle at 70% 80%, rgba(30, 58, 95, 0.6) 1.3px, transparent 1.3px),
-        radial-gradient(circle at 50% 50%, rgba(30, 58, 95, 0.4) 0.8px, transparent 0.8px);
-}
-
-.ai-orb.light .orb-ring {
-    border-color: rgba(30, 58, 95, 0.2);
-}
-
-.ai-orb.light .orb-ring::before {
-    background: rgba(30, 58, 95, 0.8);
-    box-shadow: 0 0 10px rgba(30, 58, 95, 0.8);
-}
-
-.ai-orb.light .orb-highlight {
-    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.6) 0%, transparent 70%);
-}
-
-/* Title styling */
-.orb-title {
-    margin-top: 0.8rem;
-    font-weight: 600;
-    color: #1e3c72;
-    font-size: 1.4rem;
-    text-align: center;
-}
-
-.orb-subtitle {
-    font-size: 1.05rem;
-    color: #666;
-    text-align: center;
-    margin-top: 0.2rem;
-}
-</style>
+_LOGO_SVG = """
+<svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b35"/>
+      <stop offset="100%" stop-color="#40e0d0"/>
+    </linearGradient>
+    <linearGradient id="boltGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#40e0d0"/>
+      <stop offset="100%" stop-color="#1e90ff"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Outer ring -->
+  <circle cx="26" cy="26" r="24" fill="none" stroke="url(#ringGrad)" stroke-width="1.8" opacity="0.7"/>
+  <!-- Heat-wave sine curve (district heating) -->
+  <path d="M 5 26 Q 11 14 17 26 Q 23 38 29 26 Q 35 14 41 26 Q 44 32 47 26"
+        fill="none" stroke="#ff6b35" stroke-width="2.4" stroke-linecap="round"
+        filter="url(#glow)" opacity="0.9"/>
+  <!-- Lightning bolt (heat pump / electricity) -->
+  <path d="M 28 9 L 21 27 L 26.5 27 L 22 43 L 36 23 L 30 23 L 35 9 Z"
+        fill="url(#boltGrad)" opacity="0.88" filter="url(#glow)"/>
+  <!-- Centre dot -->
+  <circle cx="26" cy="26" r="2.5" fill="#ffffff" opacity="0.55"/>
+</svg>
 """
 
 
-def render_ai_orb(variant: str = "dark") -> str:
-    """Render the AI Orb Avatar HTML."""
-    orb_class = "ai-orb" if variant == "dark" else "ai-orb light"
-    return f"""
-    <div class="ai-orb-container">
-        <div class="{orb_class}">
-            <div class="orb-ring"></div>
-            <div class="orb-highlight"></div>
-        </div>
-        <div class="orb-title">Branitz Assistant</div>
-        <div class="orb-subtitle">District Heating &amp; Heat Pump Specialist</div>
-    </div>
-    """
+def _render_app_header() -> None:
+    """Creative branded header with SVG heat-network logo."""
+    st.markdown(
+        f'<div class="app-header">'
+        f'{_LOGO_SVG}'
+        f'<div>'
+        f'<p class="app-header-title">Branitz Heat AI</p>'
+        f'<p class="app-header-sub">DH · HP · Decision Intelligence · Cottbus</p>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ── Helpers ──
@@ -586,6 +466,67 @@ def _render_fallback_ui(response: Dict[str, Any], result_key: str = ""):
         st.info("This requires manual urban planning expertise.")
 
 
+def _render_all_clusters() -> None:
+    """Summary table of every analyzed cluster, read directly from results/ on disk."""
+    st.subheader("All Analyzed Clusters")
+    try:
+        from branitz_heat_decision.ui.services import load_all_decisions
+        df = load_all_decisions()
+    except Exception as e:
+        st.warning(f"Could not load cluster summaries: {e}")
+        return
+
+    if df.empty:
+        st.info("No decision results found yet. Run simulations first.")
+        return
+
+    display_df = df.drop(columns=["_cluster_id"], errors="ignore")
+
+    def _color_rec(val):
+        if val == "DH":
+            return "background-color: #e8f5e9; color: #2e7d32; font-weight: bold"
+        if val == "HP":
+            return "background-color: #e3f2fd; color: #1565c0; font-weight: bold"
+        return ""
+
+    def _color_feasible(val):
+        if val == "✓":
+            return "color: #2e7d32; font-weight: bold"
+        if val == "✗":
+            return "color: #c62828; font-weight: bold"
+        return ""
+
+    styled = (
+        display_df.style
+        .applymap(_color_rec, subset=["Recommendation"])
+        .applymap(_color_feasible, subset=["DH Feasible", "HP Feasible"])
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+
+    # Quick comparison bar chart
+    import altair as alt
+    if len(df) > 1:
+        chart_data = []
+        for _, row in df.iterrows():
+            chart_data.append({"Cluster": row["Cluster"][:20], "Option": "DH", "LCOH": row["LCOH DH (€/MWh)"]})
+            chart_data.append({"Cluster": row["Cluster"][:20], "Option": "HP", "LCOH": row["LCOH HP (€/MWh)"]})
+        chart_df = pd.DataFrame(chart_data)
+        chart = (
+            alt.Chart(chart_df)
+            .mark_bar()
+            .encode(
+                x=alt.X("Cluster:N", axis=alt.Axis(labelAngle=-20)),
+                y=alt.Y("LCOH:Q", title="LCOH (€/MWh)"),
+                color=alt.Color("Option:N", scale=alt.Scale(
+                    domain=["DH", "HP"], range=["#1e3c72", "#e74c3c"]
+                )),
+                xOffset="Option:N",
+            )
+            .properties(title="LCOH Comparison Across Clusters", height=250)
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+
 def _render_visualization(response: Dict[str, Any], result_key: str = ""):
     """Render the right-panel visualization for a response."""
     data = response.get("data", {})
@@ -602,54 +543,134 @@ def _render_visualization(response: Dict[str, Any], result_key: str = ""):
     elif rtype == "what_if_scenario" and data:
         _render_what_if(data)
     elif rtype == "explain_decision" and data:
-        st.subheader("Decision Recommendation")
+        import altair as alt
+
         rec = data.get("choice") or data.get("recommendation", "UNKNOWN")
         reason_codes = data.get("reason_codes", [])
-        reason = data.get("reason", "") or (", ".join(reason_codes) if reason_codes else "")
         robust = data.get("robust", False)
-        metrics = data.get("metrics_used", {})
+        contract = data.get("kpi_contract")
 
+        # ── Verdict badge ──
         if rec == "DH":
-            st.success("Recommended: **District Heating (DH)**")
+            badge_cls = "rec-dh"
+            badge_txt = "District Heating (DH)" + (" — robust decision" if robust else "")
         elif rec == "HP":
-            st.info("Recommended: **Heat Pumps (HP)**")
+            badge_cls = "rec-hp"
+            badge_txt = "Heat Pumps (HP)" + (" — robust decision" if robust else "")
         else:
-            st.warning("Undecided or tied")
+            badge_cls, badge_txt = "rec-hp", "Undecided / tied"
+        st.markdown(
+            f'<span class="rec-badge {badge_cls}">Recommendation: {badge_txt}</span>',
+            unsafe_allow_html=True,
+        )
 
-        if reason:
-            st.write(f"**Reason:** {reason.replace('_', ' ')}")
+        # ── Causal narrative ──
+        if contract:
+            try:
+                from branitz_heat_decision.uhdc.explainer import _build_decision_narrative
+                narrative = _build_decision_narrative(
+                    contract, {"choice": rec, "robust": robust, "reason_codes": reason_codes}
+                )
+                st.markdown(narrative)
+            except Exception:
+                contract = None
 
-        # Show key metrics if available
-        if metrics:
-            m1, m2 = st.columns(2)
-            lcoh_dh = metrics.get("lcoh_dh_median")
-            lcoh_hp = metrics.get("lcoh_hp_median")
-            co2_dh = metrics.get("co2_dh_median")
-            co2_hp = metrics.get("co2_hp_median")
-            if lcoh_dh is not None:
-                m1.metric("LCOH District Heating", f"{lcoh_dh:.1f} €/MWh")
-            if lcoh_hp is not None:
-                m2.metric("LCOH Heat Pumps", f"{lcoh_hp:.1f} €/MWh")
-            if co2_dh is not None:
-                m1.metric("CO₂ District Heating", f"{co2_dh:.1f} t/year")
-            if co2_hp is not None:
-                m2.metric("CO₂ Heat Pumps", f"{co2_hp:.1f} t/year")
+        if not contract:
+            reason = ", ".join(r.replace("_", " ").lower() for r in reason_codes) if reason_codes else ""
+            if reason:
+                st.caption(f"Reason: {reason}")
 
-        if not robust:
-            st.caption("⚠️ Not robust — Monte Carlo analysis missing or inconclusive")
+        # ── Monte Carlo robustness bar ──
+        if contract:
+            mc = contract.get("monte_carlo", {})
+            dh_wins = mc.get("dh_wins_fraction")
+            hp_wins = mc.get("hp_wins_fraction")
+            n_samples = mc.get("n_samples", 0)
+            win_frac = (dh_wins if rec == "DH" else hp_wins) if (dh_wins is not None) else None
+            if win_frac is not None:
+                st.markdown(f"**Monte Carlo robustness** — {rec} preferred in **{win_frac*100:.0f}%** of {n_samples} scenarios")
+                st.progress(float(win_frac))
 
-        # Validation summary
+        # ── LCOH + CO₂ comparison charts with 95% CI ──
+        if contract:
+            dh_c = contract.get("district_heating", {})
+            hp_c = contract.get("heat_pumps", {})
+            dh_lcoh = dh_c.get("lcoh", {})
+            hp_lcoh = hp_c.get("lcoh", {})
+            dh_co2 = dh_c.get("co2", {})
+            hp_co2 = hp_c.get("co2", {})
+
+            ch1, ch2 = st.columns(2)
+            with ch1:
+                if dh_lcoh.get("median") and hp_lcoh.get("median"):
+                    df_lcoh = pd.DataFrame([
+                        {"Option": "DH", "median": dh_lcoh["median"],
+                         "p05": dh_lcoh.get("p05", dh_lcoh["median"]),
+                         "p95": dh_lcoh.get("p95", dh_lcoh["median"])},
+                        {"Option": "HP", "median": hp_lcoh["median"],
+                         "p05": hp_lcoh.get("p05", hp_lcoh["median"]),
+                         "p95": hp_lcoh.get("p95", hp_lcoh["median"])},
+                    ])
+                    bars = alt.Chart(df_lcoh).mark_bar(
+                        cornerRadiusTopLeft=4, cornerRadiusTopRight=4
+                    ).encode(
+                        x=alt.X("Option:N", axis=alt.Axis(labelAngle=0), title=None),
+                        y=alt.Y("median:Q", title="€/MWh"),
+                        color=alt.Color("Option:N", scale=alt.Scale(
+                            domain=["DH", "HP"], range=["#1e3c72", "#e74c3c"]
+                        ), legend=None),
+                    )
+                    err = alt.Chart(df_lcoh).mark_errorbar(ticks=True).encode(
+                        x="Option:N",
+                        y=alt.Y("p05:Q", title="€/MWh"),
+                        y2="p95:Q",
+                    )
+                    st.altair_chart((bars + err).properties(title="LCOH (95% CI)", height=220),
+                                   use_container_width=True)
+
+            with ch2:
+                if dh_co2.get("median") and hp_co2.get("median"):
+                    df_co2 = pd.DataFrame([
+                        {"Option": "DH", "median": dh_co2["median"],
+                         "p05": dh_co2.get("p05", dh_co2["median"]),
+                         "p95": dh_co2.get("p95", dh_co2["median"])},
+                        {"Option": "HP", "median": hp_co2["median"],
+                         "p05": hp_co2.get("p05", hp_co2["median"]),
+                         "p95": hp_co2.get("p95", hp_co2["median"])},
+                    ])
+                    bars_co2 = alt.Chart(df_co2).mark_bar(
+                        cornerRadiusTopLeft=4, cornerRadiusTopRight=4
+                    ).encode(
+                        x=alt.X("Option:N", axis=alt.Axis(labelAngle=0), title=None),
+                        y=alt.Y("median:Q", title="kg/MWh"),
+                        color=alt.Color("Option:N", scale=alt.Scale(
+                            domain=["DH", "HP"], range=["#1e3c72", "#e74c3c"]
+                        ), legend=None),
+                    )
+                    err_co2 = alt.Chart(df_co2).mark_errorbar(ticks=True).encode(
+                        x="Option:N",
+                        y=alt.Y("p05:Q", title="kg/MWh"),
+                        y2="p95:Q",
+                    )
+                    st.altair_chart((bars_co2 + err_co2).properties(title="CO₂ (95% CI)", height=220),
+                                   use_container_width=True)
+
+        # ── Validation footer ──
         val = data.get("validation", {})
         if val:
             val_status = val.get("validation_status", "")
             verified = val.get("verified_count", 0)
             total = val.get("statements_validated", 0)
             if val_status == "pass":
-                st.success(f"Validation: **PASS** ({verified}/{total} statements verified)")
+                st.success(f"Validation: PASS — {verified}/{total} claims verified")
             elif val_status == "fail":
-                st.error(f"Validation: **FAIL** ({val.get('contradiction_count', 0)} contradictions)")
-            else:
-                st.warning(f"Validation: {val_status}")
+                st.error(f"Validation: FAIL — {val.get('contradiction_count', 0)} contradictions")
+
+        # ── Detailed AI explanation expander ──
+        llm_expl = data.get("llm_explanation", "")
+        if llm_expl:
+            with st.expander("Detailed AI Analysis (Gemini)", expanded=False):
+                st.markdown(llm_expl)
     elif rtype == "guardrail_blocked":
         _render_fallback_ui(response, result_key=result_key)
     else:
@@ -727,67 +748,45 @@ def main():
 
     # ===== LEFT PANEL: Chat =====
     with col_chat:
-        # ===== ANIMATED AVATAR / PERSONA HEADER =====
-        st.markdown(AVATAR_CSS, unsafe_allow_html=True)
-        _orb = render_ai_orb("dark")
-        _card = (
-            '<div style="text-align:center; padding:1.5rem 1rem;'
-            ' background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%);'
-            ' border-radius:15px; margin-bottom:1.5rem;'
-            ' box-shadow:0 4px 6px rgba(0,0,0,0.1);">'
-            + _orb
-            + '</div>'
-        )
-        st.markdown(_card, unsafe_allow_html=True)
-        # ===== END ANIMATED AVATAR HEADER =====
+        # Compact branded header
+        _render_app_header()
 
-        # Header
-        hdr1, hdr2 = st.columns([3, 1])
-        with hdr1:
-            st.markdown("### Branitz Heat AI")
-        with hdr2:
+        # Clear button — right-aligned without an empty ghost column
+        _, btn_col = st.columns([4, 1])
+        with btn_col:
             if st.button("Clear", key="clear_chat", use_container_width=True):
                 st.session_state.intent_chat_messages = []
                 st.rerun()
 
-        # Context pill
-        if cluster_id:
-            display_name = cluster_id.replace("_", " ").replace("ST0", "ST0")
-            st.markdown(f'<span class="context-pill">📍 {display_name}</span>', unsafe_allow_html=True)
-
-        # Street selector (collapsed)
-        with st.expander("Change street", expanded=False):
-            streets = _get_available_streets()
-            if streets:
-                # Keep street unpinned until user explicitly selects one.
-                options = [""] + streets
-                idx = options.index(cluster_id) if cluster_id in options else 0
-                chosen = st.selectbox(
-                    "Street",
-                    options,
-                    index=idx,
-                    format_func=lambda x: x.replace("_", " ") if x else "No street selected",
-                    key="street_selector",
-                    label_visibility="collapsed",
-                )
-                if chosen != cluster_id:
-                    st.session_state.intent_chat_cluster = chosen
-                    st.rerun()
+        # Street selector — always visible, no expander
+        streets = _get_available_streets()
+        options = [""] + streets
+        idx = options.index(cluster_id) if cluster_id in options else 0
+        chosen = st.selectbox(
+            "Active street",
+            options,
+            index=idx,
+            format_func=lambda x: x.replace("_", " ") if x else "— select a street —",
+            key="street_selector",
+        )
+        if chosen != cluster_id:
+            st.session_state.intent_chat_cluster = chosen
+            st.rerun()
 
         # Chat history
-        chat_container = st.container(height=450)
+        chat_container = st.container(height=500)
         with chat_container:
             for msg in messages:
                 with st.chat_message(msg["role"]):
                     st.write(msg["content"])
 
-        # Suggestions
+        # Suggestion chips — full text, no truncation
         suggestions = orch.conversation.get_suggestions()
         if suggestions:
             scols = st.columns(min(len(suggestions), 3))
             for i, s in enumerate(suggestions[:3]):
                 with scols[i]:
-                    if st.button(s[:35], key=f"sug_{i}", use_container_width=True):
+                    if st.button(s, key=f"sug_{i}", use_container_width=True):
                         _process_message(s, cluster_id, messages, orch)
                         st.rerun()
 
@@ -827,56 +826,76 @@ def main():
             _process_message(user_input, effective, messages, orch)
             st.rerun()
 
-    # ===== RIGHT PANEL: All Results (scrollable) =====
+    # ===== RIGHT PANEL: Tab per answer (newest first, up to 6) =====
     with col_viz:
-        # Collect all assistant messages that have real results (not fallback)
-        result_messages = [
+        # Spacer so the tab strip aligns below the branded header on the left
+        st.markdown(
+            '<div style="height:0.55rem"></div>',
+            unsafe_allow_html=True,
+        )
+        # Include every assistant message that has real content —
+        # this captures both structured results AND plain follow-up answers.
+        all_answers = [
             (i, msg) for i, msg in enumerate(messages)
             if msg.get("role") == "assistant"
-            and msg.get("type") not in ("fallback", "", None)
-            and msg.get("data")
+            and msg.get("content", "").strip()
         ]
+        recent = list(reversed(all_answers))[:6]
 
-        if result_messages:
-            st.markdown(f"**{len(result_messages)} result(s)** — scroll to see all")
-            viz_container = st.container(height=1000)
-            with viz_container:
-                # Render each result in reverse chronological order (newest first)
-                for idx, (msg_idx, msg) in enumerate(reversed(result_messages)):
-                    turn_num = len(result_messages) - idx
-                    # Find the user question that preceded this answer
-                    user_q = ""
-                    if msg_idx > 0 and messages[msg_idx - 1].get("role") == "user":
-                        user_q = messages[msg_idx - 1]["content"]
+        _TYPE_ICON = {
+            "explain_decision": "🏛",
+            "co2_comparison": "♻️",
+            "lcoh_comparison": "💶",
+            "network_design": "🗺️",
+            "violation_analysis": "⚠️",
+            "what_if_scenario": "🔀",
+            "guardrail_blocked": "🚧",
+            "fallback": "💬",
+        }
 
-                    # Section header
-                    st.markdown(f"---")
-                    st.markdown(f"**Result {turn_num}** — _{user_q}_" if user_q else f"**Result {turn_num}**")
-                    st.caption(msg.get("content", ""))
+        def _tab_label(msg_idx: int, msg: dict) -> str:
+            user_q = ""
+            if msg_idx > 0 and messages[msg_idx - 1].get("role") == "user":
+                user_q = messages[msg_idx - 1]["content"]
+            icon = _TYPE_ICON.get(msg.get("type", ""), "💬")
+            label = (user_q[:20] + "…") if len(user_q) > 20 else user_q
+            return f"{icon} {label}" if label else f"{icon} Answer"
 
-                    # Visualization
-                    _render_visualization(msg, result_key=str(msg_idx))
+        if recent:
+            tabs = st.tabs([_tab_label(mi, m) for mi, m in recent])
+            for tab, (msg_idx, msg) in zip(tabs, recent):
+                with tab:
+                    rtype = msg.get("type", "")
+                    data = msg.get("data", {})
+                    content = msg.get("content", "")
 
-                    # Execution log (collapsed)
+                    # Structured visualizations take priority over raw text
+                    _VIZ_TYPES = {
+                        "explain_decision", "co2_comparison", "lcoh_comparison",
+                        "network_design", "violation_analysis", "what_if_scenario",
+                    }
+                    if rtype in _VIZ_TYPES and data:
+                        _render_visualization(msg, result_key=str(msg_idx))
+                    elif rtype == "guardrail_blocked":
+                        _render_fallback_ui(msg, result_key=str(msg_idx))
+                    else:
+                        # Plain text answer (follow-up, clarification, etc.)
+                        if content:
+                            st.markdown(content)
+
                     if msg.get("execution_plan"):
-                        with st.expander("What was calculated"):
+                        with st.expander("What was calculated", expanded=False):
                             for p in msg["execution_plan"]:
                                 st.caption(f"• {p}")
-
         else:
-            st.markdown("")
-            st.markdown("")
             st.markdown(
                 '<div class="viz-header"><h3>Results will appear here</h3></div>',
                 unsafe_allow_html=True,
             )
-            st.markdown("")
-            st.markdown("**Example questions:**")
-            st.markdown("- Compare CO₂ for Heinrich-Zille-Straße")
-            st.markdown("- What is the LCOH?")
-            st.markdown("- Show me the network layout")
-            st.markdown("- Check violations")
-            st.markdown("- Explain the decision")
+            st.markdown(
+                "**Try asking:** Explain the decision · Compare CO₂ · "
+                "Show network layout · Check violations · What is the LCOH?"
+            )
 
     # ===== BOTTOM PANEL: Execution Path Graph =====
     _render_execution_graph(messages)

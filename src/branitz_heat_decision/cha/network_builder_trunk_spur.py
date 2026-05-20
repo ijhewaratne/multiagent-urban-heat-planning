@@ -263,7 +263,12 @@ def build_trunk_spur_network(
     # the spur optimizer; we keep the optimizer as a fallback.
     opt_summary: Dict[str, Any] = {"method": "direct_pipeflow_hydraulics"}
     try:
-        has_hc = hasattr(net, "heat_consumer") and net.heat_consumer is not None and (not net.heat_consumer.empty)
+        # Run thermal mode whenever any heat-extraction element is present:
+        # heat_consumer (legacy) or heat_exchanger+flow_control (current composite model).
+        has_hc = (
+            (hasattr(net, "heat_consumer") and net.heat_consumer is not None and not net.heat_consumer.empty)
+            or (hasattr(net, "heat_exchanger") and net.heat_exchanger is not None and not net.heat_exchanger.empty)
+        )
         if has_hc:
             opt_summary["method"] = "direct_pipeflow_sequential"
             pp.pipeflow(net, mode="sequential", max_iter_hyd=80, max_iter_therm=80)
@@ -307,7 +312,7 @@ def build_trunk_spur_network(
                             if "t_flow_k" in net.circ_pump_const_pressure.columns:
                                 net.circ_pump_const_pressure.loc[:, "t_flow_k"] = float(config.supply_temp_k)
 
-                        # Re-run pipeflow
+                        # Re-run pipeflow (mode follows the same has_hc logic above)
                         if has_hc:
                             pp.pipeflow(net, mode="sequential", max_iter_hyd=80, max_iter_therm=80)
                         else:

@@ -428,13 +428,21 @@ class KPIExtractor:
                 except Exception:
                     pass
 
-        # Return temperature from heat consumer outlet (t_to_k)
+        # Return temperature from heat consumer outlet (t_to_k).
+        # Current composite model uses heat_exchanger; fall back to heat_consumer for legacy networks.
         if hasattr(self.net, "res_heat_consumer") and self.net.res_heat_consumer is not None and not self.net.res_heat_consumer.empty:
             if "t_to_k" in self.net.res_heat_consumer.columns:
                 try:
                     t_return_avg_c = float(self.net.res_heat_consumer["t_to_k"].mean() - 273.15)
                 except Exception:
                     pass
+        if not (t_return_avg_c == t_return_avg_c):  # still NaN — try heat_exchanger results
+            if hasattr(self.net, "res_heat_exchanger") and self.net.res_heat_exchanger is not None and not self.net.res_heat_exchanger.empty:
+                if "t_to_k" in self.net.res_heat_exchanger.columns:
+                    try:
+                        t_return_avg_c = float(self.net.res_heat_exchanger["t_to_k"].mean() - 273.15)
+                    except Exception:
+                        pass
 
         if t_supply_avg_c == t_supply_avg_c and t_return_avg_c == t_return_avg_c:
             delta_t_avg_k = float(t_supply_avg_c - t_return_avg_c)

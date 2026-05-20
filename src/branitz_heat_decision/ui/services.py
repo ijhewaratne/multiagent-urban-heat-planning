@@ -470,3 +470,61 @@ class ResultService:
         else:
             path = RESULTS_DIR / "decision" / cluster_id / f"explanation_{cluster_id}.md"
         return path if path.exists() else None
+
+
+def load_all_decisions() -> pd.DataFrame:
+    """
+    Scan results/decision/ and return a summary DataFrame of all analyzed clusters.
+    Reads decision JSON + KPI contract for each cluster directory found.
+    """
+    decision_dir = RESULTS_DIR / "decision"
+    if not decision_dir.exists():
+        return pd.DataFrame()
+
+    rows = []
+    for cluster_dir in sorted(decision_dir.iterdir()):
+        if not cluster_dir.is_dir():
+            continue
+        cid = cluster_dir.name
+        dec_path = cluster_dir / f"decision_{cid}.json"
+        contract_path = cluster_dir / f"kpi_contract_{cid}.json"
+        if not dec_path.exists():
+            continue
+
+        try:
+            with open(dec_path) as f:
+                dec = json.load(f)
+        except Exception:
+            continue
+
+        contract: Dict[str, Any] = {}
+        if contract_path.exists():
+            try:
+                with open(contract_path) as f:
+                    contract = json.load(f)
+            except Exception:
+                pass
+
+        mc = contract.get("monte_carlo", {})
+        dh = contract.get("district_heating", {})
+        hp = contract.get("heat_pumps", {})
+        rec = dec.get("choice", "?")
+        robust = dec.get("robust", False)
+
+        dh_wins = mc.get("dh_wins_fraction", None)
+        hp_wins = mc.get("hp_wins_fraction", None)
+        win_pct = (dh_wins if rec == "DH" else hp_wins)
+
+        rows.append({
+            "Cluster": cid.replace("_", " "),
+            "Recommendation": rec,
+            "LCOH DH (€/MWh)": round(dh.get("lcoh", {}).get("median", 0), 1),
+            "LCOH HP (€/MWh)": round(hp.get("lcoh", {}).get("median", 0), 1),
+            "DH Feasible": "✓" if dh.get("feasible") else "✗",
+            "HP Feasible": "✓" if hp.get("feasible") else "✗",
+            "Robust": "Yes" if robust else "No",
+            "Win Rate": f"{win_pct*100:.0f}%" if win_pct is not None else "—",
+            "_cluster_id": cid,
+        })
+
+    return pd.DataFrame(rows)

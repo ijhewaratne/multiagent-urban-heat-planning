@@ -411,8 +411,36 @@ def run_cha_pipeline(
     delta_t = config.delta_t_k  # K
     total_load_kw = sum(design_loads_kw.values())
     
+    # For trunk-spur networks using the composite heat_exchanger+flow_control model:
+    # update qext_w from design loads and re-run in thermal mode.
+    if use_trunk_spur and hasattr(net, 'heat_exchanger') and net.heat_exchanger is not None and not net.heat_exchanger.empty:
+        for _, building in buildings.iterrows():
+            bid = building['building_id']
+            load_kw = float(design_loads_kw.get(bid, 0.0))
+            qext_w = load_kw * 1000.0
+            hex_mask = net.heat_exchanger['name'] == f"hex_{bid}"
+            if hex_mask.any():
+                net.heat_exchanger.loc[hex_mask, 'qext_w'] = qext_w
+            # Also update the paired flow_control mdot
+            if hasattr(net, 'flow_control') and not net.flow_control.empty:
+                fc_mask = net.flow_control['name'] == f"valve_{bid}"
+                if fc_mask.any():
+                    cp_j_per_kgk = 4180.0
+                    deltat_k = max(1.0, float(config.delta_t_k))
+                    controlled_mdot = max(1e-5, qext_w / (cp_j_per_kgk * deltat_k))
+                    net.flow_control.loc[fc_mask, 'controlled_mdot_kg_per_s'] = controlled_mdot
+
+        logger.info(
+            f"Set design loads: total={total_load_kw:.1f} kW across {len(design_loads_kw)} buildings "
+            f"(heat_exchanger)"
+        )
+        try:
+            pp.pipeflow(net, mode='sequential', verbose=False, max_iter_hyd=80, max_iter_therm=80)
+        except Exception as e:
+            logger.warning(f"Thermal pipeflow (sequential) failed for heat_exchanger network: {e}")
+
     # For trunk-spur networks: update heat consumers (pandapipes DH element)
-    if use_trunk_spur and hasattr(net, 'heat_consumer') and (net.heat_consumer is not None) and (not net.heat_consumer.empty):
+    elif use_trunk_spur and hasattr(net, 'heat_consumer') and (net.heat_consumer is not None) and (not net.heat_consumer.empty):
         for _, building in buildings.iterrows():
             bid = building['building_id']
             load_kw = float(design_loads_kw.get(bid, 0.0))

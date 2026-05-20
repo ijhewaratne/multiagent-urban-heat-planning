@@ -753,67 +753,69 @@ class BranitzOrchestrator:
 
     def _format_decision_answer(self, results: Dict[str, Any]) -> str:
         """Build rich human-readable answer for EXPLAIN_DECISION."""
-        rec = (
-            results.get("choice")
-            or results.get("recommendation", "UNKNOWN")
-        )
+        rec = results.get("choice") or results.get("recommendation", "UNKNOWN")
         reason_codes = results.get("reason_codes", [])
-        reason = results.get("reason", "") or (
-            ", ".join(reason_codes) if reason_codes else ""
-        )
         robust = results.get("robust", False)
         metrics = results.get("metrics_used", {})
+        contract = results.get("kpi_contract")
 
-        reason_display = reason.replace("_", " ").lower() if reason else ""
+        rec_label = {
+            "DH": "District Heating (DH)",
+            "HP": "Heat Pumps (HP)",
+        }.get(rec, rec)
+        robust_label = "robust" if robust else "sensitive to input uncertainty"
 
-        if rec == "DH":
-            answer = (
-                f"Recommendation: District Heating (DH). "
-                f"Reason: {reason_display}."
-            )
-        elif rec == "HP":
-            answer = (
-                f"Recommendation: Heat Pumps (HP). "
-                f"Reason: {reason_display}."
-            )
-        else:
-            answer = f"Recommendation: {rec}. {reason_display}."
+        # --- Headline ---
+        lines = [f"**Recommendation: {rec_label}** ({robust_label})"]
+        lines.append("")
 
-        # Append LCOH detail if available
-        lcoh_dh = metrics.get("lcoh_dh_median")
-        lcoh_hp = metrics.get("lcoh_hp_median")
-        if lcoh_dh and lcoh_hp:
-            answer += f" LCOH: DH = {lcoh_dh:.1f} €/MWh vs HP = {lcoh_hp:.1f} €/MWh."
+        # --- Causal narrative from KPI contract (preferred) ---
+        if contract:
+            try:
+                from branitz_heat_decision.uhdc.explainer import _build_decision_narrative
+                decision_dict = {
+                    "choice": rec,
+                    "robust": robust,
+                    "reason_codes": reason_codes,
+                }
+                narrative = _build_decision_narrative(contract, decision_dict)
+                lines.append(narrative)
+                lines.append("")
+            except Exception:
+                contract = None  # fall through to KPI table
 
-        if not robust:
-            answer += (
-                " Note: this result is not robust "
-                "(Monte Carlo analysis missing or inconclusive)."
-            )
+        # --- KPI table (fallback or supplement when contract unavailable) ---
+        if not contract:
+            lcoh_dh = metrics.get("lcoh_dh_median")
+            lcoh_hp = metrics.get("lcoh_hp_median")
+            co2_dh = metrics.get("co2_dh_median")
+            co2_hp = metrics.get("co2_hp_median")
+            dh_wins = metrics.get("dh_wins_fraction")
+            hp_wins = metrics.get("hp_wins_fraction")
 
-        # Prefer long-form LLM explanation when available.
-        llm_explanation = (results.get("llm_explanation") or "").strip()
-        if llm_explanation:
-            val = results.get("validation", {}) or {}
-            val_status = str(val.get("validation_status", "")).upper()
-            verified = val.get("verified_count")
-            total = val.get("statements_validated")
+            if lcoh_dh and lcoh_hp:
+                lines.append(f"**LCOH:** DH = {lcoh_dh:.1f} €/MWh | HP = {lcoh_hp:.1f} €/MWh")
+            if co2_dh and co2_hp:
+                lines.append(f"**CO₂:** DH = {co2_dh:.0f} kg/MWh | HP = {co2_hp:.0f} kg/MWh")
+            if dh_wins is not None and hp_wins is not None:
+                lines.append(
+                    f"**Monte Carlo:** DH wins {dh_wins:.0%} | HP wins {hp_wins:.0%} of scenarios"
+                )
+            lines.append("")
+
+        # --- Validation footer ---
+        val = results.get("validation", {}) or {}
+        val_status = str(val.get("validation_status", "")).upper()
+        if val_status:
+            verified = val.get("verified_count", "?")
+            total = val.get("statements_validated", "?")
             contradictions = val.get("contradiction_count", 0)
-            validation_line = (
-                f"Validation: {val_status} "
-                f"({verified}/{total} verified, {contradictions} contradictions)."
-                if val_status
-                else "Validation: unavailable."
-            )
-            return (
-                f"{answer}\n\n"
-                f"### Detailed Explanation (LLM)\n"
-                f"{llm_explanation}\n\n"
-                f"### Verification\n"
-                f"{validation_line}"
+            lines.append(
+                f"*Verification: {val_status} — {verified}/{total} claims verified, "
+                f"{contradictions} contradictions.*"
             )
 
-        return answer
+        return "\n".join(lines)
 
     def _enrich_decision_data(
         self, data: Dict[str, Any], intent_data: Dict[str, Any]
@@ -867,6 +869,15 @@ class BranitzOrchestrator:
         val = _load_json(val_path)
         if val:
             data.setdefault("validation", val)
+
+        # Attach KPI contract (needed by _format_decision_answer for the narrative)
+        contract_path = (
+            resolve_cluster_path(cluster_id, "decision")
+            / f"kpi_contract_{cluster_id}.json"
+        )
+        contract = _load_json(contract_path)
+        if contract:
+            data.setdefault("kpi_contract", contract)
 
         # Merge full decision fields into data (executor fields win on conflict)
         for key, val in dec.items():
