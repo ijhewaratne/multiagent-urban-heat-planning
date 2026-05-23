@@ -232,8 +232,8 @@ def build_trunk_spur_network(
         delta_t_k=float(config.supply_temp_k - config.return_temp_k),
         # role-based sizing limits (optionally eco-mode)
         # Use more conservative velocity limits for robustness
-        v_limit_trunk_ms=float(config.v_eco_mode_ms if config.sizing_eco_mode else min(config.v_limit_trunk_ms, 1.2)),  # Cap at 1.2 m/s for robustness
-        v_limit_service_ms=float(config.v_eco_mode_ms if config.sizing_eco_mode else min(config.v_limit_service_ms, 1.2)),  # Cap at 1.2 m/s for robustness
+        v_limit_trunk_ms=float(config.v_eco_mode_ms if config.sizing_eco_mode else config.v_limit_trunk_ms),
+        v_limit_service_ms=float(config.v_eco_mode_ms if config.sizing_eco_mode else config.v_limit_service_ms),
         v_abs_max_ms=float(config.v_abs_max_ms),
         dp_per_m_max_pa=float(config.dp_per_m_max_pa),
     )

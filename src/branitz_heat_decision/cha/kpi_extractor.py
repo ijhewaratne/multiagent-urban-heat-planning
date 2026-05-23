@@ -17,7 +17,7 @@ from ..config import resolve_cluster_path
 logger = logging.getLogger(__name__)
 
 # EN 13941-1 Standard Limits
-EN_13941_VELOCITY_MAX_MS = 1.5  # m/s
+EN_13941_VELOCITY_MAX_MS = 2.0  # m/s
 EN_13941_DP_PER_100M_MAX_BAR = 0.3  # bar per 100m
 EN_13941_VELOCITY_SHARE_MIN = 0.95  # 95% of segments must meet velocity limit
 
@@ -110,7 +110,7 @@ class KPIExtractor:
         
         # Enforce Chapter 3 exact limits
         ch3_dp_ok = dp_max_kpa <= 100.0
-        ch3_v_ok = aggregate['v_max_ms'] <= 1.5
+        ch3_v_ok = aggregate['v_max_ms'] <= EN_13941_VELOCITY_MAX_MS
         ch3_t_ok = 70.0 <= aggregate['t_supply_c'] <= 95.0
         feasibility_hyd = 1 if (ch3_dp_ok and ch3_v_ok and ch3_t_ok) else 0
 

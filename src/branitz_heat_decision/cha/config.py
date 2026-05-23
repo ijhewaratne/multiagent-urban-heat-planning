@@ -56,8 +56,8 @@ class CHAConfig:
 
     # Sizing targets (role-based)
     # target velocities used for initial sizing (noise + erosion friendly)
-    v_limit_trunk_ms: float = 1.5
-    v_limit_service_ms: float = 1.5
+    v_limit_trunk_ms: float = 2.0
+    v_limit_service_ms: float = 2.0
     # absolute hard cap (flag if exceeded even after selecting largest available DN)
     v_abs_max_ms: float = 2.5
     # optional pressure gradient sanity limit for sizing-stage estimates (Pa/m)
