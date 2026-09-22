@@ -1,5 +1,6 @@
 {
   "cluster_id": "ST010_HEINRICH_ZILLE_STRASSE",
+  "analysis_case": "baseline_current_grid",
   "annual_heat_mwh": 7907.05,
   "design_capacity_kw": 2700.5028751136147,
   "plant_capacity_status": {
@@ -21,6 +22,7 @@
     "DN50": 2862.3836204197178
   },
   "max_feeder_loading_pct": 201.5,
+  "verified_reinforcement_cost_eur": null,
   "lcoh_dh_eur_per_mwh": 61.683012602696955,
   "lcoh_hp_eur_per_mwh": 121.32212425439592,
   "lcoh_dh_breakdown": {
@@ -48,6 +50,7 @@
     "capex_total": 2782000.1940232934,
     "capex_hp": 2430452.587602253,
     "capex_lv_upgrade": 351547.60642104025,
+    "lv_upgrade_cost_source": "loading_based_estimate",
     "opex_annual": 754595.6588949023,
     "opex_om": 48609.05175204506,
     "opex_energy": 705986.6071428573,

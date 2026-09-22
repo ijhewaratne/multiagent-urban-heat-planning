@@ -238,6 +238,12 @@ def _get_cluster_id() -> str:
     return st.session_state.intent_chat_cluster or ""
 
 
+def _set_active_street(cluster_id: str, orch) -> None:
+    """Synchronize the UI selection with the orchestrator's conversation state."""
+    st.session_state.intent_chat_cluster = cluster_id
+    orch.conversation.set_current_street(cluster_id)
+
+
 # ── Visualization Renderers (right panel) ──
 
 def _render_co2(data: Dict[str, Any]):
@@ -665,11 +671,108 @@ def _render_visualization(response: Dict[str, Any], result_key: str = ""):
                 st.success(f"Validation: PASS — {verified}/{total} claims verified")
             elif val_status == "fail":
                 st.error(f"Validation: FAIL — {val.get('contradiction_count', 0)} contradictions")
+            elif val_status == "warning":
+                st.warning(
+                    "Validation: WARNING — generated explanation withheld because "
+                    "one or more sentences could not be verified"
+                )
+
+        # ── Transparent rejection audit ──
+        rejection_audit = data.get("rejection_audit", {}) or {}
+        current_audit = rejection_audit.get("current_explanation", {})
+        adversarial_audit = rejection_audit.get(
+            "global_adversarial_benchmark", {}
+        )
+        infrastructure_audit = rejection_audit.get(
+            "unsupported_infrastructure_changes", {}
+        )
+        if current_audit:
+            checked = current_audit.get("statements_checked", 0)
+            rejected = current_audit.get("rejected", 0)
+            unverified = current_audit.get("unverified", 0)
+            with st.expander(
+                f"Selected-street explanation audit — {checked} checked, "
+                f"{rejected} rejected, {unverified} unverified",
+                expanded=False,
+            ):
+                if current_audit.get("scope") == "actual_generated_text":
+                    st.caption(
+                        "These are the actual sentences generated for the selected "
+                        "street. Counts and wording can differ between streets."
+                    )
+                else:
+                    st.warning(
+                        "This cached result predates sentence-level Gemini auditing. "
+                        "Ask for the explanation again to refresh it."
+                    )
+                for statement in current_audit.get("statements", []):
+                    status = statement.get("status")
+                    message = (
+                        f"{statement.get('id')}: {statement.get('statement')} — "
+                        f"{statement.get('reason')}"
+                    )
+                    if status == "rejected":
+                        st.error(message)
+                    elif status == "verified":
+                        st.success(message)
+                    else:
+                        st.warning(message)
+                for rejection in current_audit.get("rejections", []):
+                    if not any(
+                        item.get("statement") == rejection.get("statement")
+                        for item in current_audit.get("statements", [])
+                    ):
+                        st.error(
+                            f"{rejection.get('id')}: {rejection.get('statement')} — "
+                            f"{rejection.get('reason')}"
+                        )
+
+        if adversarial_audit:
+            blocked = adversarial_audit.get("blocked", 0)
+            total = adversarial_audit.get("total", 0)
+            with st.expander(
+                f"Global fixed safety benchmark — {blocked}/{total} blocked",
+                expanded=False,
+            ):
+                st.caption(
+                    "This is one application-wide regression test containing the "
+                    "same 20 deliberately false statements. It is not rerun with "
+                    "street-specific sentences, so 20/20 is expected for every street. "
+                    "It tests known attacks; it is not a guarantee about every possible "
+                    "LLM sentence. The selected-street audit above checks the live prose."
+                )
+                for case in adversarial_audit.get("cases", []):
+                    st.markdown(
+                        f"- **{case.get('id')} · {case.get('detector')}** — "
+                        f"{case.get('reason')}\n\n"
+                        f"  Rejected statement: _{case.get('statement')}_"
+                    )
+
+        if infrastructure_audit:
+            with st.expander(
+                "Why unsupported infrastructure changes are refused",
+                expanded=False,
+            ):
+                for case in infrastructure_audit.get("cases", []):
+                    st.markdown(
+                        f"- **{case.get('id')} · {case.get('request')}**\n\n"
+                        f"  **Reason:** {case.get('reason')}\n\n"
+                        f"  **Required step:** {case.get('required_step')}\n\n"
+                        f"  **Safe alternative:** {case.get('safe_alternative')}"
+                    )
 
         # ── Detailed AI explanation expander ──
         llm_expl = data.get("llm_explanation", "")
         if llm_expl:
-            with st.expander("Detailed AI Analysis (Gemini)", expanded=False):
+            explanation_source = data.get("explanation_source")
+            explanation_model = data.get("explanation_model", "gemini-2.5-flash")
+            if explanation_source == "gemini_api":
+                st.success(f"Live Gemini API explanation · {explanation_model}")
+                explanation_label = "Detailed AI Analysis (Gemini API)"
+            else:
+                st.info(f"Explanation source: {explanation_source or 'cached/unknown'}")
+                explanation_label = "Detailed Decision Analysis"
+            with st.expander(explanation_label, expanded=False):
                 st.markdown(llm_expl)
     elif rtype == "guardrail_blocked":
         _render_fallback_ui(response, result_key=result_key)
@@ -710,7 +813,7 @@ def _process_message(user_input: str, cluster_id: str, messages: list, orch) -> 
         response.get("intent_data", {}).get("entities", {}).get("street_name")
     )
     if resolved_street and resolved_street != cluster_id:
-        st.session_state.intent_chat_cluster = resolved_street
+        _set_active_street(resolved_street, orch)
 
     msg: Dict[str, Any] = {
         "role": "assistant",
@@ -720,6 +823,7 @@ def _process_message(user_input: str, cluster_id: str, messages: list, orch) -> 
         "type": response.get("type", "fallback"),
         "sources": response.get("sources", []),
         "agent_trace": response.get("agent_trace", []),
+        "street_id": resolved_street or cluster_id,
     }
     # Preserve guardrail-specific fields for _render_fallback_ui
     if response.get("type") == "guardrail_blocked":
@@ -756,6 +860,10 @@ def main():
         with btn_col:
             if st.button("Clear", key="clear_chat", use_container_width=True):
                 st.session_state.intent_chat_messages = []
+                st.session_state.pop("_latest_agent_trace", None)
+                st.session_state.pop("_answer_revision", None)
+                st.session_state.pop("_selected_answer", None)
+                orch.conversation.reset()
                 st.rerun()
 
         # Street selector — always visible, no expander
@@ -770,7 +878,7 @@ def main():
             key="street_selector",
         )
         if chosen != cluster_id:
-            st.session_state.intent_chat_cluster = chosen
+            _set_active_street(chosen, orch)
             st.rerun()
 
         # Chat history
@@ -817,7 +925,7 @@ def main():
             if new_street:
                 # User mentioned a (possibly different) street → update pin
                 effective = new_street
-                st.session_state.intent_chat_cluster = effective
+                _set_active_street(effective, orch)
             else:
                 # No street in this message → keep current pin (for follow-ups)
                 effective = cluster_id
@@ -826,7 +934,7 @@ def main():
             _process_message(user_input, effective, messages, orch)
             st.rerun()
 
-    # ===== RIGHT PANEL: Tab per answer (newest first, up to 6) =====
+    # ===== RIGHT PANEL: selected answer (automatically newest, up to 6) =====
     with col_viz:
         # Spacer so the tab strip aligns below the branded header on the left
         st.markdown(
@@ -847,47 +955,75 @@ def main():
             "co2_comparison": "♻️",
             "lcoh_comparison": "💶",
             "network_design": "🗺️",
+            "grid_reinforcement": "🔌",
             "violation_analysis": "⚠️",
             "what_if_scenario": "🔀",
             "guardrail_blocked": "🚧",
             "fallback": "💬",
         }
 
-        def _tab_label(msg_idx: int, msg: dict) -> str:
+        def _answer_label(msg_idx: int, msg: dict) -> str:
             user_q = ""
             if msg_idx > 0 and messages[msg_idx - 1].get("role") == "user":
                 user_q = messages[msg_idx - 1]["content"]
             icon = _TYPE_ICON.get(msg.get("type", ""), "💬")
             label = (user_q[:20] + "…") if len(user_q) > 20 else user_q
-            return f"{icon} {label}" if label else f"{icon} Answer"
+            street = str(msg.get("street_id", "")).replace("_", " ")
+            details = " · ".join(part for part in (street, label) if part)
+            return f"{icon} {details}" if details else f"{icon} Answer"
 
         if recent:
-            tabs = st.tabs([_tab_label(mi, m) for mi, m in recent])
-            for tab, (msg_idx, msg) in zip(tabs, recent):
-                with tab:
-                    rtype = msg.get("type", "")
-                    data = msg.get("data", {})
-                    content = msg.get("content", "")
+            answer_by_id = {msg_idx: msg for msg_idx, msg in recent}
+            answer_ids = list(answer_by_id)
+            latest_answer = answer_ids[0]
+            revision = tuple(answer_ids)
 
-                    # Structured visualizations take priority over raw text
-                    _VIZ_TYPES = {
-                        "explain_decision", "co2_comparison", "lcoh_comparison",
-                        "network_design", "violation_analysis", "what_if_scenario",
-                    }
-                    if rtype in _VIZ_TYPES and data:
-                        _render_visualization(msg, result_key=str(msg_idx))
-                    elif rtype == "guardrail_blocked":
-                        _render_fallback_ui(msg, result_key=str(msg_idx))
-                    else:
-                        # Plain text answer (follow-up, clarification, etc.)
-                        if content:
-                            st.markdown(content)
+            # A new assistant message changes the revision. Reset the display
+            # to that newest response instead of preserving an older tab/index.
+            if st.session_state.get("_answer_revision") != revision:
+                st.session_state["_answer_revision"] = revision
+                st.session_state["_selected_answer"] = latest_answer
+            elif st.session_state.get("_selected_answer") not in answer_by_id:
+                st.session_state["_selected_answer"] = latest_answer
 
-                    if msg.get("execution_plan"):
-                        with st.expander("What was calculated", expanded=False):
-                            for p in msg["execution_plan"]:
-                                st.caption(f"• {p}")
+            if len(answer_ids) > 1:
+                selected_answer = st.selectbox(
+                    "Displayed result",
+                    answer_ids,
+                    format_func=lambda msg_idx: (
+                        ("Latest — " if msg_idx == latest_answer else "Previous — ")
+                        + _answer_label(msg_idx, answer_by_id[msg_idx])
+                    ),
+                    key="_selected_answer",
+                )
+            else:
+                selected_answer = latest_answer
+                st.caption(f"Latest result — {_answer_label(latest_answer, answer_by_id[latest_answer])}")
+
+            msg = answer_by_id[selected_answer]
+            rtype = msg.get("type", "")
+            data = msg.get("data", {})
+            content = msg.get("content", "")
+
+            # Structured visualizations take priority over raw text
+            _VIZ_TYPES = {
+                "explain_decision", "co2_comparison", "lcoh_comparison",
+                "network_design", "violation_analysis", "what_if_scenario",
+            }
+            if rtype in _VIZ_TYPES and data:
+                _render_visualization(msg, result_key=str(selected_answer))
+            elif rtype == "guardrail_blocked":
+                _render_fallback_ui(msg, result_key=str(selected_answer))
+            elif content:
+                st.markdown(content)
+
+            if msg.get("execution_plan"):
+                with st.expander("What was calculated", expanded=False):
+                    for p in msg["execution_plan"]:
+                        st.caption(f"• {p}")
         else:
+            st.session_state.pop("_answer_revision", None)
+            st.session_state.pop("_selected_answer", None)
             st.markdown(
                 '<div class="viz-header"><h3>Results will appear here</h3></div>',
                 unsafe_allow_html=True,

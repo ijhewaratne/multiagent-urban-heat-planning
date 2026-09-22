@@ -25,6 +25,9 @@ from typing import Dict, List, Any, Tuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from branitz_heat_decision.validation.logic_auditor import ClaimExtractor, LogicAuditor
+from branitz_heat_decision.validation.rejection_audit import (
+    ADVERSARIAL_REJECTION_CASES,
+)
 from branitz_heat_decision.validation.tnli_model import TNLIModel, EntailmentLabel
 
 # ──────────────────────────────────────────────────────────────────────
@@ -583,33 +586,7 @@ assert len(TNLI_TESTS) == 100, f"Expected 100 TNLI tests, got {len(TNLI_TESTS)}"
 # =====================================================================
 
 ADVERSARIAL_EXPLANATIONS: List[str] = [
-    # Numerically plausible but semantically inverted
-    "HP is cheaper at 64.64 €/MWh compared to DH at 148.30 €/MWh.",
-    "Heat pumps achieve lower LCOH, making HP the recommended choice.",
-    "HP has lower cost and should be selected for this district.",
-    "The LCOH analysis shows HP at 64.64 €/MWh is superior to DH.",
-    "Based on the economic model, heat pumps are the cost-optimal solution.",
-
-    # Contextually misleading
-    "DH has lower emissions operationally, but HP is cheaper overall and recommended.",
-    "While DH costs less per MWh, the total system cost favors HP as the choice.",
-    "HP is recommended because it has lower CO2 at 46.8 t/year.",
-    "District heating is too expensive and HP should be selected instead.",
-    "The Monte Carlo analysis shows HP winning in 100% of scenarios.",
-
-    # Contradictory compound statements
-    "DH is both cheaper and more expensive than HP simultaneously.",
-    "HP is recommended despite having higher LCOH than DH in all scenarios.",
-    "The system recommends HP, contradicting the cost analysis showing DH is cheaper.",
-    "DH has lower LCOH but HP is recommended because DH is not feasible.",
-    "HP wins in 0% of scenarios but is still the recommended choice.",
-
-    # Sophisticated numerical manipulation
-    "DH LCOH of 148.30 €/MWh exceeds HP at 64.64 €/MWh substantially.",
-    "Heat Pump emissions of 46.8 tCO2/year are lower than DH at 42.1 t/year.",
-    "HP with LCOH of 64.64 €/MWh clearly outperforms DH at 148.30 €/MWh.",
-    "The analysis confirms HP as the winner with 100% probability.",
-    "HP is cheaper; DH LCOH 148.30 €/MWh vs HP 64.64 €/MWh.",
+    case["statement"] for case in ADVERSARIAL_REJECTION_CASES
 ]
 
 assert len(ADVERSARIAL_EXPLANATIONS) == 20, f"Expected 20 adversarial, got {len(ADVERSARIAL_EXPLANATIONS)}"

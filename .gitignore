@@ -69,3 +69,9 @@ cache/
 *.pyc
 .pytest_cache/
 archive/
+
+# Logs & LaTeX byproducts
+*.log
+
+# Keep the env template
+!.env.example

@@ -83,16 +83,15 @@ class ConversationManager:
         self.state = ConversationState.INITIAL
 
         self.follow_up_patterns = [
-            r"what\s+about",
-            r"how\s+about",
-            r"and\s+(?:the\s+)?",
-            r"what\s+(?:is|are)\s+(?:the\s+)?",
-            r"compare\s+(?:also\s+)?",
-            r"what\s+if\s+we",
-            r"how\s+about\s+if\s+we",
-            r"can\s+you\s+(?:also\s+)?",
-            r"also\s+show",
-            r"what\s+about\s+(?:the\s+)?",
+            r"^\s*what\s+about\b",
+            r"^\s*how\s+about\b",
+            r"^\s*and\s+(?:the\s+)?",
+            r"^\s*what\s+(?:is|are)\s+(?:the\s+)?",
+            r"^\s*compare\s+(?:also\s+)?",
+            r"^\s*what\s+if\s+we\b",
+            r"^\s*how\s+about\s+if\s+we\b",
+            r"^\s*can\s+you\s+(?:also\s+)?",
+            r"^\s*also\s+show\b",
         ]
 
         self.metric_patterns = {
@@ -102,6 +101,23 @@ class ConversationManager:
             "network": r"(?:network|pipes?|layout|topology)",
             "decision": r"(?:decision|recommendation|why|explain)",
         }
+
+    def set_current_street(self, street_id: Optional[str]) -> None:
+        """Switch conversation context without carrying over stale calculations."""
+        normalized_street = street_id or None
+        if normalized_street == self.memory.current_street:
+            return
+
+        self.memory.current_street = normalized_street
+        self.memory.last_calculation = None
+        self.memory.pending_modification = None
+        self.memory.last_intent = None
+        self.state = ConversationState.INITIAL
+
+    def reset(self) -> None:
+        """Clear all conversational context for the current UI session."""
+        self.memory = ConversationMemory()
+        self.state = ConversationState.INITIAL
 
     def is_follow_up(self, user_query: str) -> bool:
         """Detect if this is a follow-up question based on linguistic patterns."""
@@ -140,6 +156,7 @@ class ConversationManager:
             return user_query, intent_data, False
 
         enriched_intent = intent_data.copy()
+        enriched_intent["entities"] = dict(intent_data.get("entities", {}))
 
         if not enriched_intent.get("entities", {}).get("street_name"):
             if self.memory.current_street:
@@ -195,7 +212,10 @@ class ConversationManager:
                     "reuse_baseline": True,
                 }
 
-        if current_intent != "EXPLAIN_DECISION" and any(word in user_query.lower() for word in ["why", "how", "explain"]):
+        explanation_intents = {"EXPLAIN_DECISION", "GRID_REINFORCEMENT"}
+        if current_intent not in explanation_intents and any(
+            word in user_query.lower() for word in ["why", "how", "explain"]
+        ):
             if self.memory.last_calculation:
                 return self._generate_clarification(user_query, self.memory.last_calculation)
 

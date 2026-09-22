@@ -11,7 +11,15 @@ from .integration import (
     calculate_economics_for_selected_street,
     get_trunk_connection_length_m,
 )
-from .plant_context import COTTBUS_CHP, CottbusCHPContext, get_plant_context_for_street
+from .plant_context import (
+    COTTBUS_CHP,
+    CottbusCHPContext,
+    DistrictPlantContext,
+    get_plant_context,
+    get_plant_context_for_street,
+    load_plant_context,
+    set_plant_context,
+)
 from .params import (
     EconomicParameters,
     EconomicsParams,
@@ -43,6 +51,10 @@ __all__ = [
     "calculate_cluster_economics_correct",
     "calculate_economics_for_selected_street",
     "get_plant_context_for_street",
+    "DistrictPlantContext",
+    "get_plant_context",
+    "load_plant_context",
+    "set_plant_context",
     "get_trunk_connection_length_m",
     "EconomicParameters",
     "EconomicsParams",

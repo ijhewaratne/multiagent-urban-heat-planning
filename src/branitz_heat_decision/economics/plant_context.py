@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,67 @@ class CottbusCHPContext:
         return required <= self.available_capacity_kw
 
 
-# Singleton instance — used across entire application
+# Generic alias — the dataclass models any district heat plant, not just Cottbus
+DistrictPlantContext = CottbusCHPContext
+
+# Default instance (Cottbus CHP / Branitz case study)
 COTTBUS_CHP = CottbusCHPContext()
+
+# Active plant context (module-level cache, set via config or default)
+_ACTIVE_PLANT: Optional[CottbusCHPContext] = None
+
+
+def load_plant_context(path: "str | Path") -> CottbusCHPContext:
+    """
+    Load a plant context from a JSON or YAML config file.
+
+    Expected keys (all optional; defaults = Cottbus CHP):
+      total_capacity_kw_th, utilized_capacity_kw_th, total_cost_eur,
+      is_built, marginal_cost_per_kw, fuel_type,
+      plant_wgs84_lat, plant_wgs84_lon
+    """
+    import json
+    from pathlib import Path as _P
+
+    p = _P(path)
+    text = p.read_text(encoding="utf-8")
+    if p.suffix in (".yaml", ".yml"):
+        import yaml
+
+        data = yaml.safe_load(text) or {}
+    else:
+        data = json.loads(text)
+    valid = {f for f in CottbusCHPContext.__dataclass_fields__}
+    unknown = set(data) - valid
+    if unknown:
+        raise ValueError(f"Unknown plant context keys in {p}: {sorted(unknown)}")
+    ctx = CottbusCHPContext(**data)
+    logger.info("Loaded plant context from %s: %.0f kW_th, fuel=%s",
+                p, ctx.total_capacity_kw_th, ctx.fuel_type)
+    return ctx
+
+
+def get_plant_context() -> CottbusCHPContext:
+    """
+    Active plant context.
+
+    Resolution order:
+      1. Path in env var BRANITZ_PLANT_CONTEXT (JSON/YAML) — for other districts
+      2. Default Cottbus CHP (Branitz case study)
+    """
+    global _ACTIVE_PLANT
+    if _ACTIVE_PLANT is None:
+        import os
+
+        cfg = os.getenv("BRANITZ_PLANT_CONTEXT")
+        _ACTIVE_PLANT = load_plant_context(cfg) if cfg else COTTBUS_CHP
+    return _ACTIVE_PLANT
+
+
+def set_plant_context(ctx: Optional[CottbusCHPContext]) -> None:
+    """Override the active plant context programmatically (None resets to default)."""
+    global _ACTIVE_PLANT
+    _ACTIVE_PLANT = ctx
 
 
 def get_plant_context_for_street(
@@ -58,13 +118,14 @@ def get_plant_context_for_street(
     """
     from .lcoh import PlantContext
 
-    # Always use the same Cottbus CHP context
+    # Use the active district plant context (configurable via BRANITZ_PLANT_CONTEXT)
+    plant = get_plant_context()
     plant_ctx = PlantContext(
-        total_capacity_kw=COTTBUS_CHP.total_capacity_kw_th,
-        total_cost_eur=COTTBUS_CHP.total_cost_eur,
-        utilized_capacity_kw=COTTBUS_CHP.utilized_capacity_kw_th,
-        is_built=COTTBUS_CHP.is_built,
-        marginal_cost_per_kw=COTTBUS_CHP.marginal_cost_per_kw,
+        total_capacity_kw=plant.total_capacity_kw_th,
+        total_cost_eur=plant.total_cost_eur,
+        utilized_capacity_kw=plant.utilized_capacity_kw_th,
+        is_built=plant.is_built,
+        marginal_cost_per_kw=plant.marginal_cost_per_kw,
     )
 
     # Check if this specific street triggers expansion
@@ -74,11 +135,11 @@ def get_plant_context_for_street(
         "Street %.1f kW: %s (Spare: %.0f kW)",
         street_peak_load_kw,
         allocation.get("rationale", ""),
-        COTTBUS_CHP.available_capacity_kw,
+        plant.available_capacity_kw,
     )
 
     return {
         "context": plant_ctx,
         "allocation": allocation,
-        "is_within_capacity": COTTBUS_CHP.can_accommodate(street_peak_load_kw),
+        "is_within_capacity": plant.can_accommodate(street_peak_load_kw),
     }

@@ -106,18 +106,115 @@ class DynamicExecutor:
             error:          str | None  — set only on failure
             ...plus intent-specific data keys the UI expects
         """
+        incoming_context = context or {}
+        is_explanation_request = intent == "EXPLAIN_DECISION"
         context = {
-            **(context or {}),
+            **incoming_context,
             "requested_intent": intent,
-            "require_validated_explanation": intent == "EXPLAIN_DECISION",
+            "require_validated_explanation": incoming_context.get(
+                "require_validated_explanation", is_explanation_request
+            ),
+            # Cache-first by default. A live Gemini call is made only when the
+            # validated explanation sidecars are missing/stale, or when a caller
+            # explicitly requests a refresh with this flag.
+            "require_live_llm_explanation": bool(
+                incoming_context.get("require_live_llm_explanation", False)
+            ),
+            "llm_explanation": incoming_context.get(
+                "llm_explanation", is_explanation_request
+            ),
+            "no_fallback": incoming_context.get(
+                "no_fallback", is_explanation_request
+            ),
         }
-        self._ensure_agents()
-
         start = time.perf_counter()
         logger.info("[DynamicExecutor] Received order: %s for %s", intent, street_id)
 
+        # Network maps are already generated CHA/DHA artifacts. Displaying them
+        # must not trigger a simulation merely because chat-history fields make
+        # the simulation cache hash differ from the original run. If maps exist,
+        # load them directly; fall through to CHA only when they are missing.
+        if intent == "NETWORK_DESIGN" and not context.get("force_recalc"):
+            cached_network = self._format_network_design({}, street_id)
+            if cached_network.get("map_paths"):
+                duration = time.perf_counter() - start
+                original = self._load_original_timing(street_id, ["cha", "dha"])
+                timing_text = self._format_cache_timing(duration, original)
+                cached_network.update({
+                    "execution_log": [f"✓ Loaded cached network maps ({timing_text})"],
+                    "agent_results": {
+                        "network_artifacts": {
+                            "success": True,
+                            "execution_time": duration,
+                            "cache_hit": True,
+                            "metadata": {"street_id": street_id, **original},
+                        }
+                    },
+                    "total_execution_time": duration,
+                })
+                return cached_network
+
+        # Reinforcement questions are evidence/reporting requests.  When the
+        # persisted DHA, economics, and decision artifacts exist, load them
+        # directly so a chat question cannot accidentally rerun or overwrite a
+        # street simulation.  Missing inputs fall through to the normal agent
+        # plan below.
+        if intent == "GRID_REINFORCEMENT" and not context.get("force_recalc"):
+            cached_reinforcement = self._format_grid_reinforcement({}, street_id)
+            reinforcement = cached_reinforcement.get("reinforcement", {})
+            complete_cached_analysis = bool(
+                cached_reinforcement.get("data_available")
+                and (
+                    not reinforcement.get("needed")
+                    or (
+                        reinforcement.get("optimized_plan_available")
+                        and cached_reinforcement.get("scenario_artifacts_complete")
+                    )
+                )
+            )
+            if complete_cached_analysis:
+                duration = time.perf_counter() - start
+                original = self._load_original_timing(
+                    street_id,
+                    ["dha", "economics", "decision"],
+                )
+                timing_text = self._format_cache_timing(duration, original)
+                cached_reinforcement.update({
+                    "execution_log": [
+                        "✓ Loaded cached LV-grid, economics, and decision evidence "
+                        f"({timing_text})"
+                    ],
+                    "agent_results": {
+                        "reinforcement_evidence": {
+                            "success": True,
+                            "execution_time": duration,
+                            "cache_hit": True,
+                            "metadata": {"street_id": street_id, **original},
+                        }
+                    },
+                    "total_execution_time": duration,
+                })
+                return cached_reinforcement
+
+        self._ensure_agents()
+
+        if intent == "GRID_REINFORCEMENT":
+            context["plan_reinforcement"] = True
+
         # Build and run an agent plan (what-if is now an agent too)
         plan = self._create_agent_plan(intent, context)
+        if intent == "EXPLAIN_DECISION":
+            # Decision explanations consume persisted CHA/DHA/Economics inputs.
+            # Do not rerun the physics merely to request a fresh Gemini narrative.
+            from branitz_heat_decision.config import resolve_cluster_path
+
+            decision_inputs = [
+                resolve_cluster_path(street_id, "cha") / "cha_kpis.json",
+                resolve_cluster_path(street_id, "dha") / "dha_kpis.json",
+                resolve_cluster_path(street_id, "economics") / "economics_monte_carlo.json",
+            ]
+            if all(path.exists() for path in decision_inputs):
+                plan = ["decision"]
         logger.info("[DynamicExecutor] Agent plan: %s", plan)
 
         agent_results, execution_log = self._run_agent_plan(
@@ -153,6 +250,7 @@ class DynamicExecutor:
             "LCOH_COMPARISON":    ["cha", "dha", "economics"],
             "VIOLATION_ANALYSIS": ["cha", "dha"],
             "NETWORK_DESIGN":     ["cha"],
+            "GRID_REINFORCEMENT": ["dha", "economics", "decision"],
             "WHAT_IF_SCENARIO":   ["what_if"],
             "DECISION":           ["cha", "dha", "economics", "decision"],
             "EXPLAIN_DECISION":   ["cha", "dha", "economics", "decision"],
@@ -208,11 +306,27 @@ class DynamicExecutor:
             status = "✓" if result.success else "✗"
             cache_tag = "Used cached" if result.cache_hit else "Calculated"
             label = agent_name.upper().replace("_", " ")
-            execution_log.append(
-                f"{status} {cache_tag} {label} ({duration:.3f}s)"
-                if result.cache_hit
-                else f"{status} {cache_tag} {label} ({duration:.1f}s)"
-            )
+            if result.cache_hit:
+                original_duration = result.metadata.get(
+                    "original_calculation_duration_seconds"
+                )
+                original_at = result.metadata.get("original_calculated_at_utc")
+                if isinstance(original_duration, (int, float)):
+                    original_text = f"original calculation {original_duration:.1f}s"
+                    if original_at:
+                        original_text += f" at {original_at}"
+                else:
+                    original_text = "original duration unavailable for adopted legacy cache"
+                    if original_at:
+                        original_text += f"; result artifacts dated {original_at}"
+                execution_log.append(
+                    f"{status} {cache_tag} {label} "
+                    f"(loaded {duration:.3f}s; {original_text})"
+                )
+            else:
+                execution_log.append(
+                    f"{status} {cache_tag} {label} ({duration:.1f}s)"
+                )
 
             # Append agent-specific sub-log entries (e.g. WhatIfAgent modification log)
             for entry in result.metadata.get("modification_log", []):
@@ -228,6 +342,55 @@ class DynamicExecutor:
                     break
 
         return results, execution_log
+
+    @staticmethod
+    def _load_original_timing(
+        street_id: str,
+        phases: List[str],
+    ) -> Dict[str, Any]:
+        import json
+
+        from branitz_heat_decision.config import resolve_cluster_path
+
+        durations: List[float] = []
+        calculated_at: List[str] = []
+        for phase in phases:
+            manifest_path = resolve_cluster_path(street_id, phase) / "_cache_manifest.json"
+            if not manifest_path.exists():
+                continue
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            value = manifest.get("calculation_duration_seconds")
+            if isinstance(value, (int, float)):
+                durations.append(float(value))
+            timestamp = manifest.get("calculated_at_utc")
+            if timestamp:
+                calculated_at.append(str(timestamp))
+        return {
+            "original_calculation_duration_seconds": (
+                sum(durations) if durations else None
+            ),
+            "original_calculated_at_utc": (
+                max(calculated_at) if calculated_at else None
+            ),
+        }
+
+    @staticmethod
+    def _format_cache_timing(load_duration: float, timing: Dict[str, Any]) -> str:
+        original_duration = timing.get("original_calculation_duration_seconds")
+        original_at = timing.get("original_calculated_at_utc")
+        if isinstance(original_duration, (int, float)):
+            text = f"loaded {load_duration:.3f}s; original calculation {original_duration:.1f}s"
+            if original_at:
+                text += f" at {original_at}"
+            return text
+        return (
+            f"loaded {load_duration:.3f}s; "
+            "original duration unavailable for adopted legacy cache"
+            + (f"; result artifacts dated {original_at}" if original_at else "")
+        )
 
     # -----------------------------------------------------------------------
     # Integrate agent results → flat dict the orchestrator / UI expect
@@ -269,6 +432,8 @@ class DynamicExecutor:
             return self._format_violations(results, street_id)
         if intent == "NETWORK_DESIGN":
             return self._format_network_design(results, street_id)
+        if intent == "GRID_REINFORCEMENT":
+            return self._format_grid_reinforcement(results, street_id)
         if intent in ("DECISION", "EXPLAIN_DECISION"):
             return self._format_decision(results, street_id)
         if intent == "WHAT_IF_SCENARIO":
@@ -330,18 +495,232 @@ class DynamicExecutor:
             ),
         }
 
+    # -- LV-grid reinforcement ---------------------------------------------
+    def _format_grid_reinforcement(
+        self,
+        results: Dict,
+        street_id: str,
+    ) -> Dict[str, Any]:
+        """Build an auditable reinforcement and decision-impact report.
+
+        The current-grid DHA result remains the technical baseline.  If an
+        optimized ``dha_reinforcement.json`` exists, its measures and cost are
+        preferred.  Otherwise the response clearly labels the existing HP
+        economics LV-upgrade allowance as an estimate and treats
+        ``feasible_with_mitigation`` as a counterfactual assumption.
+        """
+        import json
+
+        from branitz_heat_decision.config import resolve_cluster_path
+
+        def load_json(path: Path) -> Dict[str, Any]:
+            if not path.exists():
+                return {}
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    value = json.load(handle)
+                return value if isinstance(value, dict) else {}
+            except (OSError, ValueError) as exc:
+                logger.warning("Could not load reinforcement evidence %s: %s", path, exc)
+                return {}
+
+        dha_dir = resolve_cluster_path(street_id, "dha")
+        econ_dir = resolve_cluster_path(street_id, "economics")
+        decision_dir = resolve_cluster_path(street_id, "decision")
+
+        dha_kpis = self._extract_dha_kpis(results)
+        if not dha_kpis:
+            dha_kpis = load_json(dha_dir / "dha_kpis.json")
+            dha_kpis = dha_kpis.get("kpis", dha_kpis)
+
+        reinforcement_plan = load_json(dha_dir / "dha_reinforcement.json")
+        economics = load_json(econ_dir / "economics_deterministic.json")
+        monte_carlo = load_json(econ_dir / "economics_monte_carlo.json")
+        reinforced_econ_dir = econ_dir / "reinforcement"
+        reinforced_economics = load_json(
+            reinforced_econ_dir / "economics_deterministic.json"
+        )
+        reinforced_monte_carlo = load_json(
+            reinforced_econ_dir / "economics_monte_carlo.json"
+        )
+        decision = load_json(decision_dir / f"decision_{street_id}.json")
+        reinforced_decision = load_json(
+            decision_dir / f"decision_reinforced_{street_id}.json"
+        )
+        comparison = load_json(decision_dir / "reinforcement_before_after.json")
+
+        mitigations = dha_kpis.get("mitigations", {}) if dha_kpis else {}
+        recommendations = mitigations.get("recommendations", []) or []
+        current_feasible = bool(dha_kpis.get("feasible", False)) if dha_kpis else None
+        mitigation_class = mitigations.get("mitigation_class", "unknown")
+        reinforcement_needed = bool(
+            current_feasible is False
+            or mitigation_class in ("reinforcement", "expansion")
+        )
+
+        measures = reinforcement_plan.get("measures", []) or []
+        plan_cost = reinforcement_plan.get("total_cost_eur")
+        hp_breakdown = economics.get("lcoh_hp_breakdown", {})
+        estimated_cost = hp_breakdown.get("capex_lv_upgrade")
+        reinforced_hp_breakdown = reinforced_economics.get("lcoh_hp_breakdown", {})
+
+        if plan_cost is not None:
+            reinforcement_cost = float(plan_cost)
+            cost_source = "verified heuristic DHA reinforcement plan"
+            cost_is_estimate = False
+        elif estimated_cost is not None:
+            reinforcement_cost = float(estimated_cost)
+            cost_source = "HP economics LV-upgrade allowance"
+            cost_is_estimate = True
+        elif not reinforcement_needed:
+            reinforcement_cost = 0.0
+            cost_source = "no reinforcement required"
+            cost_is_estimate = False
+        else:
+            reinforcement_cost = None
+            cost_source = "not calculated"
+            cost_is_estimate = True
+
+        if reinforcement_plan:
+            post_feasible = bool(reinforcement_plan.get("is_sufficient", False))
+            feasibility_basis = "verified reinforcement load-flow plan"
+            post_feasible_is_assumption = False
+        elif not reinforcement_needed:
+            post_feasible = current_feasible
+            feasibility_basis = "current grid already feasible"
+            post_feasible_is_assumption = False
+        else:
+            post_feasible = bool(mitigations.get("feasible_with_mitigation", False))
+            feasibility_basis = "DHA mitigation assessment; optimized plan not yet run"
+            post_feasible_is_assumption = True
+
+        baseline_decision = (
+            comparison.get("before_reinforcement", {}).get("decision") or decision
+        )
+        counterfactual = (
+            comparison.get("after_reinforcement", {}).get("decision")
+            or reinforced_decision
+        )
+        current_choice = baseline_decision.get("choice") or baseline_decision.get(
+            "recommendation"
+        )
+
+        after_choice = counterfactual.get("choice") or counterfactual.get("recommendation")
+        if not reinforcement_needed:
+            after_choice = current_choice
+
+        metrics = counterfactual.get("metrics_used", {})
+        map_path = dha_dir / "hp_lv_map.html"
+        limitations: List[str] = []
+        if reinforcement_needed and not reinforcement_plan:
+            limitations.append(
+                "No optimized dha_reinforcement.json is available; measures come from the "
+                "DHA mitigation assessment and cost is the economics model's LV-upgrade estimate."
+            )
+        if post_feasible_is_assumption:
+            limitations.append(
+                "Post-reinforcement feasibility is a counterfactual assumption, not a rerun "
+                "of the reinforced network load flow."
+            )
+
+        return {
+            "street_id": street_id,
+            "data_available": bool(dha_kpis),
+            "scenario_artifacts_complete": bool(
+                reinforced_economics
+                and reinforced_monte_carlo
+                and reinforced_decision
+                and comparison
+            ),
+            "current_grid": {
+                "feasible": current_feasible,
+                "max_feeder_loading_pct": dha_kpis.get("max_feeder_loading_pct"),
+                "loading_limit_pct": 100.0,
+                "voltage_violations_total": dha_kpis.get("voltage_violations_total", 0),
+                "line_violations_total": dha_kpis.get("line_violations_total", 0),
+                "trafo_violations_total": dha_kpis.get("trafo_violations_total", 0),
+                "line_overload_hours": dha_kpis.get("line_overload_hours", 0),
+                "hours_total": dha_kpis.get("hours_total", 0),
+                "worst_line_id": dha_kpis.get("max_loading_line"),
+            },
+            "post_reinforcement_grid": reinforcement_plan.get("after_kpis", {}),
+            "reinforcement": {
+                "needed": reinforcement_needed,
+                "mitigation_class": mitigation_class,
+                "summary": mitigations.get("summary", ""),
+                "recommendations": recommendations,
+                "optimized_measures": measures,
+                "cost_eur": reinforcement_cost,
+                "cost_source": cost_source,
+                "cost_is_estimate": cost_is_estimate,
+                "cost_assumptions": reinforcement_plan.get("cost_assumptions", {}),
+                "optimized_plan_available": bool(reinforcement_plan),
+                "plan_is_sufficient": reinforcement_plan.get("is_sufficient"),
+            },
+            "economics": {
+                "lcoh_dh_eur_per_mwh": (
+                    metrics.get("lcoh_dh_median")
+                    or reinforced_economics.get("lcoh_dh_eur_per_mwh")
+                    or economics.get("lcoh_dh_eur_per_mwh")
+                ),
+                "lcoh_hp_eur_per_mwh": (
+                    metrics.get("lcoh_hp_median")
+                    or reinforced_economics.get("lcoh_hp_eur_per_mwh")
+                    or economics.get("lcoh_hp_eur_per_mwh")
+                ),
+                "hp_lv_upgrade_capex_eur": (
+                    reinforced_hp_breakdown.get("capex_lv_upgrade")
+                    or plan_cost
+                    or estimated_cost
+                ),
+                "dh_wins_fraction": metrics.get("dh_wins_fraction"),
+                "hp_wins_fraction": metrics.get("hp_wins_fraction"),
+                "monte_carlo_available": bool(reinforced_monte_carlo or monte_carlo),
+            },
+            "decision_impact": {
+                "current_choice": current_choice,
+                "post_reinforcement_hp_feasible": post_feasible,
+                "post_reinforcement_feasibility_basis": feasibility_basis,
+                "post_reinforcement_feasibility_is_assumption": post_feasible_is_assumption,
+                "counterfactual_choice": after_choice,
+                "current_reason_codes": baseline_decision.get("reason_codes", []),
+                "counterfactual_reason_codes": counterfactual.get("reason_codes", []),
+                "decision_changes": (
+                    current_choice != after_choice
+                    if current_choice and after_choice
+                    else None
+                ),
+            },
+            "limitations": limitations,
+            "map_paths": {"lv grid": str(map_path)} if map_path.exists() else {},
+        }
+
     # -- Network design -----------------------------------------------------
     def _format_network_design(self, results: Dict, street_id: str) -> Dict[str, Any]:
         cha_kpis = self._extract_cha_kpis(results)
-        detailed = cha_kpis.get("detailed", {})
-        topology = cha_kpis.get("topology", {})
-        pipes = detailed.get("pipes", cha_kpis.get("pipes", []))
-        heat_consumers = detailed.get("heat_consumers", cha_kpis.get("heat_consumers", []))
 
         from branitz_heat_decision.config import resolve_cluster_path
 
         cha_dir = resolve_cluster_path(street_id, "cha")
         dha_dir = resolve_cluster_path(street_id, "dha")
+
+        # Artifact-only requests do not run CHA, so load its persisted KPIs for
+        # the topology summary shown below the map.
+        if not cha_kpis:
+            kpi_path = cha_dir / "cha_kpis.json"
+            if kpi_path.exists():
+                try:
+                    import json
+                    with open(kpi_path, encoding="utf-8") as f:
+                        cha_kpis = json.load(f)
+                except (OSError, ValueError) as exc:
+                    logger.warning("Could not load network KPIs for %s: %s", street_id, exc)
+
+        detailed = cha_kpis.get("detailed", {})
+        topology = cha_kpis.get("topology", {})
+        pipes = detailed.get("pipes", cha_kpis.get("pipes", []))
+        heat_consumers = detailed.get("heat_consumers", cha_kpis.get("heat_consumers", []))
+
         map_paths: Dict[str, str] = {}
         for map_type, filename in [
             ("velocity", "interactive_map.html"),
@@ -371,6 +750,16 @@ class DynamicExecutor:
             dec_data = decision_result.data.get("decision", {})
             validation = decision_result.data.get("validation")
             llm_explanation = decision_result.data.get("llm_explanation")
+            explanation_source = decision_result.data.get("explanation_source")
+            validation_passed = bool(
+                validation
+                and str(validation.get("validation_status", "")).lower() == "pass"
+                and int(validation.get("contradiction_count", 0) or 0) == 0
+            )
+            from branitz_heat_decision.validation.rejection_audit import (
+                build_rejection_audit,
+            )
+
             return {
                 "choice": dec_data.get("recommendation") or dec_data.get("choice"),
                 "recommendation": dec_data.get("recommendation") or dec_data.get("choice"),
@@ -378,8 +767,15 @@ class DynamicExecutor:
                 "reason": dec_data.get("reason", ""),
                 "reason_codes": dec_data.get("reason_codes", []),
                 "metrics_used": dec_data.get("metrics_used", {}),
-                "llm_explanation": llm_explanation if validation else None,
+                "llm_explanation": llm_explanation if validation_passed else None,
+                "explanation_source": explanation_source if validation_passed else None,
+                "explanation_model": (
+                    decision_result.data.get("explanation_model")
+                    if validation_passed
+                    else None
+                ),
                 "validation": validation,
+                "rejection_audit": build_rejection_audit(validation),
             }
         return {}
 

@@ -252,15 +252,13 @@ def compute_lcoh_dh_for_cluster(
         capex_plant = allocation["allocated_eur"]
         plant_info = allocation
 
-    # --- 4. LV GRID UPGRADE COSTS ---
+    # --- 4. LV GRID UPGRADE COSTS (HP-side, excluded from DH CAPEX) ---
     lv_upgrade_cost = _calculate_lv_upgrade_cost(
         pipe_network_results.get("lv_results", {})
     )
 
     # --- 5. Total CAPEX ---
-    total_capex = (
-        capex_network + capex_connection + capex_plant + pump_cost_eur + lv_upgrade_cost
-    )
+    total_capex = capex_network + capex_connection + capex_plant + pump_cost_eur
 
     # --- 6. OPEX: Only network O&M (2%), NOT plant O&M ---
     opex_om_network = capex_network * params.dh_om_frac_per_year
@@ -282,7 +280,7 @@ def compute_lcoh_dh_for_cluster(
             "connection": round(capex_connection, 2),
             "plant_allocated": round(capex_plant, 2),
             "pump": round(pump_cost_eur, 2),
-            "lv_upgrade": round(lv_upgrade_cost, 2),
+            "lv_upgrade_excluded_hp_side": round(lv_upgrade_cost, 2),
         },
         "opex_annual": round(total_opex, 2),
         "opex_breakdown": {
@@ -310,6 +308,7 @@ class HPInputs:
     hp_total_capacity_kw_th: float
     cop_annual_average: float
     max_feeder_loading_pct: float
+    lv_reinforcement_cost_eur: Optional[float] = None
 
 
 def compute_lcoh_dh(
@@ -424,6 +423,7 @@ def compute_lcoh_hp(
     cop_annual_average: float,
     max_feeder_loading_pct: float,
     params: EconomicParameters,
+    lv_reinforcement_cost_eur: Optional[float] = None,
 ) -> Tuple[float, Dict]:
     """
     Compute LCOH for Heat Pump system using CRF method.
@@ -440,15 +440,20 @@ def compute_lcoh_hp(
     capex_hp = float(hp_total_capacity_kw_th) * float(params.hp_cost_eur_per_kw_th)
 
     loading_threshold = float(params.feeder_loading_planning_limit) * 100.0
-    if float(max_feeder_loading_pct) > loading_threshold:
+    if lv_reinforcement_cost_eur is not None:
+        capex_lv_upgrade = max(0.0, float(lv_reinforcement_cost_eur))
+        lv_upgrade_cost_source = "verified_reinforcement_plan"
+    elif float(max_feeder_loading_pct) > loading_threshold:
         overload_factor = (float(max_feeder_loading_pct) - loading_threshold) / 100.0
         hp_el_capacity_kw = float(hp_total_capacity_kw_th) / float(cop_annual_average)
         upgrade_kw_el = overload_factor * hp_el_capacity_kw * 1.5
         capex_lv_upgrade = float(upgrade_kw_el) * float(params.lv_upgrade_cost_eur_per_kw_el)
+        lv_upgrade_cost_source = "loading_based_estimate"
         # Avoid spamming warnings during Monte Carlo; breakdown captures the value for audit.
         logger.debug("LV upgrade needed: %.1f kW_el, cost: %.2f EUR", upgrade_kw_el, capex_lv_upgrade)
     else:
         capex_lv_upgrade = 0.0
+        lv_upgrade_cost_source = "not_required"
 
     total_capex = capex_hp + capex_lv_upgrade
 
@@ -464,6 +469,7 @@ def compute_lcoh_hp(
         "capex_total": total_capex,
         "capex_hp": capex_hp,
         "capex_lv_upgrade": capex_lv_upgrade,
+        "lv_upgrade_cost_source": lv_upgrade_cost_source,
         "opex_annual": total_opex_annual,
         "opex_om": opex_om,
         "opex_energy": opex_energy,
@@ -552,6 +558,6 @@ def lcoh_hp_crf(inputs: HPInputs, params: EconomicsParams) -> float:
         cop_annual_average=inputs.cop_annual_average,
         max_feeder_loading_pct=inputs.max_feeder_loading_pct,
         params=params,
+        lv_reinforcement_cost_eur=inputs.lv_reinforcement_cost_eur,
     )
     return float(v)
-

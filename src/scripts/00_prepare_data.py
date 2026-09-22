@@ -43,7 +43,9 @@ def create_street_based_clusters(
     buildings_path: Path,
     streets_path: Path,
     output_cluster_map_path: Path,
-    output_street_clusters_path: Path
+    output_street_clusters_path: Path,
+    attributes_path: Path = None,
+    analysis_path: Path = None,
 ):
     """
     Create street-based clusters from buildings and streets geodata.
@@ -53,6 +55,10 @@ def create_street_based_clusters(
         streets_path: Path to streets GeoJSON
         output_cluster_map_path: Path to save building_cluster_map.parquet
         output_street_clusters_path: Path to save street_clusters.parquet
+        attributes_path: Optional building-attributes JSON (function, street,
+            floor area, volume). Default: data/raw/output_branitzer_siedlungV11.json
+        analysis_path: Optional building-analysis JSON (renovation state,
+            heat density). Default: data/raw/gebaeudeanalyse.json
     """
     logger.info("Creating street-based clusters...")
     
@@ -74,7 +80,7 @@ def create_street_based_clusters(
     # - output_branitzer_siedlungV11.json: building function, street, net floor area, volume
     # - gebaeudeanalyse.json: renovation state (sanierungszustand) + heat density (waermedichte)
     try:
-        branitzer_path = DATA_RAW / "output_branitzer_siedlungV11.json"
+        branitzer_path = attributes_path or DATA_RAW / "output_branitzer_siedlungV11.json"
         if branitzer_path.exists():
             attrs = load_branitzer_siedlung_attributes(branitzer_path)
             buildings = buildings.merge(attrs, on="building_id", how="left")
@@ -88,7 +94,7 @@ def create_street_based_clusters(
         logger.warning(f"Could not load Branitzer attributes: {e}")
 
     try:
-        analyse_path = DATA_RAW / "gebaeudeanalyse.json"
+        analyse_path = analysis_path or DATA_RAW / "gebaeudeanalyse.json"
         if analyse_path.exists():
             an = load_gebaeudeanalyse(analyse_path)
             buildings = buildings.merge(an, on="building_id", how="left")
@@ -322,6 +328,12 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
     parser.add_argument('--buildings', type=str, help='Path to buildings GeoJSON')
     parser.add_argument('--streets', type=str, help='Path to streets GeoJSON')
+    parser.add_argument('--attributes-file', type=str,
+                        help='Building attributes JSON (function, street, floor area). '
+                             'Default: data/raw/output_branitzer_siedlungV11.json')
+    parser.add_argument('--analysis-file', type=str,
+                        help='Building analysis JSON (renovation state, heat density). '
+                             'Default: data/raw/gebaeudeanalyse.json')
     parser.add_argument('--create-clusters', action='store_true', 
                        help='Create street-based clusters from raw data')
     args = parser.parse_args()
@@ -346,7 +358,9 @@ def main():
                 buildings_path=buildings_path,
                 streets_path=streets_path,
                 output_cluster_map_path=BUILDING_CLUSTER_MAP_PATH,
-                output_street_clusters_path=DATA_PROCESSED / "street_clusters.parquet"
+                output_street_clusters_path=DATA_PROCESSED / "street_clusters.parquet",
+                attributes_path=Path(args.attributes_file) if args.attributes_file else None,
+                analysis_path=Path(args.analysis_file) if args.analysis_file else None,
             )
 
             # Generate missing core artifacts required by CHA for any cluster

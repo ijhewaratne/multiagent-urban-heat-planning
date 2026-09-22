@@ -446,10 +446,15 @@ class LogicAuditor:
     Edit E: Integrates ClaimExtractor for quantitative cross-validation.
     """
     
-    def __init__(self, config: Optional[ValidationConfig] = None):
+    def __init__(
+        self,
+        config: Optional[ValidationConfig] = None,
+        use_llm: bool = False,
+    ):
         """Initialize Logic Auditor with TNLI model."""
         self.config = config or ValidationConfig()
-        self.model = TNLIModel(self.config)
+        self.use_llm = use_llm
+        self.model = TNLIModel(self.config, use_llm=use_llm)
         self.claim_validator = ClaimValidator()
         logger.info("LogicAuditor initialized")
     
@@ -526,6 +531,7 @@ class LogicAuditor:
         kpis: Dict[str, Any],
         cluster_id: str = "unknown",
         tolerance: float | None = None,
+        use_llm: Optional[bool] = None,
     ) -> ValidationReport:
         """
         Validate a free-text explanation against reference KPIs.
@@ -571,7 +577,18 @@ class LogicAuditor:
                 ))
 
         # --- Phase 2: TNLI semantic validation on full sentences ---
-        tnli_report = self._validate_once(kpis, explanation, cluster_id)
+        effective_use_llm = self.use_llm if use_llm is None else use_llm
+        model = (
+            self.model
+            if effective_use_llm == self.use_llm
+            else TNLIModel(use_llm=effective_use_llm)
+        )
+        tnli_report = self._validate_once(
+            kpis,
+            explanation,
+            cluster_id,
+            model=model,
+        )
 
         # --- Merge results ---
         # Quantitative mismatches always count as contradictions
@@ -628,7 +645,8 @@ class LogicAuditor:
         self,
         kpis: Dict[str, Any],
         rationale: str,
-        cluster_id: str
+        cluster_id: str,
+        model: Optional[TNLIModel] = None,
     ) -> ValidationReport:
         """Single validation pass (no feedback loop)."""
         # Parse rationale into individual statements
@@ -637,7 +655,25 @@ class LogicAuditor:
         logger.info(f"Validating {len(statements)} statements for cluster {cluster_id}")
         
         # Validate each statement
-        results = self.model.batch_validate(kpis, statements)
+        results = (model or self.model).batch_validate(kpis, statements)
+
+        # A sentence containing only quantitative claims can be verified even
+        # when no semantic comparison rule applies (for example, "DH is 117.1
+        # €/MWh and HP is 120.1 €/MWh"). Upgrade it only when every extracted
+        # value maps to the correct KPI; coincidental number matches are never
+        # sufficient.
+        for index, result in enumerate(results):
+            if not result.is_neutral:
+                continue
+            extracted = ClaimExtractor.extract_all(result.statement)
+            checks = ClaimExtractor.cross_validate(extracted, kpis)
+            if checks and all(match for _, _, _, match, _ in checks):
+                results[index] = EntailmentResult(
+                    statement=result.statement,
+                    label=EntailmentLabel.ENTAILMENT,
+                    confidence=1.0,
+                    reason="; ".join(reason for *_, reason in checks),
+                )
         
         # Edit C: Proper scoring semantics
         contradictions = []
@@ -801,33 +837,160 @@ class LogicAuditor:
                     kpis["hp_feasible"] = True
                 if "dh_feasible" not in kpis and "cha_feasible" not in kpis:
                     kpis["dh_feasible"] = False
+            elif "NONE_FEASIBLE" in reason_codes:
+                kpis.setdefault("dh_feasible", False)
+                kpis.setdefault("hp_feasible", False)
+            else:
+                # Reaching cost or CO2 selection means the decision rule passed
+                # the feasibility gate with both options feasible.
+                kpis.setdefault("dh_feasible", True)
+                kpis.setdefault("hp_feasible", True)
                     
             # Infer robustness from ROBUST_DECISION reason code
             if "ROBUST_DECISION" in reason_codes and "robust" not in kpis:
                 kpis["robust"] = True
         
-        # Check for structured claims first (best path - fully deterministic)
+        # Check the deterministic decision claims first.  This proves that the
+        # rule engine's reason codes agree with the selected-street KPI table.
         if "claims" in decision_data:
             explanation = StructuredExplanation.from_dict(decision_data)
-            return self.validate_structured_claims(kpis, explanation, cluster_id)
+            structured_report = self.validate_structured_claims(
+                kpis, explanation, cluster_id
+            )
+            return self._attach_generated_explanation_audit(
+                structured_report,
+                decision_data.get("explanation", ""),
+                kpis,
+                cluster_id,
+            )
         
         # Correctness Fix: If reason_codes exist, use structured claims path
         # This ensures each reason code is validated individually
         if reason_codes:
             structured = StructuredExplanation.from_decision_result(decision_data)
-
-            return self.validate_structured_claims(kpis, structured, cluster_id)
+            structured_report = self.validate_structured_claims(
+                kpis, structured, cluster_id
+            )
+            return self._attach_generated_explanation_audit(
+                structured_report,
+                decision_data.get("explanation", ""),
+                kpis,
+                cluster_id,
+            )
         
         # Fall back to free-text validation only if no structured data available
         explanation = decision_data.get("explanation", "")
         return self.validate_rationale(kpis, explanation, cluster_id)
+
+    def _attach_generated_explanation_audit(
+        self,
+        structured_report: ValidationReport,
+        explanation: str,
+        kpis: Dict[str, Any],
+        cluster_id: str,
+    ) -> ValidationReport:
+        """Audit the actual generated prose and retain both validation scopes.
+
+        Previously the presence of ``reason_codes`` caused the Gemini text to
+        be skipped entirely: only synthetic structured claims were checked.
+        The prose audit is deliberately rule based so Gemini is not grading its
+        own output.  The fixed 20-case adversarial suite remains a separate,
+        global regression benchmark.
+        """
+        if not explanation or not explanation.strip():
+            structured_report.evidence["generated_explanation_audit"] = {
+                "scope": "actual_generated_text",
+                "validation_status": "not_run",
+                "statements_validated": 0,
+                "verified_count": 0,
+                "unverified_count": 0,
+                "contradiction_count": 0,
+                "sentence_results": [],
+                "contradictions": [],
+            }
+            structured_report.evidence["structured_claim_audit"] = {
+                "validation_status": structured_report.validation_status,
+                "statements_validated": structured_report.statements_validated,
+                "verified_count": structured_report.verified_count,
+                "contradiction_count": structured_report.contradiction_count,
+                "sentence_results": structured_report.to_dict()["sentence_results"],
+            }
+            return structured_report
+
+        generated_report = self.validate_explanation(
+            explanation=explanation,
+            kpis=kpis,
+            cluster_id=cluster_id,
+            use_llm=False,
+        )
+        structured_dict = structured_report.to_dict()
+        generated_dict = generated_report.to_dict()
+
+        structured_report.evidence["structured_claim_audit"] = {
+            "scope": "deterministic_decision_claims",
+            "validation_status": structured_dict["validation_status"],
+            "statements_validated": structured_dict["statements_validated"],
+            "verified_count": structured_dict["verified_count"],
+            "unverified_count": structured_dict["unverified_count"],
+            "contradiction_count": structured_dict["contradiction_count"],
+            "sentence_results": structured_dict["sentence_results"],
+            "contradictions": structured_dict["contradictions"],
+        }
+        structured_report.evidence["generated_explanation_audit"] = {
+            "scope": "actual_generated_text",
+            "validator": "deterministic ClaimExtractor + rule-based TNLI",
+            "validation_status": generated_dict["validation_status"],
+            "statements_validated": generated_dict["statements_validated"],
+            "verified_count": generated_dict["verified_count"],
+            "unverified_count": generated_dict["unverified_count"],
+            "contradiction_count": generated_dict["contradiction_count"],
+            "sentence_results": generated_dict["sentence_results"],
+            "contradictions": generated_dict["contradictions"],
+            "quantitative_extraction": generated_dict.get("evidence", {}).get(
+                "quantitative_extraction", {}
+            ),
+            "cross_validation": generated_dict.get("evidence", {}).get(
+                "cross_validation", []
+            ),
+        }
+
+        # A contradiction in either scope blocks the prose. Unverified generated
+        # sentences also fail closed: they are not automatically false, but the
+        # application must not display prose it cannot support from the contract.
+        combined_contradictions = list(structured_report.contradictions)
+        seen = {
+            (item.statement, item.context)
+            for item in combined_contradictions
+        }
+        for item in generated_report.contradictions:
+            key = (item.statement, item.context)
+            if key not in seen:
+                combined_contradictions.append(item)
+                seen.add(key)
+
+        structured_report.contradictions = combined_contradictions
+        structured_report.contradiction_count = len(combined_contradictions)
+        structured_report.statements_validated += generated_report.statements_validated
+        structured_report.verified_count += generated_report.verified_count
+        structured_report.unverified_count += generated_report.unverified_count
+        structured_report.entailment_results.extend(generated_report.entailment_results)
+        structured_report.warnings.extend(generated_report.warnings)
+        if combined_contradictions:
+            structured_report.validation_status = "fail"
+        elif generated_report.validation_status != "pass":
+            structured_report.validation_status = "warning"
+        else:
+            structured_report.validation_status = "pass"
+        return structured_report
     
     def _parse_statements(self, rationale: str) -> List[str]:
         """Parse rationale into individual statements for validation."""
         import re
         
         # Split on sentence boundaries
-        sentences = re.split(r'[.!?]+', rationale)
+        # Do not split decimal values such as ``120.1 €/MWh`` into separate
+        # pseudo-sentences. Split punctuation only when it is not between digits.
+        sentences = re.split(r'(?<!\d)[.!?]+|[.!?]+(?!\d)', rationale)
         
         # Clean and filter
         statements = []

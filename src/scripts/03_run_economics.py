@@ -17,6 +17,7 @@ results/economics/<cluster_id>/
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -187,13 +188,27 @@ def _load_total_pipe_length_m_from_cha(cluster_id: str) -> float:
 
 
 def _load_max_feeder_loading_pct_from_dha(cluster_id: str) -> float:
-    """Load max feeder loading % from DHA KPIs. Supports flat and nested (kpis) schema."""
+    """Load the original-grid feeder loading from the baseline DHA KPIs."""
     p = resolve_cluster_path(cluster_id, "dha") / "dha_kpis.json"
     if not p.exists():
         return 0.0
     obj = json.loads(p.read_text(encoding="utf-8"))
     k = obj.get("kpis") or obj  # flat schema: KPIs at top level
     return float(k.get("max_feeder_loading_pct", 0.0))
+
+
+def _load_verified_reinforcement_case(cluster_id: str):
+    """Return a verified plan for a separate reinforced-grid economics case."""
+    path = resolve_cluster_path(cluster_id, "dha") / "dha_reinforcement.json"
+    if not path.exists():
+        return None
+    plan = json.loads(path.read_text(encoding="utf-8"))
+    if not plan.get("is_sufficient", False):
+        return None
+    after = plan.get("after_kpis", {})
+    if not after.get("feasible", False) or int(plan.get("remaining_violations", 1)) != 0:
+        return None
+    return plan
 
 
 def main() -> None:
@@ -212,6 +227,16 @@ def main() -> None:
     ap.add_argument("--stress-tests", action="store_true", help="Run stress test scenarios")
     ap.add_argument("--full-validation", action="store_true", help="Run all validation: Monte Carlo + Sensitivity + Stress Tests")
     ap.add_argument(
+        "--scenario",
+        type=str,
+        default=None,
+        help=(
+            "Economic scenario: name from scripts/scenarios/ (e.g. 2023_baseline, "
+            "2030_optimistic) or a path to a YAML file. Outputs are namespaced "
+            "under results/economics/<cluster>/scenarios/<name>/."
+        ),
+    )
+    ap.add_argument(
         "--use-cluster-method",
         action="store_true",
         help="Use compute_lcoh_dh_for_cluster with combined CHA+DHA data (pipes, lv_results)",
@@ -226,7 +251,17 @@ def main() -> None:
 
     from dataclasses import replace
 
-    params = get_default_economics_params()
+    scenario_label = None
+    if args.scenario:
+        from branitz_heat_decision.economics.scenarios import (
+            load_scenario_params,
+            scenario_name,
+        )
+        params = load_scenario_params(args.scenario)
+        scenario_label = scenario_name(args.scenario)
+        print(f"Scenario: {scenario_label} ({args.scenario})")
+    else:
+        params = get_default_economics_params()
     params = replace(params, plant_cost_allocation=args.plant_cost_allocation)
 
     lengths = _load_dh_lengths_m_from_cha(cluster_id)
@@ -241,12 +276,16 @@ def main() -> None:
         pump_power_kw=pump_power_kw,
     )
 
+    # Canonical economics always represents the original/current grid. A
+    # verified reinforcement plan is calculated below as a separate scenario.
     max_feeder_loading_pct = _load_max_feeder_loading_pct_from_dha(cluster_id)
+    reinforcement_plan = _load_verified_reinforcement_case(cluster_id)
     hp_inputs = HPInputs(
         heat_mwh_per_year=annual_heat_mwh,
         hp_total_capacity_kw_th=design_capacity_kw,
         cop_annual_average=float(params.cop_default),
         max_feeder_loading_pct=max_feeder_loading_pct,
+        lv_reinforcement_cost_eur=None,
     )
 
     # PlantContext: Cottbus CHP (shared) for marginal, or from params if configured
@@ -309,6 +348,7 @@ def main() -> None:
         cop_annual_average=float(params.cop_default),
         max_feeder_loading_pct=max_feeder_loading_pct,
         params=params,
+        lv_reinforcement_cost_eur=None,
     )
 
     co2_dh_kg_per_mwh, co2_dh_breakdown = compute_co2_dh(
@@ -333,6 +373,7 @@ def main() -> None:
 
     det = {
         "cluster_id": cluster_id,
+        "analysis_case": "baseline_current_grid",
         "annual_heat_mwh": annual_heat_mwh,
         "design_capacity_kw": design_capacity_kw,
         "plant_capacity_status": plant_capacity_status,
@@ -341,6 +382,7 @@ def main() -> None:
         "total_pipe_length_m": total_pipe_length_m,
         "pipe_lengths_by_dn_m": pipe_lengths_by_dn,
         "max_feeder_loading_pct": max_feeder_loading_pct,
+        "verified_reinforcement_cost_eur": None,
         "lcoh_dh_eur_per_mwh": float(lcoh_dh),
         "lcoh_hp_eur_per_mwh": float(lcoh_hp),
         "lcoh_dh_breakdown": lcoh_dh_breakdown,
@@ -377,6 +419,39 @@ def main() -> None:
         },
     }
 
+    reinforced_det = None
+    reinforced_hp_inputs = None
+    if reinforcement_plan:
+        post_kpis = reinforcement_plan.get("after_kpis", {})
+        post_loading_pct = float(post_kpis["max_feeder_loading_pct"])
+        reinforcement_cost_eur = float(reinforcement_plan.get("total_cost_eur", 0.0))
+        reinforced_hp_inputs = HPInputs(
+            heat_mwh_per_year=annual_heat_mwh,
+            hp_total_capacity_kw_th=design_capacity_kw,
+            cop_annual_average=float(params.cop_default),
+            max_feeder_loading_pct=post_loading_pct,
+            lv_reinforcement_cost_eur=reinforcement_cost_eur,
+        )
+        reinforced_lcoh_hp, reinforced_lcoh_hp_breakdown = compute_lcoh_hp(
+            annual_heat_mwh=annual_heat_mwh,
+            hp_total_capacity_kw_th=design_capacity_kw,
+            cop_annual_average=float(params.cop_default),
+            max_feeder_loading_pct=post_loading_pct,
+            params=params,
+            lv_reinforcement_cost_eur=reinforcement_cost_eur,
+        )
+        reinforced_det = copy.deepcopy(det)
+        reinforced_det.update(
+            {
+                "analysis_case": "verified_reinforcement",
+                "max_feeder_loading_pct": post_loading_pct,
+                "verified_reinforcement_cost_eur": reinforcement_cost_eur,
+                "lcoh_hp_eur_per_mwh": float(reinforced_lcoh_hp),
+                "lcoh_hp_breakdown": reinforced_lcoh_hp_breakdown,
+                "reinforcement_source": "dha_reinforcement.json",
+            }
+        )
+
     mc = get_default_monte_carlo_params()
     mc = mc.__class__(**{**mc.__dict__, "n": int(args.n), "seed": int(args.seed)})
 
@@ -384,7 +459,29 @@ def main() -> None:
     mc_df = pd.DataFrame(mc_res.samples)
     mc_summary = compute_mc_summary(mc_df)
 
+    reinforced_mc_df = None
+    reinforced_mc_summary = None
+    if reinforced_hp_inputs is not None:
+        reinforced_mc_res = run_monte_carlo(
+            dh_inputs=dh_inputs,
+            hp_inputs=reinforced_hp_inputs,
+            base_params=params,
+            mc=mc,
+        )
+        reinforced_mc_df = pd.DataFrame(reinforced_mc_res.samples)
+        reinforced_mc_summary = compute_mc_summary(reinforced_mc_df)
+        reinforced_mc_summary["analysis_case"] = "verified_reinforcement"
+
     out_dir = RESULTS_ROOT / "economics" / cluster_id
+    if scenario_label:
+        # Namespace scenario outputs so baseline results are never overwritten
+        out_dir = out_dir / "scenarios" / scenario_label
+        det["scenario"] = scenario_label
+        mc_summary["scenario"] = scenario_label
+        if reinforced_det is not None:
+            reinforced_det["scenario"] = scenario_label
+        if reinforced_mc_summary is not None:
+            reinforced_mc_summary["scenario"] = scenario_label
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "economics_deterministic.json").write_text(json.dumps(det, indent=2), encoding="utf-8")
     # Write the validated nested schema used by the decision/report stack.
@@ -393,6 +490,30 @@ def main() -> None:
     (out_dir / "monte_carlo_summary.json").write_text(json.dumps(mc_summary, indent=2), encoding="utf-8")
 
     mc_df.to_csv(out_dir / "economics_monte_carlo_samples.csv", index=False)
+
+    if (
+        reinforced_det is not None
+        and reinforced_mc_summary is not None
+        and reinforced_mc_df is not None
+    ):
+        reinforced_dir = out_dir / "reinforcement"
+        reinforced_dir.mkdir(parents=True, exist_ok=True)
+        (reinforced_dir / "economics_deterministic.json").write_text(
+            json.dumps(reinforced_det, indent=2),
+            encoding="utf-8",
+        )
+        (reinforced_dir / "economics_monte_carlo.json").write_text(
+            json.dumps(reinforced_mc_summary, indent=2),
+            encoding="utf-8",
+        )
+        (reinforced_dir / "monte_carlo_summary.json").write_text(
+            json.dumps(reinforced_mc_summary, indent=2),
+            encoding="utf-8",
+        )
+        reinforced_mc_df.to_csv(
+            reinforced_dir / "economics_monte_carlo_samples.csv",
+            index=False,
+        )
     print(f"Wrote: {out_dir}")
     
     # NEW: Sensitivity Analysis

@@ -9,13 +9,23 @@ from .agent import (
     BranitzADKAgent,
     BranitzADKTeam,
     BaseADKAgent,
-    DataPrepAgent,
-    CHAAgent,
-    DHAAgent,
-    EconomicsAgent,
-    DecisionAgent,
-    UHDCAgent,
+    ADKDataPrepAgent,
+    ADKCHAAgent,
+    ADKDHAAgent,
+    ADKEconomicsAgent,
+    ADKDecisionAgent,
+    ADKUHDCAgent,
 )
+
+# Deprecated aliases (pre-rename). The domain-level agents in
+# branitz_heat_decision.agents.domain_agents use the un-prefixed names;
+# ADK tool-level agents are now prefixed with "ADK" to avoid the clash.
+DataPrepAgent = ADKDataPrepAgent
+CHAAgent = ADKCHAAgent
+DHAAgent = ADKDHAAgent
+EconomicsAgent = ADKEconomicsAgent
+DecisionAgent = ADKDecisionAgent
+UHDCAgent = ADKUHDCAgent
 from .tools import (
     prepare_data_tool,
     run_cha_tool,
@@ -40,6 +50,13 @@ __all__ = [
     "BranitzADKAgent",
     "BranitzADKTeam",
     "BaseADKAgent",
+    "ADKDataPrepAgent",
+    "ADKCHAAgent",
+    "ADKDHAAgent",
+    "ADKEconomicsAgent",
+    "ADKDecisionAgent",
+    "ADKUHDCAgent",
+    # deprecated aliases
     "DataPrepAgent",
     "CHAAgent",
     "DHAAgent",

@@ -87,21 +87,52 @@ class LogicAuditor:
             limit = match.group(3)
             claims.append(Claim(ClaimType.THRESHOLD, subject, limit, relation=relation))
 
-        # Categorical claims: "feasible", "infeasible", "robust", "marginal"
-        # Try to capture context (DH/HP) and negation before the categorical term
-        cat_pattern = r"((?:district heating|DH|heat pump|HP).*?)?(?:not\s+)?(feasible|infeasible|robust|marginal|uncertain)"
-        matches = re.finditer(cat_pattern, explanation, re.IGNORECASE)
-        for match in matches:
-            context = match.group(1) or ""
-            status = match.group(2).lower()
-            # Check for negation in the matched text
-            match_text = match.group(0).lower()
-            if "not" in match_text and status == "feasible":
-                status = "infeasible"
-            elif "not" in match_text and status == "infeasible":
-                status = "feasible"
-            subject = context.lower().strip() if context else "decision_status"
-            claims.append(Claim(ClaimType.CATEGORICAL, subject, status))
+        # Categorical claims are parsed sentence by sentence. The former regex
+        # could start at "district heating" in one sentence and consume through
+        # "heat pumps are not feasible" in the next, assigning HP infeasibility
+        # to DH. Keep the nearest same-sentence system reference instead.
+        sentence_pattern = r'(?<!\d)[.!?]+|[.!?]+(?!\d)'
+        category_pattern = re.compile(
+            r"\b(?P<negation>not\s+)?"
+            r"(?P<status>feasible|infeasible|viable|robust|marginal|uncertain)\b",
+            re.IGNORECASE,
+        )
+        system_pattern = re.compile(
+            r"\bdistrict\s+heating\b|\bdh\b|\bheat\s+pumps?\b|\bhp\b",
+            re.IGNORECASE,
+        )
+        for sentence in re.split(sentence_pattern, explanation):
+            for match in category_pattern.finditer(sentence):
+                prefix = sentence[:match.start()]
+                # Conditional language describes a counterfactual rather than
+                # asserting present feasibility ("if it were feasible").
+                if re.search(
+                    r"(?:\bif\b|\bwere\b|\bwould\b|\bcould\b).{0,24}$",
+                    prefix,
+                    re.IGNORECASE,
+                ):
+                    continue
+
+                preceding_refs = list(system_pattern.finditer(prefix))
+                if preceding_refs:
+                    subject = preceding_refs[-1].group(0).lower()
+                else:
+                    following = system_pattern.search(sentence[match.end():])
+                    subject = (
+                        following.group(0).lower()
+                        if following
+                        else "decision_status"
+                    )
+
+                status = match.group("status").lower()
+                if status == "viable":
+                    status = "feasible"
+                if match.group("negation"):
+                    if status == "feasible":
+                        status = "infeasible"
+                    elif status == "infeasible":
+                        status = "feasible"
+                claims.append(Claim(ClaimType.CATEGORICAL, subject, status))
 
         self.extracted_claims = claims
         return claims

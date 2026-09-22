@@ -214,7 +214,7 @@ REASON: [Brief explanation why]"""
         
         # Subject detection helpers
         is_dh_ref = bool(re.search(r'\bdistrict\b|\bdh\b', statement_lower))
-        is_hp_ref = bool(re.search(r'\bheat\s*pump\b|\bhp\b', statement_lower))
+        is_hp_ref = bool(re.search(r'\bheat\s*pumps?\b|\bhp\b', statement_lower))
         
         # ── 1. RECOMMENDATION / CHOICE / PREFERENCE ASSERTIONS ──────
         # Broadened: catches "recommended choice", "recommended", "should be selected",
@@ -233,7 +233,7 @@ REASON: [Brief explanation why]"""
             # Also catch phrases like "recommends DH" without explicit subject
             if not claims_dh and not claims_hp:
                 claims_dh = bool(re.search(r'recommend\w*\s+(?:dh|district)', statement_lower))
-                claims_hp = bool(re.search(r'recommend\w*\s+(?:hp|heat\s*pump)', statement_lower))
+                claims_hp = bool(re.search(r'recommend\w*\s+(?:hp|heat\s*pumps?)', statement_lower))
             
             # Handle compound sentences with both DH and HP referenced
             if not claims_dh and not claims_hp and is_dh_ref and is_hp_ref:
@@ -242,7 +242,7 @@ REASON: [Brief explanation why]"""
                 concessive = re.search(r'(?:but|however|despite|yet|although|while)\b(.+)', statement_lower)
                 if concessive:
                     tail = concessive.group(1)
-                    if re.search(r'\bhp\b|heat\s*pump', tail) and any(re.search(p, tail) for p in recommend_patterns):
+                    if re.search(r'\bhp\b|heat\s*pumps?', tail) and any(re.search(p, tail) for p in recommend_patterns):
                         claims_hp = True
                     elif re.search(r'\bdh\b|district', tail) and any(re.search(p, tail) for p in recommend_patterns):
                         claims_dh = True
@@ -254,7 +254,7 @@ REASON: [Brief explanation why]"""
                         if m:
                             keyword_pos = m.start()
                             dh_pos = min((m.start() for m in re.finditer(r'\bdh\b|\bdistrict\b', statement_lower)), default=999)
-                            hp_pos = min((m.start() for m in re.finditer(r'\bhp\b|heat\s*pump', statement_lower)), default=999)
+                            hp_pos = min((m.start() for m in re.finditer(r'\bhp\b|heat\s*pumps?', statement_lower)), default=999)
                             # The system closest to the keyword (on either side) is the subject
                             if abs(keyword_pos - hp_pos) < abs(keyword_pos - dh_pos):
                                 claims_hp = True
@@ -297,10 +297,15 @@ REASON: [Brief explanation why]"""
                     f"DH feasible={dh_feasible}, HP feasible={hp_feasible}")
         
         # General feasibility assertions (e.g. "DH is feasible", "both are feasible")
-        if "feasible" in statement_lower or "technically viable" in statement_lower or \
+        if "feasible" in statement_lower or "feasibility" in statement_lower or \
+           "viable" in statement_lower or "technical requirements" in statement_lower or \
+           "technical standards" in statement_lower or "technically sound" in statement_lower or \
            "compatible" in statement_lower:
             both_ref = is_dh_ref and is_hp_ref or "both" in statement_lower
-            neither_ref = "neither" in statement_lower or "not feasible" in statement_lower
+            # "HP is not feasible" is a subject-specific negative claim, not a
+            # claim that neither option is feasible. The latter requires the
+            # explicit word "neither".
+            neither_ref = "neither" in statement_lower
             
             if neither_ref:
                 if dh_feasible or hp_feasible:
@@ -343,9 +348,44 @@ REASON: [Brief explanation why]"""
                         "HP is not feasible")
         
         # ── 3. ROBUSTNESS / MONTE CARLO CLAIMS ──────────────────────
-        if "robust" in statement_lower or "monte carlo" in statement_lower or \
+        if "robust" in statement_lower or "sensitive" in statement_lower or \
+           "monte carlo" in statement_lower or \
            "probabilistic" in statement_lower or "win fraction" in statement_lower or \
            "majority" in statement_lower:
+            winner_fraction = dh_wins if choice == "DH" else hp_wins
+            if "majority" in statement_lower:
+                if is_hp_ref and not is_dh_ref and hp_wins is not None:
+                    label = (
+                        EntailmentLabel.ENTAILMENT
+                        if hp_wins > 0.5
+                        else EntailmentLabel.CONTRADICTION
+                    )
+                    return LightweightResult(
+                        statement, label, 0.9,
+                        f"HP win fraction = {hp_wins:.1%} "
+                        f"{'>' if hp_wins > 0.5 else '≤'} 50%",
+                    )
+                if is_dh_ref and not is_hp_ref and dh_wins is not None:
+                    label = (
+                        EntailmentLabel.ENTAILMENT
+                        if dh_wins > 0.5
+                        else EntailmentLabel.CONTRADICTION
+                    )
+                    return LightweightResult(
+                        statement, label, 0.9,
+                        f"DH win fraction = {dh_wins:.1%} "
+                        f"{'>' if dh_wins > 0.5 else '≤'} 50%",
+                    )
+            claims_sensitivity = bool(re.search(
+                r'\bsensitive\b|\buncertain\b|\buncertainty\b|\bnot\s+robust\b',
+                statement_lower,
+            ))
+            if claims_sensitivity and winner_fraction is not None:
+                if winner_fraction < 0.7:
+                    return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
+                        f"{choice} win fraction = {winner_fraction:.1%} < 70% (sensitive)")
+                return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.9,
+                    f"{choice} win fraction = {winner_fraction:.1%} ≥ 70% (robust, not sensitive)")
             if dh_wins is not None and dh_wins >= 0.7 and (is_dh_ref or choice == "DH"):
                 return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
                     f"DH win fraction = {dh_wins:.1%} ≥ 70%")
@@ -353,7 +393,6 @@ REASON: [Brief explanation why]"""
                 return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
                     f"HP win fraction = {hp_wins:.1%} ≥ 70%")
             elif dh_wins is not None and hp_wins is not None:
-                winner_fraction = dh_wins if choice == "DH" else hp_wins
                 if winner_fraction < 0.7:
                     return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.85,
                         f"Win fraction = {winner_fraction:.1%} < 70% (not robust)")
@@ -361,10 +400,12 @@ REASON: [Brief explanation why]"""
         # ── 4. LCOH / COST COMPARISONS (broadened vocabulary) ────────
         cost_superiority_patterns = [
             r'cheaper', r'lower cost', r'lower lcoh', r'cost.?dominant',
-            r'more expensive', r'higher cost', r'higher lcoh',
+            r'more expensive', r'higher(?:\s+\w+){0,2}\s+cost', r'higher lcoh',
             r'cost.?effective', r'cost.?advantage', r'cost.?optimal',
             r'better value', r'better economics', r'economically\s+(?:prefer|optimal)',
-            r'outperform', r'cost\s+comparison',
+            r'outperform', r'cost\s+comparison', r'costs?\s+(?:are\s+)?(?:below|lower)',
+            r'costs?\s+exceed', r'lcoh.{0,30}\sbelow',
+            r'lifecycle\s+cost.{0,40}(?:below|lower)', r'competitive\s+compared',
         ]
         is_cost_claim = any(re.search(p, statement_lower) for p in cost_superiority_patterns)
         
@@ -381,7 +422,10 @@ REASON: [Brief explanation why]"""
             hp_claimed_superior = False
             
             # Negative claims: "X is more expensive" → the OTHER is superior
-            is_negative_cost = bool(re.search(r'more expensive|higher cost|higher lcoh|exceed', statement_lower))
+            is_negative_cost = bool(re.search(
+                r'more expensive|higher(?:\s+\w+){0,2}\s+cost|higher lcoh|exceed',
+                statement_lower,
+            ))
             
             if is_negative_cost:
                 # "HP is more expensive" → DH is cheaper
@@ -445,12 +489,21 @@ REASON: [Brief explanation why]"""
         co2_patterns = [
             r'lower co2', r'lower emission', r'co2 tiebreaker',
             r'less co2', r'fewer emission', r'higher emission',
-            r'more emission', r'higher co2',
+            r'more emission', r'higher co2', r'lower environmental impact',
+            r'lower carbon', r'carbon footprint',
         ]
         is_co2_claim = any(re.search(p, statement_lower) for p in co2_patterns)
         
         if is_co2_claim and co2_dh is not None and co2_hp is not None:
             is_negative_co2 = bool(re.search(r'higher emission|higher co2|more emission', statement_lower))
+            lower_hp = bool(
+                re.search(r'(?:heat\s*pumps?|\bhp\b).{0,100}(?:lower|less|fewer)', statement_lower)
+                or re.search(r'(?:lower|less|fewer).{0,60}(?:heat\s*pumps?|\bhp\b)', statement_lower)
+            )
+            lower_dh = bool(
+                re.search(r'(?:district\s+heating|\bdh\b).{0,100}(?:lower|less|fewer)', statement_lower)
+                or re.search(r'(?:lower|less|fewer).{0,60}(?:district\s+heating|\bdh\b)', statement_lower)
+            )
             
             if is_negative_co2:
                 if is_hp_ref and not is_dh_ref:
@@ -462,16 +515,28 @@ REASON: [Brief explanation why]"""
                         return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.9,
                             f"DH CO2 ({co2_dh:.1f}) ≥ HP CO2 ({co2_hp:.1f})")
             else:
-                if is_dh_ref and co2_dh < co2_hp:
-                    return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
-                        f"DH CO2 ({co2_dh:.1f}) < HP CO2 ({co2_hp:.1f})")
-                elif is_dh_ref and co2_dh >= co2_hp:
+                if lower_hp and not lower_dh:
+                    if co2_hp < co2_dh:
+                        return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
+                            f"HP CO2 ({co2_hp:.1f}) < DH CO2 ({co2_dh:.1f})")
+                    return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.9,
+                        f"HP CO2 ({co2_hp:.1f}) ≥ DH CO2 ({co2_dh:.1f})")
+                if lower_dh and not lower_hp:
+                    if co2_dh < co2_hp:
+                        return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
+                            f"DH CO2 ({co2_dh:.1f}) < HP CO2 ({co2_hp:.1f})")
                     return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.9,
                         f"DH CO2 ({co2_dh:.1f}) ≥ HP CO2 ({co2_hp:.1f})")
-                elif is_hp_ref and co2_hp < co2_dh:
+                if is_dh_ref and not is_hp_ref and co2_dh < co2_hp:
+                    return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
+                        f"DH CO2 ({co2_dh:.1f}) < HP CO2 ({co2_hp:.1f})")
+                elif is_dh_ref and not is_hp_ref and co2_dh >= co2_hp:
+                    return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.9,
+                        f"DH CO2 ({co2_dh:.1f}) ≥ HP CO2 ({co2_hp:.1f})")
+                elif is_hp_ref and not is_dh_ref and co2_hp < co2_dh:
                     return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.9,
                         f"HP CO2 ({co2_hp:.1f}) < DH CO2 ({co2_dh:.1f})")
-                elif is_hp_ref:
+                elif is_hp_ref and not is_dh_ref:
                     return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.9,
                         f"HP CO2 ({co2_hp:.1f}) ≥ DH CO2 ({co2_dh:.1f})")
         
@@ -500,19 +565,6 @@ REASON: [Brief explanation why]"""
                 else:
                     return LightweightResult(statement, EntailmentLabel.CONTRADICTION, 0.85,
                         f"Analysis confirms {choice}, not HP")
-        
-        # ── 7. Specific numerical values mentioned ───────────────────
-        numbers_in_statement = re.findall(r'\d+\.?\d*', statement)
-        for num_str in numbers_in_statement:
-            try:
-                num = float(num_str)
-                for kpi_name, kpi_val in kpis.items():
-                    if isinstance(kpi_val, (int, float)):
-                        if abs(num - kpi_val) < 1.0:  # Match within 1.0 tolerance
-                            return LightweightResult(statement, EntailmentLabel.ENTAILMENT, 0.85,
-                                f"Value {num} matches {kpi_name}={kpi_val:.2f}")
-            except ValueError:
-                continue
         
         # Default: neutral (not verifiable with rules)
         return LightweightResult(statement, EntailmentLabel.NEUTRAL, 0.5, 
@@ -548,8 +600,14 @@ class TNLIModel:
     Wrapper that uses lightweight validation (no model download).
     """
     
-    def __init__(self, config=None):
-        self.validator = LightweightValidator(use_llm=True)
+    def __init__(self, config=None, use_llm: Optional[bool] = None):
+        # ``config=None`` is the documented rule-only evaluation path used by
+        # the thesis safety tests.  Runtime callers may still opt into the LLM
+        # fallback explicitly, but generated prose is audited deterministically
+        # so the model is never asked to grade its own answer.
+        if use_llm is None:
+            use_llm = config is not None
+        self.validator = LightweightValidator(use_llm=use_llm)
         logger.info("Using lightweight TNLI (no model download required)")
     
     def validate_statement(self, table_data: Dict[str, Any], statement: str):

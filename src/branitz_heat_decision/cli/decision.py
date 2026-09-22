@@ -31,13 +31,14 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Tuple, List, cast
+from typing import Any, Dict, Optional, Tuple, List, cast
 
 from branitz_heat_decision.config import RESULTS_ROOT
 from branitz_heat_decision.decision.kpi_contract import build_kpi_contract
@@ -97,6 +98,15 @@ def parse_args() -> argparse.Namespace:
         help="Explanation style",
     )
     parser.add_argument("--config", help="Custom decision config JSON file")
+    parser.add_argument(
+        "--scenario",
+        help=(
+            "Economic scenario name (e.g. 2030_optimistic). Reads economics from "
+            "results/economics/<cluster>/scenarios/<name>/ and writes the decision to "
+            "results/decision/<cluster>/scenarios/<name>/. Run "
+            "03_run_economics.py --scenario <name> first."
+        ),
+    )
     parser.add_argument("--no-fallback", action="store_true", help="Fail if LLM unavailable / API fails / safety fails")
     # Phase 1: Intent-aware orchestrator (migration path)
     parser.add_argument("--intent-chat", action="store_true", help="Use orchestrator: route by query, run only needed simulations")
@@ -125,12 +135,17 @@ def save_json(data: Dict[str, Any], path: Path) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"✓ Saved: {path}")
 
-def _discover_paths_for_cluster(cluster_id: str) -> Tuple[Path, Path, Path]:
+def _discover_paths_for_cluster(
+    cluster_id: str, scenario: Optional[str] = None
+) -> Tuple[Path, Path, Path]:
     base = Path(RESULTS_ROOT)
     cha = base / "cha" / cluster_id / "cha_kpis.json"
     dha = base / "dha" / cluster_id / "dha_kpis.json"
     # Try economics_monte_carlo.json first (current format), fallback to monte_carlo_summary.json (legacy)
     econ_dir = base / "economics" / cluster_id
+    if scenario:
+        # CHA/DHA physics are scenario-independent; only economics varies.
+        econ_dir = econ_dir / "scenarios" / scenario
     econ = econ_dir / "economics_monte_carlo.json"
     if not econ.exists():
         econ = econ_dir / "monte_carlo_summary.json"  # Legacy fallback
@@ -173,6 +188,23 @@ def _write_explanation_outputs(
         p = out_dir / f"explanation_{cluster_id}.html"
         p.write_text(html, encoding="utf-8")
         print(f"✓ Saved: {p}")
+
+    # Bind the narrative to the exact KPI contract that produced it. This
+    # prevents an older reinforced-grid explanation from being displayed with
+    # a newly regenerated current-grid decision.
+    canonical_contract = json.dumps(
+        contract,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    provenance = {
+        "cluster_id": cluster_id,
+        "contract_sha256": hashlib.sha256(canonical_contract).hexdigest(),
+        "generated_utc": report_data["metadata"]["timestamp"],
+    }
+    provenance_path = out_dir / f"explanation_{cluster_id}_metadata.json"
+    provenance_path.write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    print(f"✓ Saved: {provenance_path}")
 
 def main() -> None:
     _configure_logging_from_env()
@@ -234,6 +266,8 @@ def main() -> None:
         if not clusters:
             raise FileNotFoundError("No clusters found under results/cha/. Run CHA first.")
         base_out = Path(args.out_dir) if args.out_dir else Path("results") / "decision_all"
+        if args.scenario and not args.out_dir:
+            base_out = base_out / "scenarios" / args.scenario
         base_out.mkdir(parents=True, exist_ok=True)
         print(f"Found {len(clusters)} clusters under results/cha/. Writing to: {base_out}")
 
@@ -243,7 +277,7 @@ def main() -> None:
                 out_dir = base_out / cid
                 out_dir.mkdir(parents=True, exist_ok=True)
 
-                cha_path, dha_path, econ_path = _discover_paths_for_cluster(cid)
+                cha_path, dha_path, econ_path = _discover_paths_for_cluster(cid, args.scenario)
                 if args.cha_kpis:
                     cha_path = Path(args.cha_kpis)
                 if args.dha_kpis:
@@ -266,6 +300,7 @@ def main() -> None:
                         "dha_kpis_path": str(dha_path.resolve()),
                         "econ_summary_path": str(econ_path.resolve()),
                         "decision_config": config or "defaults",
+                        "scenario": args.scenario,
                     },
                     "notes": [],
                 }
@@ -340,7 +375,7 @@ def main() -> None:
         dha_path = Path(args.dha_kpis)
         econ_path = Path(args.econ_summary)
     else:
-        cha_path, dha_path, econ_path = _discover_paths_for_cluster(cluster_id)
+        cha_path, dha_path, econ_path = _discover_paths_for_cluster(cluster_id, args.scenario)
 
     if not (cha_path.exists() and dha_path.exists() and econ_path.exists()):
         raise FileNotFoundError(
@@ -349,6 +384,8 @@ def main() -> None:
         )
 
     out_dir = Path(args.out_dir) if args.out_dir else (Path("results") / "decision" / cluster_id)
+    if args.scenario and not args.out_dir:
+        out_dir = out_dir / "scenarios" / args.scenario
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading CHA KPIs: {cha_path}")
@@ -367,6 +404,7 @@ def main() -> None:
             "dha_kpis_path": str(dha_path.resolve()),
             "econ_summary_path": str(econ_path.resolve()),
             "decision_config": config or "defaults",
+            "scenario": args.scenario,
         },
         "notes": [],
     }
@@ -392,6 +430,8 @@ def main() -> None:
         print("\nGenerating explanation...")
         if args.template_only:
             explanation = _fallback_template_explanation(contract, decision_result.to_dict(), args.explanation_style)
+            explanation_source = "template"
+            explanation_model = None
             print("ℹ️  Using template (--template-only)")
         else:
             try:
@@ -401,10 +441,14 @@ def main() -> None:
                     style=args.explanation_style,
                     no_fallback=args.no_fallback,
                 )
+                explanation_source = "gemini_api"
+                explanation_model = GOOGLE_MODEL_DEFAULT
             except Exception as e:
                 if args.no_fallback:
                     raise
                 explanation = _fallback_template_explanation(contract, decision_result.to_dict(), args.explanation_style)
+                explanation_source = "template_fallback"
+                explanation_model = None
                 print(f"! LLM explanation failed, used template fallback ({e})")
 
         # NEW: Validate explanation using TNLI Logic Auditor
@@ -442,6 +486,11 @@ def main() -> None:
             # Add full validation report to decision output (includes sentence_results)
             decision_with_validation = decision_result.to_dict()
             decision_with_validation["validation"] = validation_report.to_dict()
+            decision_with_validation["explanation_source"] = explanation_source
+            decision_with_validation["explanation_model"] = explanation_model
+            decision_with_validation["explanation_generated_utc"] = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
             save_json(decision_with_validation, out_dir / f"decision_{cluster_id}.json")
             
         except ImportError:

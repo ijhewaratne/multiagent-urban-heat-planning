@@ -181,7 +181,7 @@ class BaseADKAgent:
             )
 
 
-class DataPrepAgent(BaseADKAgent):
+class ADKDataPrepAgent(BaseADKAgent):
     """
     Agent responsible for data preparation (Phase 0).
     Wraps src/scripts/00_prepare_data.py.
@@ -210,7 +210,7 @@ class DataPrepAgent(BaseADKAgent):
         return action
 
 
-class CHAAgent(BaseADKAgent):
+class ADKCHAAgent(BaseADKAgent):
     """
     Agent responsible for Cluster Heat Assessment (Phase 1).
     Wraps src/scripts/01_run_cha.py.
@@ -252,7 +252,7 @@ class CHAAgent(BaseADKAgent):
         return action
 
 
-class DHAAgent(BaseADKAgent):
+class ADKDHAAgent(BaseADKAgent):
     """
     Agent responsible for District Heat Assessment (Phase 2).
     Wraps src/scripts/02_run_dha.py.
@@ -269,6 +269,7 @@ class DHAAgent(BaseADKAgent):
         hp_three_phase: bool = True,
         topn: int = 10,
         grid_source: str = "legacy_json",
+        plan_reinforcement: bool = False,
     ) -> AgentAction:
         """
         Execute DHA pipeline.
@@ -280,6 +281,7 @@ class DHAAgent(BaseADKAgent):
             hp_three_phase: Model HP loads as balanced 3-phase
             topn: Number of top hours to include
             grid_source: Grid source (legacy_json or geodata)
+            plan_reinforcement: Generate and verify a reinforcement plan
         """
         action = self._execute_tool(
             "run_dha",
@@ -291,13 +293,14 @@ class DHAAgent(BaseADKAgent):
             hp_three_phase=hp_three_phase,
             topn=topn,
             grid_source=grid_source,
+            plan_reinforcement=plan_reinforcement,
             verbose=self.verbose,
         )
         self.trajectory.actions.append(action)
         return action
 
 
-class EconomicsAgent(BaseADKAgent):
+class ADKEconomicsAgent(BaseADKAgent):
     """
     Agent responsible for Economics (Phase 3).
     Wraps src/scripts/03_run_economics.py.
@@ -330,7 +333,7 @@ class EconomicsAgent(BaseADKAgent):
         return action
 
 
-class DecisionAgent(BaseADKAgent):
+class ADKDecisionAgent(BaseADKAgent):
     """
     Agent responsible for Decision Making (Phase 4).
     Wraps cli/decision.py (deterministic rules engine).
@@ -369,7 +372,7 @@ class DecisionAgent(BaseADKAgent):
         return action
 
 
-class UHDCAgent(BaseADKAgent):
+class ADKUHDCAgent(BaseADKAgent):
     """
     Agent responsible for UHDC Reporting (Phase 5).
     Wraps cli/uhdc.py.
@@ -431,7 +434,7 @@ class BranitzADKAgent(BaseADKAgent):
         buildings_path: Optional[str] = None,
         streets_path: Optional[str] = None,
     ) -> AgentAction:
-        agent = DataPrepAgent(enforce_policies=self.enforce_policies, verbose=self.verbose)
+        agent = ADKDataPrepAgent(enforce_policies=self.enforce_policies, verbose=self.verbose)
         action = agent.run(buildings_path=buildings_path, streets_path=streets_path)
         self.trajectory.actions.append(action)
         return action
@@ -444,7 +447,7 @@ class BranitzADKAgent(BaseADKAgent):
         disable_auto_plant_siting: bool = True,
         optimize_convergence: bool = True,
     ) -> AgentAction:
-        agent = CHAAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
+        agent = ADKCHAAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
         action = agent.run(
             use_trunk_spur=use_trunk_spur,
             plant_wgs84_lat=plant_wgs84_lat,
@@ -463,15 +466,17 @@ class BranitzADKAgent(BaseADKAgent):
         hp_three_phase: bool = True,
         topn: int = 10,
         grid_source: str = "legacy_json",
+        plan_reinforcement: bool = False,
     ) -> AgentAction:
-        agent = DHAAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
+        agent = ADKDHAAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
         action = agent.run(
             cop=cop,
             base_load_source=base_load_source,
             bdew_population_json=bdew_population_json,
             hp_three_phase=hp_three_phase,
             topn=topn,
-            grid_source=grid_source
+            grid_source=grid_source,
+            plan_reinforcement=plan_reinforcement,
         )
         self.trajectory.actions.append(action)
         return action
@@ -481,7 +486,7 @@ class BranitzADKAgent(BaseADKAgent):
         n_samples: int = 500,
         seed: int = 42,
     ) -> AgentAction:
-        agent = EconomicsAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
+        agent = ADKEconomicsAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
         action = agent.run(n_samples=n_samples, seed=seed)
         self.trajectory.actions.append(action)
         return action
@@ -493,7 +498,7 @@ class BranitzADKAgent(BaseADKAgent):
         no_fallback: bool = False,
         config_path: Optional[str] = None,
     ) -> AgentAction:
-        agent = DecisionAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
+        agent = ADKDecisionAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
         action = agent.run(
             llm_explanation=llm_explanation,
             explanation_style=explanation_style,
@@ -510,7 +515,7 @@ class BranitzADKAgent(BaseADKAgent):
         style: str = "executive",
         format: str = "all",
     ) -> AgentAction:
-        agent = UHDCAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
+        agent = ADKUHDCAgent(cluster_id=self.cluster_id, enforce_policies=self.enforce_policies, verbose=self.verbose)
         action = agent.run(out_dir=out_dir, llm=llm, style=style, format=format)
         self.trajectory.actions.append(action)
         return action
@@ -548,7 +553,7 @@ class BranitzADKAgent(BaseADKAgent):
         # Phase 0: Data Preparation
         if not skip_data_prep:
             logger.info("[ADK Agent] Phase 0: Data Preparation")
-            # For full pipeline, allow empty args if None passed, DataPrepAgent handles defaults
+            # For full pipeline, allow empty args if None passed, ADKDataPrepAgent handles defaults
             action = self.prepare_data()
             if action.status == "error":
                 self.trajectory.status = "failed"

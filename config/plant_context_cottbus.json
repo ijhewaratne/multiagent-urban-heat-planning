@@ -1,0 +1,10 @@
+{
+  "total_capacity_kw_th": 170000,
+  "utilized_capacity_kw_th": 85000,
+  "total_cost_eur": 90000000,
+  "is_built": true,
+  "marginal_cost_per_kw": 700.0,
+  "fuel_type": "natural_gas",
+  "plant_wgs84_lat": 51.758,
+  "plant_wgs84_lon": 14.364
+}

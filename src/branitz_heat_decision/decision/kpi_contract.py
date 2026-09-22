@@ -108,6 +108,9 @@ def build_kpi_contract(
     dh_block = _build_dh_block(cluster_id, cha_kpis, econ_summary)
     
     # Build HP block
+    # The canonical contract always describes the as-modelled current grid.
+    # Reinforcement is a separate counterfactual contract and must never
+    # overwrite the baseline feasibility shown by ordinary questions.
     hp_block = _build_hp_block(cluster_id, dha_kpis, econ_summary)
     
     # Build MC block (optional)
@@ -186,6 +189,8 @@ def _build_hp_block(cluster_id: str, dha_kpis: Dict[str, Any], econ_summary: Dic
     """Build HeatPumpsBlock with fallback logic."""
 
     # Current DHA schema: {"kpis": {...}, "worst_hour": ...}
+    # Ignore any nested reinforcement evidence here. It belongs to the
+    # explicitly named reinforced scenario, not the original-grid contract.
     k = dha_kpis.get("kpis", dha_kpis)
     feasible = bool(k.get("feasible", _infer_hp_feasibility(k)))
     reasons = k.get("reasons", None) or _infer_hp_reasons(k, feasible)

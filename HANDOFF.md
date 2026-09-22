@@ -21,6 +21,10 @@ This repository has been cleaned up and restructured to separate the **Core Prod
 
 ## 2. Integration Points for Web Developers
 
+> **Shortcut:** a ready-made FastAPI service now wraps both options below —
+> `uvicorn branitz_heat_decision.api.app:app` or `docker compose -f docker/docker-compose.yml up --build`.
+> Endpoints: `POST /clusters/{id}/run`, `GET /clusters/{id}/decision`, `GET /clusters/{id}/kpis`, `POST /query`.
+
 To integrate the Branitz engine into a web backend (e.g., a FastAPI or Node server), you do not need to run the Streamlit UI. Instead, you interact directly with the Python API.
 
 ### Option A: The "Agentic" Way (Recommended)
@@ -92,4 +96,4 @@ conda activate branitz
 pip install -e .
 ```
 
-*Ensure your `.env` file contains your `OPENAI_API_KEY` for the NLU/Explanation layers.*
+*Ensure your `.env` file contains your `GOOGLE_API_KEY` (Gemini) for the NLU/Explanation layers — see `.env.example`. Optionally set `GOOGLE_MODEL` (default: `gemini-2.5-flash`). Without a key, the system degrades gracefully to keyword-based intent classification and deterministic answer templates.*

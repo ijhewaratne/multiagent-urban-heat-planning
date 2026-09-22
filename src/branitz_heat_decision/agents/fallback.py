@@ -144,6 +144,7 @@ class CapabilityGuardrail:
         "economics_analysis",    # LCOH and CO2 calculation
         "decision_engine",       # Deterministic rules engine
         "violation_checker",     # Pressure/velocity/voltage limits
+        "reinforcement_analyzer", # LV-grid measures, costs, and decision impact
         "what_if_scenario",      # Network modification (remove houses only)
         "explanation_generator",  # LLM explanation of decisions
     ]
@@ -308,6 +309,12 @@ class CapabilityGuardrail:
                 "violation_checker",
             ],
             "NETWORK_DESIGN": ["cha_simulation"],
+            "GRID_REINFORCEMENT": [
+                "dha_simulation",
+                "economics_analysis",
+                "decision_engine",
+                "reinforcement_analyzer",
+            ],
             "WHAT_IF_SCENARIO": ["cha_simulation", "what_if_scenario"],
             "EXPLAIN_DECISION": ["decision_engine", "explanation_generator"],
         }

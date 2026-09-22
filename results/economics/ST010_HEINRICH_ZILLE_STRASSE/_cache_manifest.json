@@ -1,1 +1,7 @@
-{"input_hash": "1e048622bd855dcb0105fa6b6f161afd36e2cd425017651afb938424a6f2ffbe"}
+{
+  "cache_schema_version": 2,
+  "input_hash": "d84098ab2fb0d8fe4931c4c1d91f1ccb5a455b172ddf27e7dabec23fbf43dcb7",
+  "calculation_duration_seconds": 3.4366230964660645,
+  "calculated_at_utc": "2026-08-24T05:16:42Z",
+  "agent": "EconomicsAgent"
+}

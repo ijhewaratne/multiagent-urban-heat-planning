@@ -5,6 +5,7 @@ DHA pipeline: LV grid hosting analysis for heat pumps.
 import sys
 import argparse
 import json
+import pickle
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -418,16 +419,81 @@ def main():
         else:
             print(f"\nRunning Automated Reinforcement Planning...")
             try:
-                plan = plan_grid_reinforcement(net, loads_by_hour, cfg)
-                
+                plan, reinforced_net, _reinforced_results, post_violations = plan_grid_reinforcement(
+                    net,
+                    loads_by_hour,
+                    cfg,
+                    return_details=True,
+                )
+
                 plan_path = out_dir / "dha_reinforcement.json"
                 plan_dict = asdict(plan)
                 plan_path.write_text(json.dumps(plan_dict, indent=2), encoding="utf-8")
                 exported["dha_reinforcement"] = plan_path
+
+                reinforced_kpis_path = out_dir / "dha_reinforced_kpis.json"
+                reinforced_kpis_path.write_text(
+                    json.dumps(plan.after_kpis, indent=2),
+                    encoding="utf-8",
+                )
+                exported["dha_reinforced_kpis"] = reinforced_kpis_path
+
+                post_violations_path = out_dir / "reinforcement_post_violations.csv"
+                post_violations.to_csv(post_violations_path, index=False)
+                exported["reinforcement_post_violations"] = post_violations_path
+
+                measures_path = out_dir / "dha_reinforcement_measures.csv"
+                pd.DataFrame(plan_dict.get("measures", [])).to_csv(measures_path, index=False)
+                exported["dha_reinforcement_measures"] = measures_path
+
+                before_after_rows = []
+                for metric, unit in [
+                    ("feasible", "boolean"),
+                    ("max_feeder_loading_pct", "%"),
+                    ("worst_vmin_pu", "pu"),
+                    ("voltage_violations_total", "count"),
+                    ("line_violations_total", "count"),
+                    ("trafo_violations_total", "count"),
+                    ("planning_warnings_total", "count"),
+                ]:
+                    before_after_rows.append({
+                        "metric": metric,
+                        "before": plan.before_kpis.get(metric),
+                        "after": plan.after_kpis.get(metric),
+                        "unit": unit,
+                    })
+                before_after_path = out_dir / "dha_reinforcement_before_after.csv"
+                pd.DataFrame(before_after_rows).to_csv(before_after_path, index=False)
+                exported["dha_reinforcement_before_after"] = before_after_path
+
+                reinforced_network_path = out_dir / "network_reinforced.pickle"
+                with reinforced_network_path.open("wb") as handle:
+                    pickle.dump(reinforced_net, handle)
+                exported["network_reinforced"] = reinforced_network_path
+
+                # Preserve the original-grid KPIs while exposing a verified,
+                # decision-ready post-reinforcement scenario in the same
+                # canonical DHA artifact.
+                kpis["reinforcement"] = {
+                    "plan_available": True,
+                    "methodology": plan.methodology,
+                    "is_sufficient": plan.is_sufficient,
+                    "total_cost_eur": plan.total_cost_eur,
+                    "remaining_violations": plan.remaining_violations,
+                    "measures_count": len(plan.measures),
+                    "post_reinforcement_kpis": plan.after_kpis,
+                    "calculation_duration_seconds": plan.calculation_duration_seconds,
+                    "calculated_at_utc": plan.calculated_at_utc,
+                }
+                (out_dir / "dha_kpis.json").write_text(
+                    json.dumps(kpis, indent=2),
+                    encoding="utf-8",
+                )
                 
                 print(f"  Plan sufficient: {plan.is_sufficient}")
                 print(f"  Total Cost: €{plan.total_cost_eur:,.2f}")
                 print(f"  Measures: {len(plan.measures)}")
+                print(f"  Remaining violations: {plan.remaining_violations}")
                 
             except Exception as e:
                 print(f"⚠️ Reinforcement planning failed: {e}")    
@@ -454,4 +520,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

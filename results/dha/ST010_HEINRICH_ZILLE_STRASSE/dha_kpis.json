@@ -11,7 +11,7 @@
   "trafo_overload_hours": 0,
   "critical_hours_count": 10,
   "critical_hours_fraction": 1.0,
-  "worst_vmin_pu": 0.9657831073728651,
+  "worst_vmin_pu": 0.9657831073728351,
   "worst_vmin_bus": null,
   "worst_vmin_hour": null,
   "max_feeder_loading_pct": 201.5,
@@ -49,5 +49,37 @@
     "feasible_with_mitigation": true,
     "summary": "Grid reinforcement needed for 1 components"
   },
-  "worst_hour": 6667
+  "reinforcement": {
+    "plan_available": true,
+    "methodology": "verified_iterative_load_flow",
+    "is_sufficient": true,
+    "total_cost_eur": 6633.95938577478,
+    "remaining_violations": 0,
+    "measures_count": 22,
+    "post_reinforcement_kpis": {
+      "feasible": true,
+      "hours_total": 10,
+      "hours_converged": 10,
+      "voltage_violations_total": 0,
+      "line_violations_total": 0,
+      "trafo_violations_total": 0,
+      "planning_warnings_total": 0,
+      "voltage_violated_hours": 0,
+      "line_overload_hours": 0,
+      "trafo_overload_hours": 0,
+      "critical_hours_count": 0,
+      "critical_hours_fraction": 0.0,
+      "worst_vmin_pu": 0.9761249841962353,
+      "worst_vmin_bus": null,
+      "worst_vmin_hour": null,
+      "max_feeder_loading_pct": 77.39321594943911,
+      "max_loading_line": null,
+      "max_feeder_loading_hour": null,
+      "max_trafo_loading_pct": null,
+      "max_loading_trafo": null,
+      "max_loading_trafo_hour": null
+    },
+    "calculation_duration_seconds": 9.239680125000003,
+    "calculated_at_utc": "2026-08-23T13:42:33Z"
+  }
 }

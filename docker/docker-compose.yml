@@ -1,0 +1,41 @@
+# Branitz Heat Decision — compose setup
+#
+# Usage (from repo root):
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# The API is then available at http://localhost:8000 (docs at /docs).
+# data/ and results/ are mounted from the host so simulation outputs persist.
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: branitz-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data
+      - ../results:/app/results
+    environment:
+      # Optional: LLM explanations + NLU (omit for fully deterministic operation)
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GOOGLE_MODEL=${GOOGLE_MODEL:-gemini-2.5-flash}
+      # Optional: plant context for districts other than Branitz/Cottbus
+      # - BRANITZ_PLANT_CONTEXT=/app/config/plant_context_cottbus.json
+    restart: unless-stopped
+
+  # Optional: Streamlit chat UI alongside the API
+  ui:
+    image: branitz-api
+    depends_on:
+      - api
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../data:/app/data
+      - ../results:/app/results
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    command: streamlit run src/branitz_heat_decision/ui/app_intent_chat.py --server.port 8501 --server.address 0.0.0.0
+    profiles: ["ui"]  # start with: docker compose --profile ui up

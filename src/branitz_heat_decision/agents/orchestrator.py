@@ -15,10 +15,8 @@ and metadata alongside the same flat-dict format the UI expects.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -30,7 +28,8 @@ logger = logging.getLogger(__name__)
 # EXPLAIN_DECISION now routed through executor — DecisionAgent handles it
 _EXECUTOR_INTENTS = frozenset({
     "CO2_COMPARISON", "LCOH_COMPARISON", "VIOLATION_ANALYSIS",
-    "WHAT_IF_SCENARIO", "NETWORK_DESIGN", "EXPLAIN_DECISION",
+    "WHAT_IF_SCENARIO", "NETWORK_DESIGN", "GRID_REINFORCEMENT",
+    "EXPLAIN_DECISION",
 })
 
 # Lazy imports to avoid circular deps and optional deps
@@ -55,30 +54,9 @@ def _get_guardrail():
 
 
 def _get_available_streets() -> List[str]:
-    """Load available cluster IDs from cluster index."""
-    try:
-        from branitz_heat_decision.ui.services import ClusterService
-
-        svc = ClusterService()
-        idx = svc.get_cluster_index()
-        if not idx.empty:
-            col = "cluster_id" if "cluster_id" in idx.columns else idx.columns[0]
-            return idx[col].astype(str).tolist()
-    except Exception:
-        pass
-    try:
-        from branitz_heat_decision.config import DATA_PROCESSED
-
-        sc = DATA_PROCESSED / "street_clusters.parquet"
-        if sc.exists():
-            import pandas as pd
-
-            df = pd.read_parquet(sc)
-            if not df.empty and "street_id" in df.columns:
-                return df["street_id"].astype(str).tolist()
-    except Exception:
-        pass
-    return []
+    """Load available cluster IDs (delegates to street_resolution module)."""
+    from branitz_heat_decision.agents.street_resolution import get_available_streets
+    return get_available_streets()
 
 
 def _get_building_count(cluster_id: str) -> int:
@@ -127,15 +105,9 @@ def _has_decision_results(cluster_id: str) -> bool:
 
 
 def _load_json(path: Path) -> Dict[str, Any]:
-    """Load JSON file or return empty dict."""
-    if not path.exists():
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.warning(f"Failed to load {path}: {e}")
-        return {}
+    """Load JSON file (delegates to answer_formatting module)."""
+    from branitz_heat_decision.agents.answer_formatting import load_json
+    return load_json(path)
 
 
 def _call_fallback_llm(user_query: str, intent_data: Dict[str, Any]) -> str:
@@ -265,6 +237,7 @@ class BranitzOrchestrator:
             conversation_history=context.get("history", []),
             use_llm=True,
         )
+        explicit_street_hint = intent_data.get("entities", {}).get("street_name")
         agent_trace.append({
             "agent": "NLU Intent Classifier",
             "duty": "Classify user intent and extract entities",
@@ -279,8 +252,10 @@ class BranitzOrchestrator:
         resolved_query, enriched_intent, is_follow_up = self.conversation.resolve_references(
             user_query, intent_data
         )
-        # Pick up the raw street hint from NLU entities or conversation memory
-        raw_street_hint = enriched_intent.get("entities", {}).get("street_name")
+        # Keep an explicit query mention distinct from a street injected by
+        # conversation memory. The caller's selected cluster must remain
+        # authoritative when the user changes the UI selector.
+        raw_street_hint = explicit_street_hint
 
         agent_trace.append({
             "agent": "Conversation Manager",
@@ -296,57 +271,29 @@ class BranitzOrchestrator:
         #
         # Priority order:
         #   1. If NLU extracted an explicit street → resolve it (overrides everything)
-        #   2. If follow-up and conversation memory has a street → use memory (overrides UI default)
-        #   3. If cluster_id is a valid ST### from the UI → keep it
+        #   2. If cluster_id is a valid ST### from the UI/API → keep it
+        #   3. If conversation memory has a street → use it for an implicit follow-up
         #   4. Otherwise extract from query text
-        resolver_method = "pending"
         resolve_input = raw_street_hint or user_query
         original_cluster_id = cluster_id  # remember the UI/context default
         memory_street = self.conversation.memory.current_street
 
-        if raw_street_hint:
-            # User explicitly mentioned a street — resolve it even if we already have a cluster_id
-            raw_is_valid = bool(re.match(r"^ST\d{3}", raw_street_hint))
-            if raw_is_valid:
-                cluster_id = raw_street_hint
-                resolver_method = "NLU returned valid cluster_id"
-            else:
-                resolved = self._extract_street_from_query(raw_street_hint, context)
-                if resolved:
-                    cluster_id = resolved
-                    resolver_method = "resolved from NLU entity"
-                else:
-                    resolved = self._extract_street_from_query(user_query, context)
-                    if resolved:
-                        cluster_id = resolved
-                        resolver_method = "resolved from query (NLU hint failed)"
-                    else:
-                        resolver_method = "failed — NLU hint did not match any cluster"
+        # Resolution logic lives in agents/street_resolution.py
+        from branitz_heat_decision.agents.street_resolution import resolve_cluster
 
-        elif memory_street and re.match(r"^ST\d{3}", memory_street):
-            # No explicit street in query, but conversation memory has one.
-            # The user has been talking about this street — maintain continuity.
-            # This overrides the UI default (the user may have started with ST001
-            # but switched to ST010 mid-conversation).
-            cluster_id = memory_street
-            resolver_method = "conversation memory (street continuity)"
+        cluster_id, resolver_method = resolve_cluster(
+            raw_street_hint, user_query, cluster_id, memory_street, context
+        )
 
-        elif not cluster_id or not re.match(r"^ST\d{3}", cluster_id):
-            # No NLU hint, no memory, no valid cluster_id — extract from query
-            resolved = self._extract_street_from_query(user_query, context)
-            if resolved:
-                cluster_id = resolved
-                resolver_method = "resolved from query"
-            else:
-                resolver_method = "none (not found)"
-        else:
-            # cluster_id is already valid ST### from UI, and no memory yet
-            resolver_method = "pre-validated (UI default)"
+        if cluster_id:
+            entities = dict(enriched_intent.get("entities", {}))
+            entities["street_name"] = cluster_id
+            enriched_intent["entities"] = entities
 
-        if cluster_id and cluster_id != original_cluster_id:
-            if "entities" not in enriched_intent:
-                enriched_intent["entities"] = {}
-            enriched_intent["entities"]["street_name"] = cluster_id
+            # A selected/resolved street change starts a fresh conversational
+            # context so follow-up answers cannot reuse the previous street's
+            # last calculation.
+            self.conversation.set_current_street(cluster_id)
 
         agent_trace.append({
             "agent": "Street Resolver",
@@ -638,295 +585,34 @@ class BranitzOrchestrator:
         intent_data: Dict[str, Any],
         results: Dict[str, Any],
     ) -> Dict[str, Any]:
+        """Transform DynamicExecutor results to orchestrator response format.
+
+        Implementation lives in ``agents/answer_formatting.py``.
         """
-        Transform DynamicExecutor results to orchestrator response format.
-
-        The executor now returns richer results including:
-          - agent_results: per-agent success/cache/timing
-          - total_execution_time: end-to-end duration
-        These are passed through to the UI for transparency.
-        """
-        if "error" in results:
-            return {
-                "type": intent.lower(),
-                "intent_data": intent_data,
-                "execution_plan": results.get("execution_log", []),
-                "data": results,
-                "answer": results["error"],
-                "sources": [],
-                "can_proceed": False,
-                "execution_log": results.get("execution_log", []),
-                "visualization": None,
-            }
-
-        # Map executor data keys to orchestrator data format for UI compatibility
-        data = dict(results)
-        if intent == "CO2_COMPARISON":
-            data["co2_dh_t_per_a"] = results.get("dh_tons_co2", 0)
-            data["co2_hp_t_per_a"] = results.get("hp_tons_co2", 0)
-        elif intent == "LCOH_COMPARISON":
-            data["lcoh_dh_eur_per_mwh"] = results.get("lcoh_dh_eur_per_mwh", 0)
-            data["lcoh_hp_eur_per_mwh"] = results.get("lcoh_hp_eur_per_mwh", 0)
-        elif intent == "EXPLAIN_DECISION":
-            # Enrich with full decision JSON from disk for UI rendering
-            self._enrich_decision_data(data, intent_data)
-        
-        # Build answer/viz from enriched data (important for EXPLAIN_DECISION).
-        answer = self._format_answer(data, intent)
-        viz = self._create_viz(data, intent)
-
-        return {
-            "type": intent.lower(),
-            "intent_data": intent_data,
-            "execution_plan": results.get("execution_log", []),
-            "data": data,
-            "answer": answer,
-            "sources": ["DynamicExecutor"] + (results.get("execution_log", []) or []),
-            "can_proceed": True,
-            "execution_log": results.get("execution_log", []),
-            "visualization": viz,
-            # New: agent-level performance metadata
-            "agent_results": results.get("agent_results", {}),
-            "total_execution_time": results.get("total_execution_time"),
-        }
+        from branitz_heat_decision.agents.answer_formatting import format_executor_response
+        return format_executor_response(intent, intent_data, results)
 
     def _format_answer(self, results: Dict[str, Any], intent: str) -> str:
-        """Convert executor results to human-readable answer."""
-        if intent == "CO2_COMPARISON":
-            dh = results.get("dh_tons_co2", 0)
-            hp = results.get("hp_tons_co2", 0)
-            winner = results.get("winner", "")
-            return (
-                f"District Heating: {dh:.1f} tCO₂/year vs Heat Pumps: {hp:.1f} tCO₂/year. "
-                f"{winner} has lower emissions."
-            )
-        if intent == "LCOH_COMPARISON":
-            dh = results.get("lcoh_dh_eur_per_mwh", 0)
-            hp = results.get("lcoh_hp_eur_per_mwh", 0)
-            winner = results.get("winner", "")
-            return (
-                f"LCOH DH: {dh:.1f} €/MWh vs HP: {hp:.1f} €/MWh. "
-                f"{winner} has lower cost."
-            )
-        if intent == "VIOLATION_ANALYSIS":
-            cha = results.get("cha", {})
-            dha = results.get("dha", {})
-            v_max = cha.get("velocity_ms_max", "N/A")
-            p_max = cha.get("pressure_bar_max", "N/A")
-            v_viol = dha.get("voltage_violations", 0)
-            l_viol = dha.get("line_violations", 0)
-            return (
-                f"CHA: max velocity={v_max} m/s, max pressure={p_max} bar. "
-                f"DHA: {v_viol} voltage violations, {l_viol} line violations."
-            )
-        if intent == "NETWORK_DESIGN":
-            topo = results.get("topology", {})
-            pipes = results.get("pipes", [])
-            map_paths = results.get("map_paths", {})
-            n_pipes = len(pipes) if isinstance(pipes, list) else 0
-            n_buildings = (
-                topo.get("spurs")
-                or topo.get("buildings_connected")
-                or len(results.get("heat_consumers", []))
-                or "N/A"
-            )
-            n_trunk = topo.get("trunk_edges", "N/A")
-            n_nodes = topo.get("trunk_nodes", "N/A")
-            maps_available = ", ".join(map_paths.keys()) if map_paths else "none"
-            return (
-                f"The district heating network has {n_buildings} buildings connected, "
-                f"{n_pipes} pipes, {n_trunk} trunk edges, and {n_nodes} trunk nodes. "
-                f"Interactive maps available: {maps_available}."
-            )
-        if intent == "WHAT_IF_SCENARIO":
-            mod = results.get("modification_applied", "N/A")
-            comp = results.get("comparison", {})
-            dp = comp.get("pressure_change_bar", 0)
-            dq = comp.get("heat_delivered_change_mw", 0)
-            return (
-                f"What-if ({mod}): pressure change {dp:.4f} bar, "
-                f"heat delivered change {dq:.4f} MW."
-            )
-        if intent == "EXPLAIN_DECISION":
-            return self._format_decision_answer(results)
-        return str(results)
+        """Convert executor results to human-readable answer (see answer_formatting)."""
+        from branitz_heat_decision.agents.answer_formatting import format_answer
+        return format_answer(results, intent)
 
     def _format_decision_answer(self, results: Dict[str, Any]) -> str:
-        """Build rich human-readable answer for EXPLAIN_DECISION."""
-        rec = results.get("choice") or results.get("recommendation", "UNKNOWN")
-        reason_codes = results.get("reason_codes", [])
-        robust = results.get("robust", False)
-        metrics = results.get("metrics_used", {})
-        contract = results.get("kpi_contract")
-
-        rec_label = {
-            "DH": "District Heating (DH)",
-            "HP": "Heat Pumps (HP)",
-        }.get(rec, rec)
-        robust_label = "robust" if robust else "sensitive to input uncertainty"
-
-        # --- Headline ---
-        lines = [f"**Recommendation: {rec_label}** ({robust_label})"]
-        lines.append("")
-
-        # --- Causal narrative from KPI contract (preferred) ---
-        if contract:
-            try:
-                from branitz_heat_decision.uhdc.explainer import _build_decision_narrative
-                decision_dict = {
-                    "choice": rec,
-                    "robust": robust,
-                    "reason_codes": reason_codes,
-                }
-                narrative = _build_decision_narrative(contract, decision_dict)
-                lines.append(narrative)
-                lines.append("")
-            except Exception:
-                contract = None  # fall through to KPI table
-
-        # --- KPI table (fallback or supplement when contract unavailable) ---
-        if not contract:
-            lcoh_dh = metrics.get("lcoh_dh_median")
-            lcoh_hp = metrics.get("lcoh_hp_median")
-            co2_dh = metrics.get("co2_dh_median")
-            co2_hp = metrics.get("co2_hp_median")
-            dh_wins = metrics.get("dh_wins_fraction")
-            hp_wins = metrics.get("hp_wins_fraction")
-
-            if lcoh_dh and lcoh_hp:
-                lines.append(f"**LCOH:** DH = {lcoh_dh:.1f} €/MWh | HP = {lcoh_hp:.1f} €/MWh")
-            if co2_dh and co2_hp:
-                lines.append(f"**CO₂:** DH = {co2_dh:.0f} kg/MWh | HP = {co2_hp:.0f} kg/MWh")
-            if dh_wins is not None and hp_wins is not None:
-                lines.append(
-                    f"**Monte Carlo:** DH wins {dh_wins:.0%} | HP wins {hp_wins:.0%} of scenarios"
-                )
-            lines.append("")
-
-        # --- Validation footer ---
-        val = results.get("validation", {}) or {}
-        val_status = str(val.get("validation_status", "")).upper()
-        if val_status:
-            verified = val.get("verified_count", "?")
-            total = val.get("statements_validated", "?")
-            contradictions = val.get("contradiction_count", 0)
-            lines.append(
-                f"*Verification: {val_status} — {verified}/{total} claims verified, "
-                f"{contradictions} contradictions.*"
-            )
-
-        return "\n".join(lines)
+        """Rich human-readable answer for EXPLAIN_DECISION (see answer_formatting)."""
+        from branitz_heat_decision.agents.answer_formatting import format_decision_answer
+        return format_decision_answer(results)
 
     def _enrich_decision_data(
         self, data: Dict[str, Any], intent_data: Dict[str, Any]
     ) -> None:
-        """
-        Enrich executor result with full decision JSON from disk.
-
-        The executor returns a compact dict from the DecisionAgent.  The UI
-        needs the complete decision JSON (choice, reason_codes, metrics_used,
-        robustness, etc.) so we load it here and merge into *data* in-place.
-        """
-        cluster_id = (
-            (intent_data.get("entities") or {}).get("street_name")
-            or data.get("street_id")
-        )
-        if not cluster_id:
-            return
-
-        dec_path = (
-            resolve_cluster_path(cluster_id, "decision")
-            / f"decision_{cluster_id}.json"
-        )
-        dec = _load_json(dec_path)
-        if not dec:
-            return
-
-        # Normalise keys so UI can always read "recommendation" and "reason"
-        rec = dec.get("choice") or dec.get("recommendation", "UNKNOWN")
-        reason_codes = dec.get("reason_codes", [])
-        dec["recommendation"] = rec
-        dec["reason"] = dec.get("reason", "") or (
-            ", ".join(reason_codes) if reason_codes else ""
-        )
-
-        # Attach long-form explanation text (if present)
-        expl_path = (
-            resolve_cluster_path(cluster_id, "decision")
-            / f"explanation_{cluster_id}.md"
-        )
-        if expl_path.exists():
-            try:
-                data.setdefault("llm_explanation", expl_path.read_text(encoding="utf-8").strip())
-            except Exception:
-                pass
-
-        # Attach validation artifact (latest verification report)
-        val_path = (
-            resolve_cluster_path(cluster_id, "decision")
-            / f"validation_{cluster_id}.json"
-        )
-        val = _load_json(val_path)
-        if val:
-            data.setdefault("validation", val)
-
-        # Attach KPI contract (needed by _format_decision_answer for the narrative)
-        contract_path = (
-            resolve_cluster_path(cluster_id, "decision")
-            / f"kpi_contract_{cluster_id}.json"
-        )
-        contract = _load_json(contract_path)
-        if contract:
-            data.setdefault("kpi_contract", contract)
-
-        # Merge full decision fields into data (executor fields win on conflict)
-        for key, val in dec.items():
-            data.setdefault(key, val)
+        """Enrich executor result with full decision JSON (see answer_formatting)."""
+        from branitz_heat_decision.agents.answer_formatting import enrich_decision_data
+        enrich_decision_data(data, intent_data)
 
     def _create_viz(self, results: Dict[str, Any], intent: str) -> Optional[Dict[str, Any]]:
-        """Create visualization hint for UI (chart type, series, etc.)."""
-        if intent == "CO2_COMPARISON":
-            return {
-                "chart_type": "bar",
-                "series": [
-                    {"name": "District Heating", "value": results.get("dh_tons_co2", 0)},
-                    {"name": "Heat Pump", "value": results.get("hp_tons_co2", 0)},
-                ],
-                "x_label": "Option",
-                "y_label": "tCO₂/year",
-            }
-        if intent == "LCOH_COMPARISON":
-            return {
-                "chart_type": "bar",
-                "series": [
-                    {"name": "District Heating", "value": results.get("lcoh_dh_eur_per_mwh", 0)},
-                    {"name": "Heat Pump", "value": results.get("lcoh_hp_eur_per_mwh", 0)},
-                ],
-                "x_label": "Option",
-                "y_label": "€/MWh",
-            }
-        if intent == "WHAT_IF_SCENARIO":
-            return {
-                "chart_type": "comparison",
-                "baseline": results.get("baseline", {}),
-                "scenario": results.get("scenario", {}),
-            }
-        if intent == "EXPLAIN_DECISION":
-            metrics = results.get("metrics_used", {})
-            rec = results.get("choice") or results.get("recommendation", "UNKNOWN")
-            return {
-                "chart_type": "decision",
-                "recommendation": rec,
-                "robust": results.get("robust", False),
-                "reason_codes": results.get("reason_codes", []),
-                "metrics": {
-                    "lcoh_dh": metrics.get("lcoh_dh_median"),
-                    "lcoh_hp": metrics.get("lcoh_hp_median"),
-                    "co2_dh": metrics.get("co2_dh_median"),
-                    "co2_hp": metrics.get("co2_hp_median"),
-                },
-            }
-        return None
+        """Create visualization hint for UI (see answer_formatting)."""
+        from branitz_heat_decision.agents.answer_formatting import create_viz
+        return create_viz(results, intent)
 
     def _handle_capability_fallback(
         self,
@@ -1069,11 +755,9 @@ class BranitzOrchestrator:
         return self.capability_guardrail.get_capabilities_summary()
 
     def _extract_street_from_query(self, user_query: str, context: Dict[str, Any]) -> Optional[str]:
-        """Extract street/cluster from query using NLU and available streets."""
-        from branitz_heat_decision.nlu import extract_street_entities
-
-        available = context.get("available_streets") or _get_available_streets()
-        return extract_street_entities(user_query, available)
+        """Extract street/cluster from query (see street_resolution)."""
+        from branitz_heat_decision.agents.street_resolution import extract_street_from_query
+        return extract_street_from_query(user_query, context)
 
     def _compute_execution_plan(
         self,

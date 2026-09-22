@@ -6,10 +6,13 @@ to identifying cost-effective grid upgrades (Line replacements, Transformer upgr
 that resolve DHA violations.
 """
 
-from dataclasses import dataclass, asdict
-from typing import List, Dict, Set, Optional, Any
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import List, Dict, Optional, Any
 import copy
 import logging
+import math
+import time
 import pandas as pd
 import numpy as np
 
@@ -33,6 +36,9 @@ class ReinforcementMeasure:
     new_type: str
     cost_eur: float
     description: str
+    old_parallel: Optional[int] = None
+    new_parallel: Optional[int] = None
+    design_loading_pct: Optional[float] = None
 
 @dataclass
 class ReinforcementPlan:
@@ -40,6 +46,18 @@ class ReinforcementPlan:
     total_cost_eur: float
     is_sufficient: bool
     remaining_violations: int
+    before_kpis: Dict[str, Any] = field(default_factory=dict)
+    after_kpis: Dict[str, Any] = field(default_factory=dict)
+    calculation_duration_seconds: float = 0.0
+    calculated_at_utc: str = ""
+    methodology: str = "verified_iterative_load_flow"
+    target_loading_pct: float = 79.0
+    cost_assumptions: Dict[str, Any] = field(default_factory=lambda: {
+        "currency": "EUR",
+        "basis": "simplified planning unit-cost catalog",
+        "included": "additional cable circuit or transformer equipment by modeled length/count",
+        "excluded": "site-specific excavation, permits, land, traffic management, and utility quotations",
+    })
 
 # Simplified cost catalog (EUR)
 # In production, this should be loaded from a CSV/DB
@@ -57,216 +75,247 @@ COST_CATALOG = {
     }
 }
 
-# Line Types ordered by capacity (approx)
-LINE_TYPES_ORDERED = ["NAYY 4x50 SE", "NAYY 4x150 SE", "NAYY 4x240 SE"]
-TRAFO_TYPES_ORDERED = ["0.25 MVA 20/0.4 kV", "0.4 MVA 20/0.4 kV", "0.63 MVA 20/0.4 kV", "1.0 MVA 20/0.4 kV"]
-
-
 def plan_grid_reinforcement(
     net: pp.pandapowerNet,
     loads_by_hour: Dict[int, pd.DataFrame],
     cfg: DHAConfig,
-    max_iterations: int = 10
-) -> ReinforcementPlan:
+    max_iterations: int = 10,
+    target_loading_pct: float = 79.0,
+    return_details: bool = False,
+) -> Any:
     """
-    Generate a reinforcement plan to resolve violations.
-    
-    Algorithm:
-    1. Run LoadFlow.
-    2. Identify worst overloaded element (Line or Trafo) or lowest voltage bus.
-    3. Suggest upgrade for that element (Next larger standard type).
-    4. Apply upgrade tentatively.
-    5. Repeat until no violations or max iterations.
+    Generate and verify a reinforcement plan that resolves LV-grid violations.
+
+    Imported Branitz lines use explicit electrical parameters and often have no
+    ``std_type``.  Therefore merely changing the label does not alter the power
+    flow.  This planner installs real parallel cable/transformer circuits by
+    updating pandapower's ``parallel`` parameter, reruns every design hour, and
+    persists auditable before/after KPIs.
     """
     
+    started = time.perf_counter()
+    calculated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     current_net = copy.deepcopy(net)
-    measures = []
-    
-    # Ensure std types exist in net logic or just set parameters manually if needed.
-    # We assume std_types are available in pp database or custom std_types.
-    
+    measures: List[ReinforcementMeasure] = []
+    before_kpis: Dict[str, Any] = {}
+    last_kpis: Dict[str, Any] = {}
+    last_results: Dict[int, Dict[str, object]] = {}
+    last_violations = pd.DataFrame()
+
+    target_loading_pct = min(
+        float(target_loading_pct),
+        float(cfg.planning_warning_pct) - 0.1,
+    )
+
     for iteration in range(max_iterations):
-        # 1. Run LoadFlow
         results = run_loadflow(current_net, loads_by_hour)
-        kpis, _ = extract_dha_kpis(results, cfg)
-        
-        if kpis.get("feasible", False):
-            logger.info("Grid is feasible. Reinforcement planning complete.")
-            return ReinforcementPlan(
+        kpis, violations_df = extract_dha_kpis(results, cfg, net=current_net)
+        last_kpis = copy.deepcopy(kpis)
+        last_results = results
+        last_violations = violations_df.copy()
+        if not before_kpis:
+            before_kpis = copy.deepcopy(kpis)
+
+        if kpis.get("feasible", False) and not kpis.get("planning_warnings_total", 0):
+            logger.info("Grid is feasible with planning headroom. Reinforcement planning complete.")
+            plan = ReinforcementPlan(
                 measures=measures,
                 total_cost_eur=sum(m.cost_eur for m in measures),
                 is_sufficient=True,
-                remaining_violations=0
+                remaining_violations=0,
+                before_kpis=before_kpis,
+                after_kpis=last_kpis,
+                calculation_duration_seconds=time.perf_counter() - started,
+                calculated_at_utc=calculated_at,
+                target_loading_pct=target_loading_pct,
             )
-            
-        # 2. Identify violations
-        # We need to find the specific element causing the issue.
-        # extract_dha_kpis returns aggregated stats. We need raw results again?
-        # extract_dha_kpis returns (kpis, violations_df).
-        # We can look at what caused the violation.
-        
-        # Priority: Trafo Overload > Line Overload > Voltage
-        # (Voltage is often fixed by Line upgrade).
-        
-        measure = None
-        
-        # Check Trafo
-        t_load = kpis.get("max_trafo_loading_pct")
-        if t_load is not None and t_load > cfg.trafo_loading_limit_pct:
-            # Find overloaded trafo
-            # Just take the first one or worst one.
-            # We iterate hours/results.
-            # Or assume 1 trafo for simple LV grid.
-            worst_t_idx = None
-            max_load = 0
-            for h, res in results.items():
-                tr = res.get("trafo_results")
-                if tr is not None and not tr.empty:
-                    idxmax = tr['loading_percent'].idxmax()
-                    val = tr['loading_percent'].iloc[idxmax] # idxmax returns index label?
-                    # Be careful with pandas index.
-                    # Actually tr['loading_percent'] might use numeric index matching net.trafo.
-                    # idxmax returns the index.
-                    idx = tr['loading_percent'].idxmax()
-                    val = tr.at[idx, 'loading_percent']
-                    if val > max_load:
-                        max_load = val
-                        worst_t_idx = idx
-            
-            if worst_t_idx is not None and max_load > cfg.trafo_loading_limit_pct:
-                measure = _upgrade_trafo(current_net, worst_t_idx)
+            if return_details:
+                return plan, current_net, last_results, last_violations
+            return plan
 
-        # Check Line
-        if measure is None:
-            l_load = kpis.get("max_feeder_loading_pct")
-            if l_load is not None and l_load > cfg.line_loading_limit_pct:
-                 worst_l_idx = None
-                 max_load = 0
-                 for h, res in results.items():
-                    lr = res.get("line_results")
-                    if lr is not None and not lr.empty:
-                        # Filter to only lines that are part of the cluster?
-                        # Assuming net only contains relevant lines.
-                        idx = lr['loading_percent'].idxmax()
-                        val = lr.at[idx, 'loading_percent']
-                        if val > max_load:
-                            max_load = val
-                            worst_l_idx = idx
-                 
-                 if worst_l_idx is not None and max_load > cfg.line_loading_limit_pct:
-                     measure = _upgrade_line(current_net, worst_l_idx)
-                     
-        # Check Voltage
-        if measure is None:
-             vmin = kpis.get("worst_vmin_pu", 1.0)
-             if vmin < cfg.v_min_pu:
-                 # Upgrade line feeding the worst bus?
-                 # Harder to trace. Simplified: Upgrade line with highest voltage DROP?
-                 # Or just upgrade the longest/weakest line on the path.
-                 # Heuristic: Find line with highest loading among those in low voltage area?
-                 # Simple Heuristic: Upgrade the line with max loading percent, even if not > 100%.
-                 # Because high loading cause high voltage drop.
-                 
-                 worst_l_idx = None
-                 max_load = 0
-                 for h, res in results.items():
-                     lr = res.get("line_results")
-                     if lr is not None and not lr.empty:
-                         idx = lr['loading_percent'].idxmax()
-                         val = lr.at[idx, 'loading_percent']
-                         if val > max_load:
-                             max_load = val
-                             worst_l_idx = idx
-                 if worst_l_idx is not None:
-                     measure = _upgrade_line(current_net, worst_l_idx)
+        iteration_measures: List[ReinforcementMeasure] = []
 
-        if measure:
-            # Check if we already upgraded this element? 
-            # If we keep upgrading the same element, we might loop.
-            # But _upgrade_line selects "Next larger type". If max reached, it returns None.
-            
-            logger.info(f"Iteration {iteration}: {measure.description}")
-            measures.append(measure)
-        else:
+        # Upgrade every overloaded line in the current iteration.  Applying the
+        # complete batch avoids a slow one-line-per-load-flow loop for streets
+        # such as ST010 with many overloaded segments.
+        line_loading = _max_element_loading(results, "line_results")
+        for line_idx, loading_pct in sorted(line_loading.items()):
+            if loading_pct <= float(cfg.planning_warning_pct):
+                continue
+            current_parallel = max(1, int(current_net.line.at[line_idx, "parallel"]))
+            required_parallel = max(
+                current_parallel + 1,
+                int(math.ceil(current_parallel * loading_pct / target_loading_pct)),
+            )
+            measure = _add_parallel_line(
+                current_net,
+                line_idx,
+                required_parallel,
+                loading_pct,
+            )
+            if measure:
+                iteration_measures.append(measure)
+
+        trafo_loading = _max_element_loading(results, "trafo_results")
+        for trafo_idx, loading_pct in sorted(trafo_loading.items()):
+            if loading_pct <= float(cfg.trafo_loading_limit_pct):
+                continue
+            current_parallel = max(1, int(current_net.trafo.at[trafo_idx, "parallel"]))
+            required_parallel = max(
+                current_parallel + 1,
+                int(math.ceil(current_parallel * loading_pct / target_loading_pct)),
+            )
+            measure = _add_parallel_trafo(
+                current_net,
+                trafo_idx,
+                required_parallel,
+                loading_pct,
+            )
+            if measure:
+                iteration_measures.append(measure)
+
+        # A pure voltage violation may remain without a thermal overload.  Add
+        # one parallel circuit to the most heavily loaded line and verify again.
+        if not iteration_measures and kpis.get("voltage_violations_total", 0):
+            if line_loading:
+                worst_line, loading_pct = max(line_loading.items(), key=lambda item: item[1])
+                current_parallel = max(1, int(current_net.line.at[worst_line, "parallel"]))
+                measure = _add_parallel_line(
+                    current_net,
+                    worst_line,
+                    current_parallel + 1,
+                    loading_pct,
+                )
+                if measure:
+                    iteration_measures.append(measure)
+
+        if not iteration_measures:
             logger.warning("Could not find suitable upgrade measure despite violations.")
             break
-            
-    return ReinforcementPlan(
+
+        for measure in iteration_measures:
+            logger.info("Iteration %d: %s", iteration, measure.description)
+        measures.extend(iteration_measures)
+
+    remaining = _critical_violation_count(last_violations)
+    plan = ReinforcementPlan(
         measures=measures,
         total_cost_eur=sum(m.cost_eur for m in measures),
         is_sufficient=False,
-        remaining_violations=1 # Generic indicator
+        remaining_violations=remaining,
+        before_kpis=before_kpis,
+        after_kpis=last_kpis,
+        calculation_duration_seconds=time.perf_counter() - started,
+        calculated_at_utc=calculated_at,
+        target_loading_pct=target_loading_pct,
+    )
+    if return_details:
+        return plan, current_net, last_results, last_violations
+    return plan
+
+
+def _critical_violation_count(violations: pd.DataFrame) -> int:
+    if violations is None or violations.empty or "type" not in violations:
+        return 0
+    return int(
+        violations["type"].isin(
+            ["voltage", "line_overload", "trafo_overload", "non_convergence"]
+        ).sum()
     )
 
 
-def _upgrade_line(net, line_idx) -> Optional[ReinforcementMeasure]:
-    current_type = net.line.at[line_idx, "std_type"]
-    length_km = net.line.at[line_idx, "length_km"]
-    
-    # determine index in ordered list
-    try:
-        curr_i = LINE_TYPES_ORDERED.index(current_type)
-        if curr_i < len(LINE_TYPES_ORDERED) - 1:
-            new_type = LINE_TYPES_ORDERED[curr_i + 1]
-            cost = length_km * COST_CATALOG["line_per_km"].get(new_type, 40000)
-            
-            # Apply
-            net.line.at[line_idx, "std_type"] = new_type
-            
-            return ReinforcementMeasure(
-                measure_type="replace_line",
-                element_id=int(line_idx),
-                old_type=current_type,
-                new_type=new_type,
-                cost_eur=cost,
-                description=f"Upgrade Line {line_idx} ({length_km:.2f}km) {current_type} -> {new_type}"
-            )
-    except ValueError:
-        # Current type not in our list (custom?). Force upgrade to strongest.
-        if current_type != LINE_TYPES_ORDERED[-1]:
-            new_type = LINE_TYPES_ORDERED[-1]
-            cost = length_km * COST_CATALOG["line_per_km"].get(new_type, 40000)
-            net.line.at[line_idx, "std_type"] = new_type
-            return ReinforcementMeasure(
-                measure_type="replace_line",
-                element_id=int(line_idx),
-                old_type=current_type,
-                new_type=new_type,
-                cost_eur=cost,
-                description=f"Upgrade Line {line_idx} (Unknown) -> {new_type}"
-            )
-            
-    return None
+def _max_element_loading(
+    results: Dict[int, Dict[str, object]],
+    result_key: str,
+) -> Dict[int, float]:
+    maxima: Dict[int, float] = {}
+    for result in results.values():
+        frame = result.get(result_key)
+        if not isinstance(frame, pd.DataFrame) or frame.empty:
+            continue
+        if "loading_percent" not in frame.columns:
+            continue
+        for element_idx, raw_value in frame["loading_percent"].items():
+            value = float(pd.to_numeric(raw_value, errors="coerce"))
+            if np.isfinite(value):
+                idx = int(element_idx)
+                maxima[idx] = max(maxima.get(idx, 0.0), value)
+    return maxima
 
-def _upgrade_trafo(net, trafo_idx) -> Optional[ReinforcementMeasure]:
-    current_type = net.trafo.at[trafo_idx, "std_type"]
-    
-    # Try to find standard type matching sn_mva if std_type is generic
-    # But usually we rely on std_type string
-    try:
-        curr_i = -1
-        if current_type in TRAFO_TYPES_ORDERED:
-            curr_i = TRAFO_TYPES_ORDERED.index(current_type)
-        
-        if curr_i < len(TRAFO_TYPES_ORDERED) - 1:
-            new_type = TRAFO_TYPES_ORDERED[curr_i + 1]
-            cost = COST_CATALOG["trafo_total"].get(new_type, 30000)
-            
-            # Apply
-            net.trafo.at[trafo_idx, "std_type"] = new_type
-            # Also update sn_mva etc because std_type usually sets them but pp might need explicit update if not using std_type library correctly?
-            # Assigning std_type in PP usually applies parameters if they are in pp.std_types.
-            # Assuming they are.
-            
-            return ReinforcementMeasure(
-                measure_type="upgrade_trafo",
-                element_id=int(trafo_idx),
-                old_type=current_type,
-                new_type=new_type,
-                cost_eur=cost,
-                description=f"Upgrade Trafo {trafo_idx} {current_type} -> {new_type}"
-            )
-    except ValueError:
-        pass
-        
-    return None
+
+def _infer_line_type_and_cost(net, line_idx: int) -> tuple[str, float]:
+    row = net.line.loc[line_idx]
+    std_type = row.get("std_type")
+    if isinstance(std_type, str) and std_type in COST_CATALOG["line_per_km"]:
+        return std_type, float(COST_CATALOG["line_per_km"][std_type])
+
+    max_i_ka = float(row.get("max_i_ka", 0.0) or 0.0)
+    if max_i_ka <= 0.16:
+        inferred = "NAYY 4x50 SE"
+    elif max_i_ka <= 0.28:
+        inferred = "NAYY 4x150 SE"
+    else:
+        inferred = "NAYY 4x240 SE"
+    return inferred, float(COST_CATALOG["line_per_km"][inferred])
+
+
+def _add_parallel_line(
+    net,
+    line_idx: int,
+    new_parallel: int,
+    loading_pct: float,
+) -> Optional[ReinforcementMeasure]:
+    old_parallel = max(1, int(net.line.at[line_idx, "parallel"]))
+    if new_parallel <= old_parallel:
+        return None
+    length_km = float(net.line.at[line_idx, "length_km"])
+    cable_type, cost_per_km = _infer_line_type_and_cost(net, line_idx)
+    added_circuits = int(new_parallel - old_parallel)
+    cost = added_circuits * length_km * cost_per_km
+    net.line.at[line_idx, "parallel"] = int(new_parallel)
+    return ReinforcementMeasure(
+        measure_type="add_parallel_cable",
+        element_id=int(line_idx),
+        old_type=f"{old_parallel} × {cable_type}",
+        new_type=f"{new_parallel} × {cable_type}",
+        cost_eur=float(cost),
+        description=(
+            f"Line {line_idx}: install {added_circuits} parallel {cable_type} cable "
+            f"circuit(s) over {length_km:.3f} km"
+        ),
+        old_parallel=old_parallel,
+        new_parallel=int(new_parallel),
+        design_loading_pct=float(loading_pct),
+    )
+
+
+def _add_parallel_trafo(
+    net,
+    trafo_idx: int,
+    new_parallel: int,
+    loading_pct: float,
+) -> Optional[ReinforcementMeasure]:
+    old_parallel = max(1, int(net.trafo.at[trafo_idx, "parallel"]))
+    if new_parallel <= old_parallel:
+        return None
+    sn_mva = float(net.trafo.at[trafo_idx, "sn_mva"])
+    type_name = min(
+        COST_CATALOG["trafo_total"],
+        key=lambda name: abs(float(name.split()[0]) - sn_mva),
+    )
+    added_units = int(new_parallel - old_parallel)
+    cost = added_units * float(COST_CATALOG["trafo_total"][type_name])
+    net.trafo.at[trafo_idx, "parallel"] = int(new_parallel)
+    return ReinforcementMeasure(
+        measure_type="add_parallel_transformer",
+        element_id=int(trafo_idx),
+        old_type=f"{old_parallel} × {type_name}",
+        new_type=f"{new_parallel} × {type_name}",
+        cost_eur=float(cost),
+        description=(
+            f"Transformer {trafo_idx}: install {added_units} parallel {type_name} unit(s)"
+        ),
+        old_parallel=old_parallel,
+        new_parallel=int(new_parallel),
+        design_loading_pct=float(loading_pct),
+    )

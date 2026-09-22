@@ -198,7 +198,7 @@ def calculate_economics_for_selected_street(
     Uses shared Cottbus CHP plant context (sunk cost).
     """
     from branitz_heat_decision.economics.lcoh import compute_lcoh_dh, compute_lcoh_hp
-    from branitz_heat_decision.economics.plant_context import COTTBUS_CHP, get_plant_context_for_street
+    from branitz_heat_decision.economics.plant_context import get_plant_context, get_plant_context_for_street
 
     street_peak_kw = cluster_data.get("peak_load_kw", cluster_data.get("design_capacity_kw", 0.0))
     annual_demand_mwh = cluster_data["annual_demand_mwh"]
@@ -256,10 +256,10 @@ def calculate_economics_for_selected_street(
         "cluster_id": cluster_id,
         "street_peak_load_kw": street_peak_kw,
         "plant_capacity_status": {
-            "total_plant_kw": COTTBUS_CHP.total_capacity_kw_th,
-            "available_kw": COTTBUS_CHP.available_capacity_kw,
-            "street_share_pct": (street_peak_kw / COTTBUS_CHP.total_capacity_kw_th) * 100
-            if COTTBUS_CHP.total_capacity_kw_th > 0
+            "total_plant_kw": get_plant_context().total_capacity_kw_th,
+            "available_kw": get_plant_context().available_capacity_kw,
+            "street_share_pct": (street_peak_kw / get_plant_context().total_capacity_kw_th) * 100
+            if get_plant_context().total_capacity_kw_th > 0
             else 0,
             "is_within_capacity": plant_info["is_within_capacity"],
         },

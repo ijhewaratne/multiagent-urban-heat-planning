@@ -13,6 +13,7 @@ INTENT_TO_PLAN: Dict[str, List[str]] = {
     "LCOH_COMPARISON": ["cha", "dha", "economics"],
     "VIOLATION_ANALYSIS": ["cha"],
     "NETWORK_DESIGN": ["cha"],
+    "GRID_REINFORCEMENT": ["dha", "economics", "decision"],
     "WHAT_IF_SCENARIO": ["cha"],
     "EXPLAIN_DECISION": ["decision"],
     "DATA_QUERY": [],

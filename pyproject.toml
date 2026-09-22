@@ -18,6 +18,9 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
 ]
 
+[project.optional-dependencies]
+api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
+
 [project.scripts]
 branitz-validate-bundle = "branitz_heat_decision.cli.validate_bundle:main"
 

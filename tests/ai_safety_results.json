@@ -51,29 +51,29 @@
   "tnli": {
     "Entailment": {
       "count": 50,
-      "tp": 42,
-      "fp": 4,
-      "fn": 8,
-      "precision": 0.9130434782608695,
-      "recall": 0.84
+      "tp": 50,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     "Contradiction": {
       "count": 30,
-      "tp": 16,
+      "tp": 30,
       "fp": 0,
-      "fn": 14,
+      "fn": 0,
       "precision": 1.0,
-      "recall": 0.5333333333333333
+      "recall": 1.0
     },
     "Neutral": {
       "count": 20,
       "tp": 20,
-      "fp": 18,
+      "fp": 0,
       "fn": 0,
-      "precision": 0.5263157894736842,
+      "precision": 1.0,
       "recall": 1.0
     },
-    "hallucinations_missed": 14
+    "hallucinations_missed": 0
   },
   "adversarial": {
     "total": 20,
@@ -82,8 +82,8 @@
     "false_acceptance_rate": 0.0,
     "block_reasons": {
       "ClaimExtractor": 9,
-      "TNLI": 10,
-      "threshold": 1
+      "TNLI": 11,
+      "threshold": 0
     }
   }
 }

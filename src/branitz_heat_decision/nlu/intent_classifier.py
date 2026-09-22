@@ -42,6 +42,7 @@ class BranitzIntent(Enum):
     LCOH_COMPARISON = "lcoh_comparison"
     VIOLATION_ANALYSIS = "violation_analysis"
     NETWORK_DESIGN = "network_design"
+    GRID_REINFORCEMENT = "grid_reinforcement"
     WHAT_IF_SCENARIO = "what_if_scenario"
     EXPLAIN_DECISION = "explain_decision"
     DATA_QUERY = "data_query"
@@ -58,6 +59,7 @@ Available intents (return ONLY one):
 - LCOH_COMPARISON: User wants cost/LCOH analysis (needs DH + HP simulations)
 - VIOLATION_ANALYSIS: User asks about pressure/velocity/temperature violations (needs DH sim only)
 - NETWORK_DESIGN: User asks about pipe layout, diameters, network topology, interactive maps, grid layout, show the network, see the map, heating grid, for ONE specific street. Use for "how many buildings" or "building count" ONLY when referring to a single street's network. NOT for "list all streets" or "streets in the district and buildings per street".
+- GRID_REINFORCEMENT: User asks whether the LV grid needs reinforcement/upgrades, which violations cause it, proposed cable/transformer measures and costs, or whether reinforcement changes HP feasibility or the DH-vs-HP decision.
 - WHAT_IF_SCENARIO: User asks hypotheticals: "what if we remove houses", "different temperatures"
 - EXPLAIN_DECISION: User asks why a decision was made, wants KPI explanation, asks "what is recommended", "what's the recommendation", or asks for decision summary (needs cached results only)
 - DATA_QUERY: User asks about raw building data: heat demands, specific heat demand, annual demand, design hour demand, building areas, U-values, construction year, envelope data, thermal properties. Use this when the user wants to SEE or LIST building-level data (not run a simulation or compare options).
@@ -74,6 +76,7 @@ Examples:
 "What if we remove 2 houses?" -> {"intent": "WHAT_IF_SCENARIO", "entities": {"modification": "remove 2 houses"}, ...}
 "Can I see the interactive maps" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants to view network maps"}
 "Show me the heating grid layout" -> {"intent": "NETWORK_DESIGN", "confidence": 0.9, "entities": {}, "reasoning": "User wants network visualization"}
+"Explain the LV-grid reinforcement and whether it changes the decision" -> {"intent": "GRID_REINFORCEMENT", "confidence": 0.95, "entities": {"metric": "lv_grid_reinforcement"}, "reasoning": "User wants reinforcement measures, costs, and decision impact"}
 "What are the heat demands of the buildings" -> {"intent": "DATA_QUERY", "confidence": 0.95, "entities": {"metric": "heat_demand"}, "reasoning": "User wants to see building heat demand data"}
 "Design hour heat demand" -> {"intent": "DATA_QUERY", "confidence": 0.9, "entities": {"metric": "design_hour"}, "reasoning": "User wants design hour load data"}
 "Add a new consumer" -> {"intent": "UNKNOWN", "confidence": 0.9, "reasoning": "Cannot modify network topology"}
@@ -155,6 +158,24 @@ def classify_intent(
 
     # Fast path: list streets / streets in district / buildings per street → CAPABILITY_QUERY (before LLM)
     q_lower = str(user_query).strip().lower()
+    reinforcement_phrases = [
+        "reinforcement",
+        "reinforment",
+        "reinforcment",
+        "reinforce the grid",
+        "grid upgrade",
+        "upgrade the grid",
+        "lv-grid upgrade",
+        "lv grid upgrade",
+    ]
+    if any(p in q_lower for p in reinforcement_phrases):
+        return {
+            "intent": "GRID_REINFORCEMENT",
+            "confidence": 0.95,
+            "entities": {"metric": "lv_grid_reinforcement"},
+            "reasoning": "Query explicitly asks about LV-grid reinforcement",
+        }
+
     list_street_phrases = [
         "streets in the district",
         "streets in the",
@@ -207,20 +228,18 @@ def classify_intent(
             return result
         except json.JSONDecodeError as e:
             logger.warning(f"Intent classifier: JSON parse error: {e}")
-            return {
-                "intent": "UNKNOWN",
-                "confidence": 0.0,
-                "entities": {},
-                "reasoning": "Failed to parse classifier output",
-            }
+            fallback = _keyword_fallback(user_query)
+            fallback["reasoning"] = (
+                f"LLM response could not be parsed; {fallback['reasoning']}"
+            )
+            return fallback
         except Exception as e:
             logger.warning(f"Intent classification failed: {e}")
-            return {
-                "intent": "UNKNOWN",
-                "confidence": 0.0,
-                "entities": {},
-                "reasoning": str(e),
-            }
+            fallback = _keyword_fallback(user_query)
+            fallback["reasoning"] = (
+                f"LLM unavailable ({e}); {fallback['reasoning']}"
+            )
+            return fallback
 
     # Non-LLM fallback: simple keyword heuristics
     return _keyword_fallback(user_query)
@@ -229,6 +248,25 @@ def classify_intent(
 def _keyword_fallback(user_query: str) -> Dict[str, Any]:
     """Keyword-based intent classification as fallback when LLM is unavailable or returns UNKNOWN."""
     q = user_query.lower()
+    if any(
+        w in q
+        for w in [
+            "reinforcement",
+            "reinforment",
+            "reinforcment",
+            "reinforce the grid",
+            "grid upgrade",
+            "upgrade the grid",
+            "lv-grid upgrade",
+            "lv grid upgrade",
+        ]
+    ):
+        return {
+            "intent": "GRID_REINFORCEMENT",
+            "confidence": 0.9,
+            "entities": {"metric": "lv_grid_reinforcement"},
+            "reasoning": "Keyword fallback: LV-grid reinforcement",
+        }
     if any(w in q for w in ["co2", "carbon", "emission", "emissions"]):
         return {
             "intent": "CO2_COMPARISON",
