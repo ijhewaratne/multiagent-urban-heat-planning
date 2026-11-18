@@ -1,0 +1,3 @@
+measure_type,element_id,old_type,new_type,cost_eur,description,old_parallel,new_parallel,design_loading_pct
+add_parallel_cable,760,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,625.8921487387411,Line 760: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.018 km,1,2,88.19471994952919
+add_parallel_cable,1450,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,176.57014363813477,Line 1450: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.005 km,1,2,104.6443113509153

@@ -1,0 +1,6 @@
+metric,before,after
+HP feasible,False,True
+Maximum feeder loading (%),216.2,76.97824080385843
+Line violations,503,0
+Recommendation,DH,DH
+HP LCOH after verified reinforcement (EUR/MWh),not technically feasible,118.51483274241781

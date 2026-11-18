@@ -1,0 +1,8 @@
+metric,before,after,unit
+feasible,False,True,boolean
+max_feeder_loading_pct,133.0,77.0168204097052,%
+worst_vmin_pu,0.9514901812099638,0.9643848079096778,pu
+voltage_violations_total,0,0,count
+line_violations_total,102,0,count
+trafo_violations_total,0,0,count
+planning_warnings_total,224,0,count

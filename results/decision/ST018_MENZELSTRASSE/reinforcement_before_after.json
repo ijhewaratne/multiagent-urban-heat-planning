@@ -1,0 +1,91 @@
+{
+  "cluster_id": "ST018_MENZELSTRASSE",
+  "generated_at_utc": "2026-11-18T10:04:56Z",
+  "methodology": "canonical current-grid decision compared with a separately stored verified post-reinforcement load-flow and economics scenario",
+  "before_reinforcement": {
+    "grid_kpis": {
+      "feasible": false,
+      "hours_total": 10,
+      "hours_converged": 10,
+      "voltage_violations_total": 0,
+      "line_violations_total": 102,
+      "trafo_violations_total": 0,
+      "planning_warnings_total": 224,
+      "voltage_violated_hours": 0,
+      "line_overload_hours": 10,
+      "trafo_overload_hours": 0,
+      "critical_hours_count": 10,
+      "critical_hours_fraction": 1.0,
+      "worst_vmin_pu": 0.9514901812099638,
+      "worst_vmin_bus": null,
+      "worst_vmin_hour": null,
+      "max_feeder_loading_pct": 133.0,
+      "max_loading_line": "1455",
+      "max_feeder_loading_hour": 6667,
+      "max_trafo_loading_pct": null,
+      "max_loading_trafo": null,
+      "max_loading_trafo_hour": null
+    },
+    "decision": {
+      "choice": "DH",
+      "robust": true,
+      "reason_codes": [
+        "ONLY_DH_FEASIBLE",
+        "ROBUST_DECISION"
+      ],
+      "metrics_used": {
+        "lcoh_dh_median": 68.92595287231836,
+        "lcoh_hp_median": 121.60283657583727,
+        "co2_dh_median": 1131.5391645161294,
+        "co2_hp_median": 1020.547402763439,
+        "dh_wins_fraction": 1.0,
+        "hp_wins_fraction": 0.0
+      }
+    }
+  },
+  "after_reinforcement": {
+    "grid_kpis": {
+      "feasible": true,
+      "hours_total": 10,
+      "hours_converged": 10,
+      "voltage_violations_total": 0,
+      "line_violations_total": 0,
+      "trafo_violations_total": 0,
+      "planning_warnings_total": 0,
+      "voltage_violated_hours": 0,
+      "line_overload_hours": 0,
+      "trafo_overload_hours": 0,
+      "critical_hours_count": 0,
+      "critical_hours_fraction": 0.0,
+      "worst_vmin_pu": 0.9643848079096778,
+      "worst_vmin_bus": null,
+      "worst_vmin_hour": null,
+      "max_feeder_loading_pct": 77.0168204097052,
+      "max_loading_line": null,
+      "max_feeder_loading_hour": null,
+      "max_trafo_loading_pct": null,
+      "max_loading_trafo": null,
+      "max_loading_trafo_hour": null
+    },
+    "reinforcement_cost_eur": 13801.645761218057,
+    "lcoh_dh_eur_per_mwh": 67.65363884952689,
+    "lcoh_hp_eur_per_mwh": 118.17738878134107,
+    "decision": {
+      "choice": "DH",
+      "robust": true,
+      "reason_codes": [
+        "COST_DOMINANT_DH",
+        "ROBUST_DECISION"
+      ],
+      "metrics_used": {
+        "lcoh_dh_median": 68.92595287231836,
+        "lcoh_hp_median": 120.22448495538455,
+        "co2_dh_median": 1131.5391645161294,
+        "co2_hp_median": 1020.547402763439,
+        "dh_wins_fraction": 1.0,
+        "hp_wins_fraction": 0.0
+      }
+    }
+  },
+  "decision_changes": false
+}

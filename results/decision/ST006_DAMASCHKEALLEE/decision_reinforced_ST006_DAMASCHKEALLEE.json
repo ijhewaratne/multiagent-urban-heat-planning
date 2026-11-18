@@ -1,0 +1,16 @@
+{
+  "choice": "DH",
+  "robust": true,
+  "reason_codes": [
+    "COST_DOMINANT_DH",
+    "ROBUST_DECISION"
+  ],
+  "metrics_used": {
+    "lcoh_dh_median": 98.58036513272597,
+    "lcoh_hp_median": 120.10605926292479,
+    "co2_dh_median": 390.8448043010752,
+    "co2_hp_median": 352.50715346084803,
+    "dh_wins_fraction": 0.878,
+    "hp_wins_fraction": 0.122
+  }
+}

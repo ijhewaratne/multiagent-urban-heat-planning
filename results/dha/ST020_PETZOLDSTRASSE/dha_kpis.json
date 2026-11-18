@@ -1,0 +1,90 @@
+{
+  "feasible": false,
+  "hours_total": 10,
+  "hours_converged": 10,
+  "voltage_violations_total": 240,
+  "line_violations_total": 301,
+  "trafo_violations_total": 0,
+  "planning_warnings_total": 69,
+  "voltage_violated_hours": 10,
+  "line_overload_hours": 10,
+  "trafo_overload_hours": 0,
+  "critical_hours_count": 10,
+  "critical_hours_fraction": 1.0,
+  "worst_vmin_pu": 0.8881,
+  "worst_vmin_bus": "1015",
+  "worst_vmin_hour": 6667,
+  "max_feeder_loading_pct": 216.9,
+  "max_loading_line": "707",
+  "max_feeder_loading_hour": 6667,
+  "max_trafo_loading_pct": null,
+  "max_loading_trafo": null,
+  "max_loading_trafo_hour": null,
+  "feeder_metrics": {
+    "distance_km": 0.354,
+    "long_feeder": false,
+    "threshold_km": 0.8
+  },
+  "peak_p_base_kw_total": 31.619600000000002,
+  "peak_p_hp_kw_total": 673.5284513692285,
+  "peak_p_total_kw_total": 705.1480513692286,
+  "peak_p_total_hour": 6667,
+  "mitigations": {
+    "mitigation_class": "reinforcement",
+    "recommendations": [
+      {
+        "code": "MIT_LINE_OVERLOAD",
+        "severity": "high",
+        "category": "reinforcement",
+        "title": "Line overload - cable capacity insufficient",
+        "actions": [
+          "Install parallel cable on overloaded segments",
+          "Upgrade to higher-capacity cable",
+          "Implement feeder meshing (connect multiple feeders)"
+        ],
+        "evidence": {
+          "max_loading_line": "707",
+          "max_loading_pct": 216.9,
+          "limit_pct": 100.0,
+          "affected_hours": 10
+        },
+        "estimated_cost_class": "medium"
+      }
+    ],
+    "feasible_with_mitigation": true,
+    "summary": "Grid reinforcement needed for 1 components"
+  },
+  "reinforcement": {
+    "plan_available": true,
+    "methodology": "verified_iterative_load_flow",
+    "is_sufficient": true,
+    "total_cost_eur": 27171.222848265363,
+    "remaining_violations": 0,
+    "measures_count": 39,
+    "post_reinforcement_kpis": {
+      "feasible": true,
+      "hours_total": 10,
+      "hours_converged": 10,
+      "voltage_violations_total": 0,
+      "line_violations_total": 0,
+      "trafo_violations_total": 0,
+      "planning_warnings_total": 0,
+      "voltage_violated_hours": 0,
+      "line_overload_hours": 0,
+      "trafo_overload_hours": 0,
+      "critical_hours_count": 0,
+      "critical_hours_fraction": 0.0,
+      "worst_vmin_pu": 0.9498093730723983,
+      "worst_vmin_bus": null,
+      "worst_vmin_hour": null,
+      "max_feeder_loading_pct": 79.2574138369617,
+      "max_loading_line": null,
+      "max_feeder_loading_hour": null,
+      "max_trafo_loading_pct": null,
+      "max_loading_trafo": null,
+      "max_loading_trafo_hour": null
+    },
+    "calculation_duration_seconds": 5.56986375,
+    "calculated_at_utc": "2026-11-18T10:03:24Z"
+  }
+}

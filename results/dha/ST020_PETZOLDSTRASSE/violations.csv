@@ -1,0 +1,611 @@
+hour,type,element,name,value,limit,severity
+6667,voltage,bus_116,,0.8937 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_117,,0.8978 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_243,,0.8994 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_253,,0.8888 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_281,,0.8932 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_287,,0.8893 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_314,,0.8902 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_327,,0.8899 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_352,,0.8890 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_362,,0.8930 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_410,,0.8973 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_471,,0.8923 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_536,,0.8988 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_541,,0.8962 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_546,,0.8883 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_580,,0.8890 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_626,,0.8908 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_640,,0.8886 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_767,,0.8989 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_783,,0.8885 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_831,,0.8962 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_920,,0.8905 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1007,,0.8912 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1015,,0.8881 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1061,,0.8989 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1119,,0.8886 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1155,,0.8881 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1283,,0.8938 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1294,,0.8912 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1313,,0.8908 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1326,,0.8903 pu,"[0.90, 1.10] pu",critical
+6667,voltage,bus_1371,,0.8945 pu,"[0.90, 1.10] pu",critical
+6667,line_overload,line_363,,153.2%,100.0%,critical
+6667,line_overload,line_679,,162.1%,100.0%,critical
+6667,line_overload,line_680,,162.1%,100.0%,critical
+6667,line_overload,line_681,,162.1%,100.0%,critical
+6667,line_overload,line_682,,162.1%,100.0%,critical
+6667,line_overload,line_683,,162.1%,100.0%,critical
+6667,line_overload,line_684,,145.7%,100.0%,critical
+6667,line_overload,line_685,,132.9%,100.0%,critical
+6667,line_overload,line_686,,115.8%,100.0%,warning
+6667,line_overload,line_687,,100.5%,100.0%,warning
+6667,line_planning_warning,line_688,,87.7%,80.0%,warning
+6667,line_overload,line_707,,216.9%,100.0%,critical
+6667,line_overload,line_708,,193.9%,100.0%,critical
+6667,line_overload,line_709,,193.9%,100.0%,critical
+6667,line_overload,line_710,,173.3%,100.0%,critical
+6667,line_overload,line_711,,158.5%,100.0%,critical
+6667,line_overload,line_712,,148.2%,100.0%,critical
+6667,line_overload,line_713,,131.2%,100.0%,critical
+6667,line_overload,line_714,,114.3%,100.0%,warning
+6667,line_planning_warning,line_715,,87.0%,80.0%,warning
+6667,line_planning_warning,line_772,,89.8%,80.0%,warning
+6667,line_planning_warning,line_773,,89.8%,80.0%,warning
+6667,line_planning_warning,line_774,,89.8%,80.0%,warning
+6667,line_planning_warning,line_775,,89.8%,80.0%,warning
+6667,line_overload,line_776,,202.5%,100.0%,critical
+6667,line_overload,line_777,,202.5%,100.0%,critical
+6667,line_overload,line_778,,202.5%,100.0%,critical
+6667,line_overload,line_779,,202.5%,100.0%,critical
+6667,line_overload,line_780,,202.5%,100.0%,critical
+6667,line_overload,line_842,,137.6%,100.0%,critical
+6667,line_overload,line_843,,137.6%,100.0%,critical
+6667,line_overload,line_844,,137.6%,100.0%,critical
+6667,line_overload,line_845,,137.6%,100.0%,critical
+6667,line_overload,line_846,,137.6%,100.0%,critical
+6667,line_overload,line_847,,137.6%,100.0%,critical
+6667,line_overload,line_1450,,163.1%,100.0%,critical
+6667,line_overload,line_1454,,113.5%,100.0%,warning
+6434,voltage,bus_116,,0.8952 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_117,,0.8993 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_253,,0.8903 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_281,,0.8948 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_287,,0.8909 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_314,,0.8918 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_327,,0.8915 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_352,,0.8906 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_362,,0.8945 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_410,,0.8988 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_471,,0.8939 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_541,,0.8977 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_546,,0.8899 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_580,,0.8905 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_626,,0.8923 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_640,,0.8902 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_783,,0.8901 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_831,,0.8977 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_920,,0.8920 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1007,,0.8927 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1015,,0.8897 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1119,,0.8901 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1155,,0.8897 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1283,,0.8953 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1294,,0.8927 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1313,,0.8923 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1326,,0.8919 pu,"[0.90, 1.10] pu",critical
+6434,voltage,bus_1371,,0.8960 pu,"[0.90, 1.10] pu",critical
+6434,line_overload,line_363,,151.4%,100.0%,critical
+6434,line_overload,line_679,,160.2%,100.0%,critical
+6434,line_overload,line_680,,160.2%,100.0%,critical
+6434,line_overload,line_681,,160.2%,100.0%,critical
+6434,line_overload,line_682,,160.2%,100.0%,critical
+6434,line_overload,line_683,,160.2%,100.0%,critical
+6434,line_overload,line_684,,144.0%,100.0%,critical
+6434,line_overload,line_685,,131.4%,100.0%,critical
+6434,line_overload,line_686,,114.5%,100.0%,warning
+6434,line_planning_warning,line_687,,99.3%,80.0%,warning
+6434,line_planning_warning,line_688,,86.6%,80.0%,warning
+6434,line_overload,line_707,,214.2%,100.0%,critical
+6434,line_overload,line_708,,191.6%,100.0%,critical
+6434,line_overload,line_709,,191.6%,100.0%,critical
+6434,line_overload,line_710,,171.2%,100.0%,critical
+6434,line_overload,line_711,,156.6%,100.0%,critical
+6434,line_overload,line_712,,146.4%,100.0%,critical
+6434,line_overload,line_713,,129.6%,100.0%,critical
+6434,line_overload,line_714,,112.9%,100.0%,warning
+6434,line_planning_warning,line_715,,85.9%,80.0%,warning
+6434,line_planning_warning,line_772,,88.7%,80.0%,warning
+6434,line_planning_warning,line_773,,88.7%,80.0%,warning
+6434,line_planning_warning,line_774,,88.7%,80.0%,warning
+6434,line_planning_warning,line_775,,88.7%,80.0%,warning
+6434,line_overload,line_776,,200.1%,100.0%,critical
+6434,line_overload,line_777,,200.1%,100.0%,critical
+6434,line_overload,line_778,,200.1%,100.0%,critical
+6434,line_overload,line_779,,200.1%,100.0%,critical
+6434,line_overload,line_780,,200.1%,100.0%,critical
+6434,line_overload,line_842,,136.0%,100.0%,critical
+6434,line_overload,line_843,,136.0%,100.0%,critical
+6434,line_overload,line_844,,136.0%,100.0%,critical
+6434,line_overload,line_845,,136.0%,100.0%,critical
+6434,line_overload,line_846,,136.0%,100.0%,critical
+6434,line_overload,line_847,,136.0%,100.0%,critical
+6434,line_overload,line_1450,,161.2%,100.0%,critical
+6434,line_overload,line_1454,,112.1%,100.0%,warning
+6556,voltage,bus_116,,0.8971 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_253,,0.8923 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_281,,0.8966 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_287,,0.8928 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_314,,0.8937 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_327,,0.8934 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_352,,0.8925 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_362,,0.8963 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_471,,0.8957 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_541,,0.8995 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_546,,0.8919 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_580,,0.8925 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_626,,0.8942 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_640,,0.8921 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_783,,0.8920 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_831,,0.8995 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_920,,0.8939 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1007,,0.8946 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1015,,0.8917 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1119,,0.8921 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1155,,0.8916 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1283,,0.8972 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1294,,0.8946 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1313,,0.8942 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1326,,0.8938 pu,"[0.90, 1.10] pu",critical
+6556,voltage,bus_1371,,0.8978 pu,"[0.90, 1.10] pu",critical
+6556,line_overload,line_363,,149.1%,100.0%,critical
+6556,line_overload,line_679,,157.9%,100.0%,critical
+6556,line_overload,line_680,,157.9%,100.0%,critical
+6556,line_overload,line_681,,157.9%,100.0%,critical
+6556,line_overload,line_682,,157.9%,100.0%,critical
+6556,line_overload,line_683,,157.9%,100.0%,critical
+6556,line_overload,line_684,,141.9%,100.0%,critical
+6556,line_overload,line_685,,129.4%,100.0%,critical
+6556,line_overload,line_686,,112.8%,100.0%,warning
+6556,line_planning_warning,line_687,,97.8%,80.0%,warning
+6556,line_planning_warning,line_688,,85.4%,80.0%,warning
+6556,line_overload,line_707,,211.0%,100.0%,critical
+6556,line_overload,line_708,,188.7%,100.0%,critical
+6556,line_overload,line_709,,188.7%,100.0%,critical
+6556,line_overload,line_710,,168.7%,100.0%,critical
+6556,line_overload,line_711,,154.2%,100.0%,critical
+6556,line_overload,line_712,,144.2%,100.0%,critical
+6556,line_overload,line_713,,127.7%,100.0%,critical
+6556,line_overload,line_714,,111.2%,100.0%,warning
+6556,line_planning_warning,line_715,,84.6%,80.0%,warning
+6556,line_planning_warning,line_772,,87.4%,80.0%,warning
+6556,line_planning_warning,line_773,,87.4%,80.0%,warning
+6556,line_planning_warning,line_774,,87.4%,80.0%,warning
+6556,line_planning_warning,line_775,,87.4%,80.0%,warning
+6556,line_overload,line_776,,197.2%,100.0%,critical
+6556,line_overload,line_777,,197.2%,100.0%,critical
+6556,line_overload,line_778,,197.2%,100.0%,critical
+6556,line_overload,line_779,,197.2%,100.0%,critical
+6556,line_overload,line_780,,197.2%,100.0%,critical
+6556,line_overload,line_842,,134.0%,100.0%,critical
+6556,line_overload,line_843,,134.0%,100.0%,critical
+6556,line_overload,line_844,,134.0%,100.0%,critical
+6556,line_overload,line_845,,134.0%,100.0%,critical
+6556,line_overload,line_846,,134.0%,100.0%,critical
+6556,line_overload,line_847,,134.0%,100.0%,critical
+6556,line_overload,line_1450,,158.9%,100.0%,critical
+6556,line_overload,line_1454,,110.5%,100.0%,warning
+7158,voltage,bus_116,,0.8988 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_253,,0.8940 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_281,,0.8983 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_287,,0.8945 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_314,,0.8954 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_327,,0.8951 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_352,,0.8942 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_362,,0.8980 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_471,,0.8974 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_546,,0.8936 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_580,,0.8942 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_626,,0.8960 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_640,,0.8938 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_783,,0.8938 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_920,,0.8957 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1007,,0.8963 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1015,,0.8934 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1119,,0.8938 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1155,,0.8934 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1283,,0.8988 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1294,,0.8963 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1313,,0.8959 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1326,,0.8955 pu,"[0.90, 1.10] pu",critical
+7158,voltage,bus_1371,,0.8995 pu,"[0.90, 1.10] pu",critical
+7158,line_overload,line_363,,147.1%,100.0%,critical
+7158,line_overload,line_679,,155.8%,100.0%,critical
+7158,line_overload,line_680,,155.8%,100.0%,critical
+7158,line_overload,line_681,,155.8%,100.0%,critical
+7158,line_overload,line_682,,155.8%,100.0%,critical
+7158,line_overload,line_683,,155.8%,100.0%,critical
+7158,line_overload,line_684,,140.0%,100.0%,critical
+7158,line_overload,line_685,,127.7%,100.0%,critical
+7158,line_overload,line_686,,111.3%,100.0%,warning
+7158,line_planning_warning,line_687,,96.5%,80.0%,warning
+7158,line_planning_warning,line_688,,84.2%,80.0%,warning
+7158,line_overload,line_707,,208.1%,100.0%,critical
+7158,line_overload,line_708,,186.1%,100.0%,critical
+7158,line_overload,line_709,,186.1%,100.0%,critical
+7158,line_overload,line_710,,166.3%,100.0%,critical
+7158,line_overload,line_711,,152.1%,100.0%,critical
+7158,line_overload,line_712,,142.2%,100.0%,critical
+7158,line_overload,line_713,,125.9%,100.0%,critical
+7158,line_overload,line_714,,109.7%,100.0%,warning
+7158,line_planning_warning,line_715,,83.5%,80.0%,warning
+7158,line_planning_warning,line_772,,86.3%,80.0%,warning
+7158,line_planning_warning,line_773,,86.3%,80.0%,warning
+7158,line_planning_warning,line_774,,86.3%,80.0%,warning
+7158,line_planning_warning,line_775,,86.3%,80.0%,warning
+7158,line_overload,line_776,,194.5%,100.0%,critical
+7158,line_overload,line_777,,194.5%,100.0%,critical
+7158,line_overload,line_778,,194.5%,100.0%,critical
+7158,line_overload,line_779,,194.5%,100.0%,critical
+7158,line_overload,line_780,,194.5%,100.0%,critical
+7158,line_overload,line_842,,132.2%,100.0%,critical
+7158,line_overload,line_843,,132.2%,100.0%,critical
+7158,line_overload,line_844,,132.2%,100.0%,critical
+7158,line_overload,line_845,,132.2%,100.0%,critical
+7158,line_overload,line_846,,132.2%,100.0%,critical
+7158,line_overload,line_847,,132.2%,100.0%,critical
+7158,line_overload,line_1450,,156.7%,100.0%,critical
+7158,line_overload,line_1454,,109.0%,100.0%,warning
+5735,voltage,bus_116,,0.8988 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_253,,0.8941 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_281,,0.8983 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_287,,0.8946 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_314,,0.8954 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_327,,0.8952 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_352,,0.8943 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_362,,0.8981 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_471,,0.8975 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_546,,0.8936 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_580,,0.8942 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_626,,0.8960 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_640,,0.8939 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_783,,0.8938 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_920,,0.8957 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1007,,0.8964 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1015,,0.8935 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1119,,0.8939 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1155,,0.8934 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1283,,0.8989 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1294,,0.8964 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1313,,0.8960 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1326,,0.8955 pu,"[0.90, 1.10] pu",critical
+5735,voltage,bus_1371,,0.8995 pu,"[0.90, 1.10] pu",critical
+5735,line_overload,line_363,,147.1%,100.0%,critical
+5735,line_overload,line_679,,155.8%,100.0%,critical
+5735,line_overload,line_680,,155.8%,100.0%,critical
+5735,line_overload,line_681,,155.8%,100.0%,critical
+5735,line_overload,line_682,,155.8%,100.0%,critical
+5735,line_overload,line_683,,155.8%,100.0%,critical
+5735,line_overload,line_684,,140.0%,100.0%,critical
+5735,line_overload,line_685,,127.7%,100.0%,critical
+5735,line_overload,line_686,,111.2%,100.0%,warning
+5735,line_planning_warning,line_687,,96.5%,80.0%,warning
+5735,line_planning_warning,line_688,,84.2%,80.0%,warning
+5735,line_overload,line_707,,208.1%,100.0%,critical
+5735,line_overload,line_708,,186.0%,100.0%,critical
+5735,line_overload,line_709,,186.0%,100.0%,critical
+5735,line_overload,line_710,,166.3%,100.0%,critical
+5735,line_overload,line_711,,152.1%,100.0%,critical
+5735,line_overload,line_712,,142.2%,100.0%,critical
+5735,line_overload,line_713,,125.9%,100.0%,critical
+5735,line_overload,line_714,,109.6%,100.0%,warning
+5735,line_planning_warning,line_715,,83.4%,80.0%,warning
+5735,line_planning_warning,line_772,,86.2%,80.0%,warning
+5735,line_planning_warning,line_773,,86.2%,80.0%,warning
+5735,line_planning_warning,line_774,,86.2%,80.0%,warning
+5735,line_planning_warning,line_775,,86.2%,80.0%,warning
+5735,line_overload,line_776,,194.4%,100.0%,critical
+5735,line_overload,line_777,,194.4%,100.0%,critical
+5735,line_overload,line_778,,194.4%,100.0%,critical
+5735,line_overload,line_779,,194.4%,100.0%,critical
+5735,line_overload,line_780,,194.4%,100.0%,critical
+5735,line_overload,line_842,,132.2%,100.0%,critical
+5735,line_overload,line_843,,132.2%,100.0%,critical
+5735,line_overload,line_844,,132.2%,100.0%,critical
+5735,line_overload,line_845,,132.2%,100.0%,critical
+5735,line_overload,line_846,,132.2%,100.0%,critical
+5735,line_overload,line_847,,132.2%,100.0%,critical
+5735,line_overload,line_1450,,156.7%,100.0%,critical
+5735,line_overload,line_1454,,108.9%,100.0%,warning
+6574,voltage,bus_116,,0.8992 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_253,,0.8945 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_281,,0.8988 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_287,,0.8950 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_314,,0.8959 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_327,,0.8956 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_352,,0.8947 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_362,,0.8985 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_471,,0.8979 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_546,,0.8941 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_580,,0.8947 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_626,,0.8964 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_640,,0.8943 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_783,,0.8943 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_920,,0.8962 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1007,,0.8968 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1015,,0.8939 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1119,,0.8943 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1155,,0.8939 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1283,,0.8993 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1294,,0.8968 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1313,,0.8964 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1326,,0.8960 pu,"[0.90, 1.10] pu",critical
+6574,voltage,bus_1371,,0.9000 pu,"[0.90, 1.10] pu",critical
+6574,line_overload,line_363,,146.6%,100.0%,critical
+6574,line_overload,line_679,,155.2%,100.0%,critical
+6574,line_overload,line_680,,155.2%,100.0%,critical
+6574,line_overload,line_681,,155.2%,100.0%,critical
+6574,line_overload,line_682,,155.2%,100.0%,critical
+6574,line_overload,line_683,,155.2%,100.0%,critical
+6574,line_overload,line_684,,139.5%,100.0%,critical
+6574,line_overload,line_685,,127.2%,100.0%,critical
+6574,line_overload,line_686,,110.8%,100.0%,warning
+6574,line_planning_warning,line_687,,96.1%,80.0%,warning
+6574,line_planning_warning,line_688,,83.9%,80.0%,warning
+6574,line_overload,line_707,,207.3%,100.0%,critical
+6574,line_overload,line_708,,185.3%,100.0%,critical
+6574,line_overload,line_709,,185.3%,100.0%,critical
+6574,line_overload,line_710,,165.7%,100.0%,critical
+6574,line_overload,line_711,,151.5%,100.0%,critical
+6574,line_overload,line_712,,141.6%,100.0%,critical
+6574,line_overload,line_713,,125.4%,100.0%,critical
+6574,line_overload,line_714,,109.2%,100.0%,warning
+6574,line_planning_warning,line_715,,83.1%,80.0%,warning
+6574,line_planning_warning,line_772,,85.9%,80.0%,warning
+6574,line_planning_warning,line_773,,85.9%,80.0%,warning
+6574,line_planning_warning,line_774,,85.9%,80.0%,warning
+6574,line_planning_warning,line_775,,85.9%,80.0%,warning
+6574,line_overload,line_776,,193.7%,100.0%,critical
+6574,line_overload,line_777,,193.7%,100.0%,critical
+6574,line_overload,line_778,,193.7%,100.0%,critical
+6574,line_overload,line_779,,193.7%,100.0%,critical
+6574,line_overload,line_780,,193.7%,100.0%,critical
+6574,line_overload,line_842,,131.7%,100.0%,critical
+6574,line_overload,line_843,,131.7%,100.0%,critical
+6574,line_overload,line_844,,131.7%,100.0%,critical
+6574,line_overload,line_845,,131.7%,100.0%,critical
+6574,line_overload,line_846,,131.7%,100.0%,critical
+6574,line_overload,line_847,,131.7%,100.0%,critical
+6574,line_overload,line_1450,,156.1%,100.0%,critical
+6574,line_overload,line_1454,,108.6%,100.0%,warning
+5923,voltage,bus_253,,0.8954 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_281,,0.8997 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_287,,0.8959 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_314,,0.8968 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_327,,0.8965 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_352,,0.8956 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_362,,0.8994 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_471,,0.8988 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_546,,0.8950 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_580,,0.8956 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_626,,0.8974 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_640,,0.8953 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_783,,0.8952 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_920,,0.8971 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1007,,0.8977 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1015,,0.8949 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1119,,0.8953 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1155,,0.8948 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1294,,0.8977 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1313,,0.8973 pu,"[0.90, 1.10] pu",critical
+5923,voltage,bus_1326,,0.8969 pu,"[0.90, 1.10] pu",critical
+5923,line_overload,line_363,,145.5%,100.0%,critical
+5923,line_overload,line_679,,154.1%,100.0%,critical
+5923,line_overload,line_680,,154.1%,100.0%,critical
+5923,line_overload,line_681,,154.1%,100.0%,critical
+5923,line_overload,line_682,,154.1%,100.0%,critical
+5923,line_overload,line_683,,154.1%,100.0%,critical
+5923,line_overload,line_684,,138.4%,100.0%,critical
+5923,line_overload,line_685,,126.3%,100.0%,critical
+5923,line_overload,line_686,,110.0%,100.0%,warning
+5923,line_planning_warning,line_687,,95.4%,80.0%,warning
+5923,line_planning_warning,line_688,,83.3%,80.0%,warning
+5923,line_overload,line_707,,205.7%,100.0%,critical
+5923,line_overload,line_708,,183.9%,100.0%,critical
+5923,line_overload,line_709,,183.9%,100.0%,critical
+5923,line_overload,line_710,,164.4%,100.0%,critical
+5923,line_overload,line_711,,150.3%,100.0%,critical
+5923,line_overload,line_712,,140.6%,100.0%,critical
+5923,line_overload,line_713,,124.4%,100.0%,critical
+5923,line_overload,line_714,,108.4%,100.0%,warning
+5923,line_planning_warning,line_715,,82.5%,80.0%,warning
+5923,line_planning_warning,line_772,,85.3%,80.0%,warning
+5923,line_planning_warning,line_773,,85.3%,80.0%,warning
+5923,line_planning_warning,line_774,,85.3%,80.0%,warning
+5923,line_planning_warning,line_775,,85.3%,80.0%,warning
+5923,line_overload,line_776,,192.3%,100.0%,critical
+5923,line_overload,line_777,,192.3%,100.0%,critical
+5923,line_overload,line_778,,192.3%,100.0%,critical
+5923,line_overload,line_779,,192.3%,100.0%,critical
+5923,line_overload,line_780,,192.3%,100.0%,critical
+5923,line_overload,line_842,,130.8%,100.0%,critical
+5923,line_overload,line_843,,130.8%,100.0%,critical
+5923,line_overload,line_844,,130.8%,100.0%,critical
+5923,line_overload,line_845,,130.8%,100.0%,critical
+5923,line_overload,line_846,,130.8%,100.0%,critical
+5923,line_overload,line_847,,130.8%,100.0%,critical
+5923,line_overload,line_1450,,155.0%,100.0%,critical
+5923,line_overload,line_1454,,107.8%,100.0%,warning
+6481,voltage,bus_253,,0.8958 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_281,,0.9000 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_287,,0.8963 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_314,,0.8971 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_327,,0.8969 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_352,,0.8960 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_362,,0.8997 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_471,,0.8991 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_546,,0.8954 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_580,,0.8960 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_626,,0.8977 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_640,,0.8956 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_783,,0.8955 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_920,,0.8974 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1007,,0.8980 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1015,,0.8952 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1119,,0.8956 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1155,,0.8951 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1294,,0.8980 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1313,,0.8976 pu,"[0.90, 1.10] pu",critical
+6481,voltage,bus_1326,,0.8972 pu,"[0.90, 1.10] pu",critical
+6481,line_overload,line_363,,145.1%,100.0%,critical
+6481,line_overload,line_679,,153.7%,100.0%,critical
+6481,line_overload,line_680,,153.7%,100.0%,critical
+6481,line_overload,line_681,,153.7%,100.0%,critical
+6481,line_overload,line_682,,153.7%,100.0%,critical
+6481,line_overload,line_683,,153.7%,100.0%,critical
+6481,line_overload,line_684,,138.1%,100.0%,critical
+6481,line_overload,line_685,,126.0%,100.0%,critical
+6481,line_overload,line_686,,109.8%,100.0%,warning
+6481,line_planning_warning,line_687,,95.2%,80.0%,warning
+6481,line_planning_warning,line_688,,83.1%,80.0%,warning
+6481,line_overload,line_707,,205.2%,100.0%,critical
+6481,line_overload,line_708,,183.5%,100.0%,critical
+6481,line_overload,line_709,,183.5%,100.0%,critical
+6481,line_overload,line_710,,164.0%,100.0%,critical
+6481,line_overload,line_711,,150.0%,100.0%,critical
+6481,line_overload,line_712,,140.2%,100.0%,critical
+6481,line_overload,line_713,,124.1%,100.0%,critical
+6481,line_overload,line_714,,108.1%,100.0%,warning
+6481,line_planning_warning,line_715,,82.3%,80.0%,warning
+6481,line_planning_warning,line_772,,85.1%,80.0%,warning
+6481,line_planning_warning,line_773,,85.1%,80.0%,warning
+6481,line_planning_warning,line_774,,85.1%,80.0%,warning
+6481,line_planning_warning,line_775,,85.1%,80.0%,warning
+6481,line_overload,line_776,,191.8%,100.0%,critical
+6481,line_overload,line_777,,191.8%,100.0%,critical
+6481,line_overload,line_778,,191.8%,100.0%,critical
+6481,line_overload,line_779,,191.8%,100.0%,critical
+6481,line_overload,line_780,,191.8%,100.0%,critical
+6481,line_overload,line_842,,130.4%,100.0%,critical
+6481,line_overload,line_843,,130.4%,100.0%,critical
+6481,line_overload,line_844,,130.4%,100.0%,critical
+6481,line_overload,line_845,,130.4%,100.0%,critical
+6481,line_overload,line_846,,130.4%,100.0%,critical
+6481,line_overload,line_847,,130.4%,100.0%,critical
+6481,line_overload,line_1450,,154.6%,100.0%,critical
+6481,line_overload,line_1454,,107.5%,100.0%,warning
+6308,voltage,bus_253,,0.8958 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_287,,0.8963 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_314,,0.8972 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_327,,0.8969 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_352,,0.8960 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_362,,0.8998 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_471,,0.8992 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_546,,0.8954 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_580,,0.8960 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_626,,0.8978 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_640,,0.8957 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_783,,0.8956 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_920,,0.8975 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1007,,0.8981 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1015,,0.8953 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1119,,0.8956 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1155,,0.8952 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1294,,0.8981 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1313,,0.8977 pu,"[0.90, 1.10] pu",critical
+6308,voltage,bus_1326,,0.8973 pu,"[0.90, 1.10] pu",critical
+6308,line_overload,line_363,,145.0%,100.0%,critical
+6308,line_overload,line_679,,153.6%,100.0%,critical
+6308,line_overload,line_680,,153.6%,100.0%,critical
+6308,line_overload,line_681,,153.6%,100.0%,critical
+6308,line_overload,line_682,,153.6%,100.0%,critical
+6308,line_overload,line_683,,153.6%,100.0%,critical
+6308,line_overload,line_684,,138.0%,100.0%,critical
+6308,line_overload,line_685,,125.9%,100.0%,critical
+6308,line_overload,line_686,,109.7%,100.0%,warning
+6308,line_planning_warning,line_687,,95.1%,80.0%,warning
+6308,line_planning_warning,line_688,,83.0%,80.0%,warning
+6308,line_overload,line_707,,205.1%,100.0%,critical
+6308,line_overload,line_708,,183.4%,100.0%,critical
+6308,line_overload,line_709,,183.4%,100.0%,critical
+6308,line_overload,line_710,,163.9%,100.0%,critical
+6308,line_overload,line_711,,149.9%,100.0%,critical
+6308,line_overload,line_712,,140.1%,100.0%,critical
+6308,line_overload,line_713,,124.0%,100.0%,critical
+6308,line_overload,line_714,,108.1%,100.0%,warning
+6308,line_planning_warning,line_715,,82.2%,80.0%,warning
+6308,line_planning_warning,line_772,,85.0%,80.0%,warning
+6308,line_planning_warning,line_773,,85.0%,80.0%,warning
+6308,line_planning_warning,line_774,,85.0%,80.0%,warning
+6308,line_planning_warning,line_775,,85.0%,80.0%,warning
+6308,line_overload,line_776,,191.7%,100.0%,critical
+6308,line_overload,line_777,,191.7%,100.0%,critical
+6308,line_overload,line_778,,191.7%,100.0%,critical
+6308,line_overload,line_779,,191.7%,100.0%,critical
+6308,line_overload,line_780,,191.7%,100.0%,critical
+6308,line_overload,line_842,,130.4%,100.0%,critical
+6308,line_overload,line_843,,130.4%,100.0%,critical
+6308,line_overload,line_844,,130.4%,100.0%,critical
+6308,line_overload,line_845,,130.4%,100.0%,critical
+6308,line_overload,line_846,,130.4%,100.0%,critical
+6308,line_overload,line_847,,130.4%,100.0%,critical
+6308,line_overload,line_1450,,154.5%,100.0%,critical
+6308,line_overload,line_1454,,107.4%,100.0%,warning
+6761,voltage,bus_253,,0.8959 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_287,,0.8964 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_314,,0.8972 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_327,,0.8970 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_352,,0.8961 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_362,,0.8998 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_471,,0.8992 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_546,,0.8955 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_580,,0.8961 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_626,,0.8978 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_640,,0.8957 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_783,,0.8956 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_920,,0.8975 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1007,,0.8981 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1015,,0.8953 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1119,,0.8957 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1155,,0.8952 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1294,,0.8981 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1313,,0.8977 pu,"[0.90, 1.10] pu",critical
+6761,voltage,bus_1326,,0.8973 pu,"[0.90, 1.10] pu",critical
+6761,line_overload,line_363,,145.0%,100.0%,critical
+6761,line_overload,line_679,,153.6%,100.0%,critical
+6761,line_overload,line_680,,153.6%,100.0%,critical
+6761,line_overload,line_681,,153.6%,100.0%,critical
+6761,line_overload,line_682,,153.6%,100.0%,critical
+6761,line_overload,line_683,,153.6%,100.0%,critical
+6761,line_overload,line_684,,138.0%,100.0%,critical
+6761,line_overload,line_685,,125.9%,100.0%,critical
+6761,line_overload,line_686,,109.7%,100.0%,warning
+6761,line_planning_warning,line_687,,95.1%,80.0%,warning
+6761,line_planning_warning,line_688,,83.0%,80.0%,warning
+6761,line_overload,line_707,,205.0%,100.0%,critical
+6761,line_overload,line_708,,183.3%,100.0%,critical
+6761,line_overload,line_709,,183.3%,100.0%,critical
+6761,line_overload,line_710,,163.8%,100.0%,critical
+6761,line_overload,line_711,,149.8%,100.0%,critical
+6761,line_overload,line_712,,140.1%,100.0%,critical
+6761,line_overload,line_713,,124.0%,100.0%,critical
+6761,line_overload,line_714,,108.0%,100.0%,warning
+6761,line_planning_warning,line_715,,82.2%,80.0%,warning
+6761,line_planning_warning,line_772,,85.0%,80.0%,warning
+6761,line_planning_warning,line_773,,85.0%,80.0%,warning
+6761,line_planning_warning,line_774,,85.0%,80.0%,warning
+6761,line_planning_warning,line_775,,85.0%,80.0%,warning
+6761,line_overload,line_776,,191.7%,100.0%,critical
+6761,line_overload,line_777,,191.7%,100.0%,critical
+6761,line_overload,line_778,,191.7%,100.0%,critical
+6761,line_overload,line_779,,191.7%,100.0%,critical
+6761,line_overload,line_780,,191.7%,100.0%,critical
+6761,line_overload,line_842,,130.3%,100.0%,critical
+6761,line_overload,line_843,,130.3%,100.0%,critical
+6761,line_overload,line_844,,130.3%,100.0%,critical
+6761,line_overload,line_845,,130.3%,100.0%,critical
+6761,line_overload,line_846,,130.3%,100.0%,critical
+6761,line_overload,line_847,,130.3%,100.0%,critical
+6761,line_overload,line_1450,,154.5%,100.0%,critical
+6761,line_overload,line_1454,,107.4%,100.0%,warning

@@ -1,0 +1,23 @@
+measure_type,element_id,old_type,new_type,cost_eur,description,old_parallel,new_parallel,design_loading_pct
+add_parallel_cable,646,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,35.0,Line 646: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.001 km,1,2,98.68746428060352
+add_parallel_cable,647,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,262.2361599408986,Line 647: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.007 km,1,2,89.33052779229136
+add_parallel_cable,648,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,100.01886164046127,Line 648: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.003 km,1,2,80.91191916707228
+add_parallel_cable,1139,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,282.9678841013078,Line 1139: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.008 km,1,2,116.33807466159982
+add_parallel_cable,1140,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,63.00443609352737,Line 1140: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.002 km,1,2,116.3380785516405
+add_parallel_cable,1141,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,371.4465168914694,Line 1141: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.011 km,1,2,105.06893802889373
+add_parallel_cable,1142,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,142.9677400049961,Line 1142: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.004 km,1,2,105.06894699857267
+add_parallel_cable,1143,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,115.48560373423747,Line 1143: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.003 km,1,2,90.03340634412713
+add_parallel_cable,1144,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,35.0,Line 1144: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.001 km,1,2,90.0335309629304
+add_parallel_cable,1145,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,382.98106847279837,Line 1145: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.011 km,1,2,90.03357840694827
+add_parallel_cable,1146,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,41.653406028291826,Line 1146: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.001 km,1,2,84.89707337240998
+add_parallel_cable,1387,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,35.0,Line 1387: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.001 km,1,2,80.25618340625928
+add_parallel_cable,1388,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,113.21321770834278,Line 1388: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.003 km,1,2,86.88207662905648
+add_parallel_cable,1389,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,1180.9473456577016,Line 1389: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.034 km,1,2,105.81702992655056
+add_parallel_cable,1390,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,331.42296852142965,Line 1390: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.009 km,1,2,105.81696087727185
+add_parallel_cable,1391,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,262.2085275467628,Line 1391: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.007 km,1,2,116.26511309015612
+add_parallel_cable,1392,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,484.09251361012764,Line 1392: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.014 km,1,2,124.52623842238563
+add_parallel_cable,1393,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,263.93601177967577,Line 1393: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.008 km,1,2,135.3389377973478
+add_parallel_cable,1449,1 × NAYY 4x150 SE,3 × NAYY 4x150 SE,846.41839256629,Line 1449: install 2 parallel NAYY 4x150 SE cable circuit(s) over 0.012 km,1,3,201.4688943239018
+add_parallel_cable,1455,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,199.62108555608765,Line 1455: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.006 km,1,2,105.20852442591699
+add_parallel_cable,1456,1 × NAYY 4x150 SE,3 × NAYY 4x150 SE,728.6726738621098,Line 1456: install 2 parallel NAYY 4x150 SE cable circuit(s) over 0.010 km,1,3,165.32645486191257
+add_parallel_cable,649,1 × NAYY 4x150 SE,2 × NAYY 4x150 SE,355.6649720582622,Line 649: install 1 parallel NAYY 4x150 SE cable circuit(s) over 0.010 km,1,2,81.80591275559593

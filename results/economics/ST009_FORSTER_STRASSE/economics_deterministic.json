@@ -1,0 +1,125 @@
+{
+  "cluster_id": "ST009_FORSTER_STRASSE",
+  "analysis_case": "baseline_current_grid",
+  "annual_heat_mwh": 10134.96,
+  "design_capacity_kw": 3461.403256481429,
+  "plant_capacity_status": {
+    "total_plant_kw": 170000.0,
+    "available_kw": 85000.0,
+    "street_share_pct": 2.036119562636135
+  },
+  "dh_lengths_m": {
+    "trunk_m": 6098.160837801246,
+    "service_m": 2202.4944698545933
+  },
+  "pump_power_kw": 0.0,
+  "total_pipe_length_m": 8300.65530765584,
+  "pipe_lengths_by_dn_m": {
+    "DN150": 1004.1950601435128,
+    "DN100": 4203.91581508946,
+    "DN125": 848.0822162719195,
+    "DN110": 41.96774629635402,
+    "DN50": 2202.494469854592
+  },
+  "max_feeder_loading_pct": 216.2,
+  "verified_reinforcement_cost_eur": null,
+  "lcoh_dh_eur_per_mwh": 60.744446625602045,
+  "lcoh_hp_eur_per_mwh": 121.71792884915808,
+  "lcoh_dh_breakdown": {
+    "capex_total": 1765300.0667952509,
+    "capex_pipes": 1765300.0667952509,
+    "capex_pump": 0.0,
+    "capex_plant": 0.0,
+    "opex_annual": 485748.6680025717,
+    "opex_om": 35306.00133590502,
+    "opex_energy": 450442.6666666666,
+    "crf": 0.07358175032862885,
+    "annual_heat_mwh": 10134.96,
+    "generation_type": "gas",
+    "plant_allocation": {
+      "method": "marginal",
+      "allocated_eur": 0.0,
+      "allocated_cost": 0.0,
+      "is_marginal": false,
+      "marginal_capacity_kw": 0.0,
+      "rationale": "Utilizes existing spare capacity (85000kW available, 4154kW needed)"
+    },
+    "plant_cost_allocation_method": "marginal"
+  },
+  "lcoh_hp_breakdown": {
+    "capex_total": 3620380.563189826,
+    "capex_hp": 3115262.930833286,
+    "capex_lv_upgrade": 505117.6323565399,
+    "lv_upgrade_cost_source": "loading_based_estimate",
+    "opex_annual": 967212.4014738086,
+    "opex_om": 62305.25861666573,
+    "opex_energy": 904907.1428571428,
+    "crf": 0.07358175032862885,
+    "annual_heat_mwh": 10134.96,
+    "annual_el_mwh": 3619.6285714285714,
+    "cop_used": 2.8,
+    "max_feeder_loading_pct": 216.2,
+    "loading_threshold_pct": 80.0
+  },
+  "co2_dh_kg_per_mwh": 141.18279569892474,
+  "co2_hp_kg_per_mwh": 125.00000000000001,
+  "co2_dh_breakdown": {
+    "co2_kg_per_mwh": 141.18279569892474,
+    "annual_co2_kg": 1430881.987096774,
+    "generation_type": "gas",
+    "efficiency": 0.93,
+    "emission_factor_kg_per_mwh": 202.0,
+    "allocation_factor_heat": 0.65
+  },
+  "co2_hp_breakdown": {
+    "co2_kg_per_mwh": 125.00000000000001,
+    "annual_co2_kg": 1266870.0,
+    "annual_el_mwh": 3619.6285714285714,
+    "cop_used": 2.8,
+    "ef_electricity_kg_per_mwh": 350.0
+  },
+  "co2_dh_t_per_a": 1430.8819870967739,
+  "co2_hp_t_per_a": 1266.87,
+  "params": {
+    "discount_rate": 0.04,
+    "lifetime_years": 20,
+    "dh_generation_type": "gas",
+    "pipe_cost_eur_per_m": {
+      "DN20": 50.0,
+      "DN25": 60.0,
+      "DN32": 75.0,
+      "DN40": 90.0,
+      "DN50": 110.0,
+      "DN65": 140.0,
+      "DN80": 170.0,
+      "DN100": 220.0,
+      "DN125": 280.0,
+      "DN150": 350.0,
+      "DN200": 500.0
+    },
+    "plant_cost_base_eur": 90000000.0,
+    "pump_cost_per_kw": 500.0,
+    "dh_om_frac_per_year": 0.02,
+    "hp_cost_eur_per_kw_th": 900.0,
+    "hp_om_frac_per_year": 0.02,
+    "cop_default": 2.8,
+    "electricity_price_eur_per_mwh": 250.0,
+    "gas_price_eur_per_mwh": 40.0,
+    "biomass_price_eur_per_mwh": 110.0,
+    "ef_electricity_kg_per_mwh": 350.0,
+    "ef_gas_kg_per_mwh": 202.0,
+    "ef_biomass_kg_per_mwh": 25.0,
+    "dh_total_efficiency": 0.93,
+    "dh_co2_allocation_factor_heat": 0.65,
+    "feeder_loading_planning_limit": 0.8,
+    "plant_cost_allocation": "marginal",
+    "plant_allocation": {
+      "method": "marginal",
+      "allocated_eur": 0.0,
+      "allocated_cost": 0.0,
+      "is_marginal": false,
+      "marginal_capacity_kw": 0.0,
+      "rationale": "Utilizes existing spare capacity (85000kW available, 4154kW needed)"
+    }
+  }
+}
