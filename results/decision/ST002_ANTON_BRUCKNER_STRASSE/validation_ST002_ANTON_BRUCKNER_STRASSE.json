@@ -1,0 +1,168 @@
+{
+  "cluster_id": "ST002_ANTON_BRUCKNER_STRASSE",
+  "timestamp": "2026-08-24T11:41:34.392789",
+  "validation_status": "pass",
+  "overall_confidence": 1.0,
+  "statements_validated": 8,
+  "sentence_results": [
+    {
+      "statement": "HP has lower CO2 emissions",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "co2_hp_median=144.39835754603314 < co2_dh_median=160.1027021505376: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Recommended choice is HP",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "recommended_choice=HP == HP=HP: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Our analysis indicates that heat pumps are the preferred heating solution for this area",
+      "status": "ENTAILMENT",
+      "confidence": 0.95,
+      "evidence": "Recommendation is HP (verified)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Both district heating and heat pumps are technically viable options, with district heating meeting EN 13941-1 standards and heat pumps complying with VDE-AR-N 4100 grid requirements",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "Both DH and HP are feasible",
+      "label": "Entailment"
+    },
+    {
+      "statement": "While the lifetime cost of heat pumps at 120.1 \u20ac/MWh is very similar to district heating at 117.1 \u20ac/MWh, heat pumps offer a significant environmental advantage with lower CO\u2082 emissions of 144 kg/MWh compared to 160 kg/MWh for district heating",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "lcoh_dh_median: text says 117.1, KPI says 117.10569686787618 -> MATCH (tol=10%); lcoh_hp_median: text says 120.1, KPI says 120.08209007104638 -> MATCH (tol=10%)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "This lower carbon footprint was the deciding factor, although our robustness assessment shows that the choice between the two options is sensitive to future uncertainties",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "HP win fraction = 46.4% < 70% (sensitive)",
+      "label": "Entailment"
+    }
+  ],
+  "contradictions": [],
+  "warnings": [],
+  "feedback_iterations": 0,
+  "verified_count": 8,
+  "unverified_count": 0,
+  "contradiction_count": 0,
+  "verified_rate": 1.0,
+  "unverified_rate": 0.0,
+  "contradiction_rate": 0.0,
+  "pass_rate": 1.0,
+  "evidence": {
+    "kpis": {
+      "lcoh_dh_median": "117.10569686787618",
+      "lcoh_hp_median": "120.08209007104638",
+      "co2_dh_median": "160.1027021505376",
+      "co2_hp_median": "144.39835754603314",
+      "dh_wins_fraction": "0.536",
+      "hp_wins_fraction": "0.46399999999999997",
+      "choice": "HP",
+      "robust": "False",
+      "reason_codes": "['COST_CLOSE_USE_CO2', 'CO2_TIEBREAKER_HP']",
+      "dh_feasible": "True",
+      "hp_feasible": "True"
+    },
+    "structured_claim_audit": {
+      "scope": "deterministic_decision_claims",
+      "validation_status": "pass",
+      "statements_validated": 2,
+      "verified_count": 2,
+      "unverified_count": 0,
+      "contradiction_count": 0,
+      "sentence_results": [
+        {
+          "statement": "HP has lower CO2 emissions",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "co2_hp_median=144.39835754603314 < co2_dh_median=160.1027021505376: \u2705 TRUE",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Recommended choice is HP",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "recommended_choice=HP == HP=HP: \u2705 TRUE",
+          "label": "Entailment"
+        }
+      ],
+      "contradictions": []
+    },
+    "generated_explanation_audit": {
+      "scope": "actual_generated_text",
+      "validator": "deterministic ClaimExtractor + rule-based TNLI",
+      "validation_status": "pass",
+      "statements_validated": 6,
+      "verified_count": 6,
+      "unverified_count": 0,
+      "contradiction_count": 0,
+      "sentence_results": [
+        {
+          "statement": "Our analysis indicates that heat pumps are the preferred heating solution for this area",
+          "status": "ENTAILMENT",
+          "confidence": 0.95,
+          "evidence": "Recommendation is HP (verified)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Both district heating and heat pumps are technically viable options, with district heating meeting EN 13941-1 standards and heat pumps complying with VDE-AR-N 4100 grid requirements",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "Both DH and HP are feasible",
+          "label": "Entailment"
+        },
+        {
+          "statement": "While the lifetime cost of heat pumps at 120.1 \u20ac/MWh is very similar to district heating at 117.1 \u20ac/MWh, heat pumps offer a significant environmental advantage with lower CO\u2082 emissions of 144 kg/MWh compared to 160 kg/MWh for district heating",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "lcoh_dh_median: text says 117.1, KPI says 117.10569686787618 -> MATCH (tol=10%); lcoh_hp_median: text says 120.1, KPI says 120.08209007104638 -> MATCH (tol=10%)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "This lower carbon footprint was the deciding factor, although our robustness assessment shows that the choice between the two options is sensitive to future uncertainties",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "HP win fraction = 46.4% < 70% (sensitive)",
+          "label": "Entailment"
+        }
+      ],
+      "contradictions": [],
+      "quantitative_extraction": {
+        "lcoh_dh_median": [
+          117.1
+        ],
+        "lcoh_hp_median": [
+          120.1
+        ],
+        "en_threshold": [
+          1.0
+        ]
+      },
+      "cross_validation": [
+        {
+          "key": "lcoh_dh_median",
+          "text": 117.1,
+          "kpi": 117.10569686787618,
+          "match": true,
+          "reason": "lcoh_dh_median: text says 117.1, KPI says 117.10569686787618 -> MATCH (tol=10%)"
+        },
+        {
+          "key": "lcoh_hp_median",
+          "text": 120.1,
+          "kpi": 120.08209007104638,
+          "match": true,
+          "reason": "lcoh_hp_median: text says 120.1, KPI says 120.08209007104638 -> MATCH (tol=10%)"
+        }
+      ]
+    }
+  }
+}

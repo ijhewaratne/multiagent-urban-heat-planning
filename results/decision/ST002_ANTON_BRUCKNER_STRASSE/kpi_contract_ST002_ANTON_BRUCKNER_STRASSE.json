@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "cluster_id": "ST002_ANTON_BRUCKNER_STRASSE",
+  "metadata": {
+    "created_utc": "2026-08-24T11:41:32Z",
+    "inputs": {
+      "cha_kpis_path": "/Users/ishanthahewaratne/Documents/Reserch New/Branitz2/results/cha/ST002_ANTON_BRUCKNER_STRASSE/cha_kpis.json",
+      "dha_kpis_path": "/Users/ishanthahewaratne/Documents/Reserch New/Branitz2/results/dha/ST002_ANTON_BRUCKNER_STRASSE/dha_kpis.json",
+      "econ_summary_path": "/Users/ishanthahewaratne/Documents/Reserch New/Branitz2/results/economics/ST002_ANTON_BRUCKNER_STRASSE/economics_monte_carlo.json",
+      "decision_config": "defaults",
+      "scenario": null
+    },
+    "notes": [],
+    "git_commit": "38b849f4185f721ddf33eb80257e123087cfcb9d"
+  },
+  "district_heating": {
+    "feasible": true,
+    "reasons": [
+      "DH_OK"
+    ],
+    "lcoh": {
+      "median": 117.10569686787618,
+      "p05": 96.57467393467088,
+      "p95": 144.09421187096535,
+      "mean": 118.13925964405982,
+      "std": 14.549497474263601
+    },
+    "co2": {
+      "median": 160.1027021505376,
+      "p05": 160.1027021505376,
+      "p95": 160.1027021505376,
+      "mean": 160.1027021505376,
+      "std": 0.0
+    },
+    "hydraulics": {
+      "velocity_ok": true,
+      "dp_ok": true,
+      "v_max_ms": 0.3055592754759886,
+      "v_min_ms": 0.006055056238551661,
+      "v_share_within_limits": 1.0,
+      "dp_per_100m_max": 0.009279672583959571,
+      "hard_violations": []
+    },
+    "losses": {
+      "total_length_m": 3930.5442201756837,
+      "trunk_length_m": 3614.000805419228,
+      "service_length_m": 316.54341475645526,
+      "loss_share_pct": NaN,
+      "pump_power_kw": 0.0
+    }
+  },
+  "heat_pumps": {
+    "feasible": true,
+    "reasons": [
+      "HP_OK"
+    ],
+    "lcoh": {
+      "median": 120.08209007104638,
+      "p05": 94.62130024543393,
+      "p95": 146.4078849908316,
+      "mean": 120.23829450022521,
+      "std": 16.2037019907489
+    },
+    "co2": {
+      "median": 144.39835754603314,
+      "p05": 96.53497350488891,
+      "p95": 209.82595193267446,
+      "mean": 147.9650242585718,
+      "std": 34.758009967612196
+    },
+    "lv_grid": {
+      "planning_warning": false,
+      "max_feeder_loading_pct": 45.04545095428426,
+      "voltage_violations_total": 0,
+      "line_violations_total": 0,
+      "worst_bus_id": null,
+      "worst_line_id": null
+    },
+    "hp_system": {
+      "hp_total_kw_design": 138.32128405336243,
+      "hp_total_kw_topn_max": 138.32128405336243
+    }
+  },
+  "monte_carlo": {
+    "dh_wins_fraction": 0.536,
+    "hp_wins_fraction": 0.46399999999999997,
+    "n_samples": 500,
+    "seed": null
+  }
+}

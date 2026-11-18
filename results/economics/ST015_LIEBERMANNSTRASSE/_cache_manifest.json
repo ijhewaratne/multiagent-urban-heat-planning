@@ -1,0 +1,9 @@
+{
+  "cache_schema_version": 2,
+  "input_hash": "c9535cd909c678cb969a778736eb7ee50af422da182e657d6bfe7431d2264f9d",
+  "calculation_duration_seconds": null,
+  "calculated_at_utc": "2026-08-22T14:40:29Z",
+  "agent": null,
+  "legacy_cache_adopted": true,
+  "timing_source": "legacy_manifest_or_result_mtime"
+}

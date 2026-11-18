@@ -1,0 +1,197 @@
+{
+  "cluster_id": "ST003_BLEYERSTRASSE",
+  "timestamp": "2026-08-25T06:00:50.816288",
+  "validation_status": "pass",
+  "overall_confidence": 1.0,
+  "statements_validated": 10,
+  "sentence_results": [
+    {
+      "statement": "Only DH is feasible",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "dh_feasible=True == True=True: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "HP is not feasible",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "hp_feasible=False == False=False: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "DH has robust win fraction (\u226570%)",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "dh_wins_fraction=1.0 >= 0.7=0.7: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Recommended choice is DH",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "recommended_choice=DH == DH=DH: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Our analysis indicates that district heating is the only viable option for this area",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "DH feasibility confirmed",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Heat pumps are not feasible due to significant overloads on the existing electricity grid, which would require extensive and costly upgrades",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "HP is not feasible (verified)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "District heating, however, meets all technical requirements and standards, ensuring reliable heat delivery",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "DH feasibility confirmed",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Furthermore, our assessment shows district heating to be significantly more cost-effective, with an LCOH of 64.5 \u20ac/MWh compared to 123.2 \u20ac/MWh for heat pumps",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "DH LCOH (64.5) < HP LCOH (123.2)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "This decision is robust, with district heating being the preferred choice in 100% of all scenarios considered",
+      "status": "ENTAILMENT",
+      "confidence": 0.95,
+      "evidence": "Recommendation is DH (verified)",
+      "label": "Entailment"
+    }
+  ],
+  "contradictions": [],
+  "warnings": [],
+  "feedback_iterations": 0,
+  "verified_count": 10,
+  "unverified_count": 0,
+  "contradiction_count": 0,
+  "verified_rate": 1.0,
+  "unverified_rate": 0.0,
+  "contradiction_rate": 0.0,
+  "pass_rate": 1.0,
+  "evidence": {
+    "kpis": {
+      "lcoh_dh_median": "64.47487469588648",
+      "lcoh_hp_median": "123.19225503499746",
+      "co2_dh_median": "621.6814989247313",
+      "co2_hp_median": "560.7012633495749",
+      "dh_wins_fraction": "1.0",
+      "hp_wins_fraction": "0.0",
+      "choice": "DH",
+      "robust": "True",
+      "reason_codes": "['ONLY_DH_FEASIBLE', 'ROBUST_DECISION']",
+      "dh_feasible": "True",
+      "hp_feasible": "False"
+    },
+    "structured_claim_audit": {
+      "scope": "deterministic_decision_claims",
+      "validation_status": "pass",
+      "statements_validated": 4,
+      "verified_count": 4,
+      "unverified_count": 0,
+      "contradiction_count": 0,
+      "sentence_results": [
+        {
+          "statement": "Only DH is feasible",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "dh_feasible=True == True=True: \u2705 TRUE",
+          "label": "Entailment"
+        },
+        {
+          "statement": "HP is not feasible",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "hp_feasible=False == False=False: \u2705 TRUE",
+          "label": "Entailment"
+        },
+        {
+          "statement": "DH has robust win fraction (\u226570%)",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "dh_wins_fraction=1.0 >= 0.7=0.7: \u2705 TRUE",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Recommended choice is DH",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "recommended_choice=DH == DH=DH: \u2705 TRUE",
+          "label": "Entailment"
+        }
+      ],
+      "contradictions": []
+    },
+    "generated_explanation_audit": {
+      "scope": "actual_generated_text",
+      "validator": "deterministic ClaimExtractor + rule-based TNLI",
+      "validation_status": "pass",
+      "statements_validated": 6,
+      "verified_count": 6,
+      "unverified_count": 0,
+      "contradiction_count": 0,
+      "sentence_results": [
+        {
+          "statement": "Our analysis indicates that district heating is the only viable option for this area",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "DH feasibility confirmed",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Heat pumps are not feasible due to significant overloads on the existing electricity grid, which would require extensive and costly upgrades",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "HP is not feasible (verified)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "District heating, however, meets all technical requirements and standards, ensuring reliable heat delivery",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "DH feasibility confirmed",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Furthermore, our assessment shows district heating to be significantly more cost-effective, with an LCOH of 64.5 \u20ac/MWh compared to 123.2 \u20ac/MWh for heat pumps",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "DH LCOH (64.5) < HP LCOH (123.2)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "This decision is robust, with district heating being the preferred choice in 100% of all scenarios considered",
+          "status": "ENTAILMENT",
+          "confidence": 0.95,
+          "evidence": "Recommendation is DH (verified)",
+          "label": "Entailment"
+        }
+      ],
+      "contradictions": [],
+      "quantitative_extraction": {
+        "lcoh_hp_median": [
+          123.2
+        ]
+      },
+      "cross_validation": [
+        {
+          "key": "lcoh_hp_median",
+          "text": 123.2,
+          "kpi": 123.19225503499746,
+          "match": true,
+          "reason": "lcoh_hp_median: text says 123.2, KPI says 123.19225503499746 -> MATCH (tol=10%)"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "choice": "HP",
+  "robust": false,
+  "reason_codes": [
+    "COST_CLOSE_USE_CO2",
+    "CO2_TIEBREAKER_HP",
+    "SENSITIVE_DECISION"
+  ],
+  "metrics_used": {
+    "lcoh_dh_median": 122.07409089854922,
+    "lcoh_hp_median": 120.0820900710464,
+    "co2_dh_median": 152.10187311827957,
+    "co2_hp_median": 137.18232336455878,
+    "dh_wins_fraction": 0.434,
+    "hp_wins_fraction": 0.5660000000000001
+  },
+  "validation": {
+    "cluster_id": "ST021_PYRAMIDENSTRASSE",
+    "timestamp": "2026-08-25T11:37:51.033321",
+    "validation_status": "pass",
+    "overall_confidence": 1.0,
+    "statements_validated": 8,
+    "sentence_results": [
+      {
+        "statement": "HP has lower CO2 emissions",
+        "status": "ENTAILMENT",
+        "confidence": 1.0,
+        "evidence": "co2_hp_median=137.18232336455878 < co2_dh_median=152.10187311827957: \u2705 TRUE",
+        "label": "Entailment"
+      },
+      {
+        "statement": "Recommended choice is HP",
+        "status": "ENTAILMENT",
+        "confidence": 1.0,
+        "evidence": "recommended_choice=HP == HP=HP: \u2705 TRUE",
+        "label": "Entailment"
+      },
+      {
+        "statement": "Our assessment indicates that both district heating and heat pumps are viable options for this area",
+        "status": "ENTAILMENT",
+        "confidence": 0.9,
+        "evidence": "Both DH and HP are feasible",
+        "label": "Entailment"
+      },
+      {
+        "statement": "While both solutions are technically sound and meet relevant standards, heat pumps offer a slightly more favorable long-term cost of 120.1 \u20ac/MWh compared to district heating's 122.1 \u20ac/MWh",
+        "status": "ENTAILMENT",
+        "confidence": 0.9,
+        "evidence": "Both DH and HP are feasible",
+        "label": "Entailment"
+      },
+      {
+        "statement": "Furthermore, heat pumps present a lower carbon footprint, emitting 137 kg CO\u2082/MWh, which is a key factor in our decision",
+        "status": "ENTAILMENT",
+        "confidence": 0.9,
+        "evidence": "HP CO2 (137.2) < DH CO2 (152.1)",
+        "label": "Entailment"
+      },
+      {
+        "statement": "Although the cost difference is small, the environmental benefit and overall feasibility make heat pumps the preferred choice",
+        "status": "ENTAILMENT",
+        "confidence": 0.95,
+        "evidence": "Recommendation is HP (verified)",
+        "label": "Entailment"
+      },
+      {
+        "statement": "It is important to note that our analysis shows this decision is sensitive to future uncertainties, with heat pumps being the preferred option in 57% of scenarios",
+        "status": "ENTAILMENT",
+        "confidence": 0.95,
+        "evidence": "Recommendation is HP (verified)",
+        "label": "Entailment"
+      }
+    ],
+    "contradictions": [],
+    "warnings": [],
+    "feedback_iterations": 0,
+    "verified_count": 8,
+    "unverified_count": 0,
+    "contradiction_count": 0,
+    "verified_rate": 1.0,
+    "unverified_rate": 0.0,
+    "contradiction_rate": 0.0,
+    "pass_rate": 1.0,
+    "evidence": {
+      "kpis": {
+        "lcoh_dh_median": "122.07409089854922",
+        "lcoh_hp_median": "120.0820900710464",
+        "co2_dh_median": "152.10187311827957",
+        "co2_hp_median": "137.18232336455878",
+        "dh_wins_fraction": "0.434",
+        "hp_wins_fraction": "0.5660000000000001",
+        "choice": "HP",
+        "robust": "False",
+        "reason_codes": "['COST_CLOSE_USE_CO2', 'CO2_TIEBREAKER_HP', 'SENSITIVE_DECISION']",
+        "dh_feasible": "True",
+        "hp_feasible": "True"
+      },
+      "structured_claim_audit": {
+        "scope": "deterministic_decision_claims",
+        "validation_status": "pass",
+        "statements_validated": 2,
+        "verified_count": 2,
+        "unverified_count": 0,
+        "contradiction_count": 0,
+        "sentence_results": [
+          {
+            "statement": "HP has lower CO2 emissions",
+            "status": "ENTAILMENT",
+            "confidence": 1.0,
+            "evidence": "co2_hp_median=137.18232336455878 < co2_dh_median=152.10187311827957: \u2705 TRUE",
+            "label": "Entailment"
+          },
+          {
+            "statement": "Recommended choice is HP",
+            "status": "ENTAILMENT",
+            "confidence": 1.0,
+            "evidence": "recommended_choice=HP == HP=HP: \u2705 TRUE",
+            "label": "Entailment"
+          }
+        ],
+        "contradictions": []
+      },
+      "generated_explanation_audit": {
+        "scope": "actual_generated_text",
+        "validator": "deterministic ClaimExtractor + rule-based TNLI",
+        "validation_status": "pass",
+        "statements_validated": 6,
+        "verified_count": 6,
+        "unverified_count": 0,
+        "contradiction_count": 0,
+        "sentence_results": [
+          {
+            "statement": "Our assessment indicates that both district heating and heat pumps are viable options for this area",
+            "status": "ENTAILMENT",
+            "confidence": 0.9,
+            "evidence": "Both DH and HP are feasible",
+            "label": "Entailment"
+          },
+          {
+            "statement": "While both solutions are technically sound and meet relevant standards, heat pumps offer a slightly more favorable long-term cost of 120.1 \u20ac/MWh compared to district heating's 122.1 \u20ac/MWh",
+            "status": "ENTAILMENT",
+            "confidence": 0.9,
+            "evidence": "Both DH and HP are feasible",
+            "label": "Entailment"
+          },
+          {
+            "statement": "Furthermore, heat pumps present a lower carbon footprint, emitting 137 kg CO\u2082/MWh, which is a key factor in our decision",
+            "status": "ENTAILMENT",
+            "confidence": 0.9,
+            "evidence": "HP CO2 (137.2) < DH CO2 (152.1)",
+            "label": "Entailment"
+          },
+          {
+            "statement": "Although the cost difference is small, the environmental benefit and overall feasibility make heat pumps the preferred choice",
+            "status": "ENTAILMENT",
+            "confidence": 0.95,
+            "evidence": "Recommendation is HP (verified)",
+            "label": "Entailment"
+          },
+          {
+            "statement": "It is important to note that our analysis shows this decision is sensitive to future uncertainties, with heat pumps being the preferred option in 57% of scenarios",
+            "status": "ENTAILMENT",
+            "confidence": 0.95,
+            "evidence": "Recommendation is HP (verified)",
+            "label": "Entailment"
+          }
+        ],
+        "contradictions": [],
+        "quantitative_extraction": {
+          "lcoh_dh_median": [
+            122.1
+          ]
+        },
+        "cross_validation": [
+          {
+            "key": "lcoh_dh_median",
+            "text": 122.1,
+            "kpi": 122.07409089854922,
+            "match": true,
+            "reason": "lcoh_dh_median: text says 122.1, KPI says 122.07409089854922 -> MATCH (tol=10%)"
+          }
+        ]
+      }
+    }
+  },
+  "explanation_source": "gemini_api",
+  "explanation_model": "gemini-2.5-flash",
+  "explanation_generated_utc": "2026-08-25T11:37:51Z"
+}

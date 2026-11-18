@@ -1,0 +1,183 @@
+{
+  "cluster_id": "ST001_AN_DEN_WEINBERGEN",
+  "timestamp": "2026-08-25T12:33:29.094970",
+  "validation_status": "pass",
+  "overall_confidence": 1.0,
+  "statements_validated": 9,
+  "sentence_results": [
+    {
+      "statement": "HP has lower LCOH than DH",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "lcoh_hp_median=120.0820900710464 < lcoh_dh_median=214.6930294884511: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "HP has robust win fraction (\u226570%)",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "hp_wins_fraction=1.0 >= 0.7=0.7: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Recommended choice is HP",
+      "status": "ENTAILMENT",
+      "confidence": 1.0,
+      "evidence": "recommended_choice=HP == HP=HP: \u2705 TRUE",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Our analysis indicates that heat pumps are the preferred heating solution for this area",
+      "status": "ENTAILMENT",
+      "confidence": 0.95,
+      "evidence": "Recommendation is HP (verified)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Both district heating and heat pumps are technically viable, meeting all relevant engineering standards",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "Both DH and HP are feasible",
+      "label": "Entailment"
+    },
+    {
+      "statement": "However, heat pumps offer a significantly lower cost of heat at 120.1 \u20ac/MWh compared to district heating's 214.7 \u20ac/MWh",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "HP LCOH (120.1) < DH LCOH (214.7)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "This substantial cost advantage, along with a slightly lower carbon footprint of 72 kg/MWh, makes heat pumps the more economical and environmentally sound choice",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "HP LCOH (120.1) < DH LCOH (214.7)",
+      "label": "Entailment"
+    },
+    {
+      "statement": "Furthermore, a comprehensive assessment of various future scenarios consistently shows heat pumps as the most favorable option in 100% of cases, ensuring a robust and reliable decision",
+      "status": "ENTAILMENT",
+      "confidence": 0.9,
+      "evidence": "HP win fraction = 100.0% \u2265 70%",
+      "label": "Entailment"
+    }
+  ],
+  "contradictions": [],
+  "warnings": [],
+  "feedback_iterations": 0,
+  "verified_count": 9,
+  "unverified_count": 0,
+  "contradiction_count": 0,
+  "verified_rate": 1.0,
+  "unverified_rate": 0.0,
+  "contradiction_rate": 0.0,
+  "pass_rate": 1.0,
+  "evidence": {
+    "kpis": {
+      "lcoh_dh_median": "214.6930294884511",
+      "lcoh_hp_median": "120.0820900710464",
+      "co2_dh_median": "79.7795741935484",
+      "co2_hp_median": "71.95406026588162",
+      "dh_wins_fraction": "0.0",
+      "hp_wins_fraction": "1.0",
+      "choice": "HP",
+      "robust": "True",
+      "reason_codes": "['COST_DOMINANT_HP', 'ROBUST_DECISION']",
+      "dh_feasible": "True",
+      "hp_feasible": "True"
+    },
+    "structured_claim_audit": {
+      "scope": "deterministic_decision_claims",
+      "validation_status": "pass",
+      "statements_validated": 3,
+      "verified_count": 3,
+      "unverified_count": 0,
+      "contradiction_count": 0,
+      "sentence_results": [
+        {
+          "statement": "HP has lower LCOH than DH",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "lcoh_hp_median=120.0820900710464 < lcoh_dh_median=214.6930294884511: \u2705 TRUE",
+          "label": "Entailment"
+        },
+        {
+          "statement": "HP has robust win fraction (\u226570%)",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "hp_wins_fraction=1.0 >= 0.7=0.7: \u2705 TRUE",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Recommended choice is HP",
+          "status": "ENTAILMENT",
+          "confidence": 1.0,
+          "evidence": "recommended_choice=HP == HP=HP: \u2705 TRUE",
+          "label": "Entailment"
+        }
+      ],
+      "contradictions": []
+    },
+    "generated_explanation_audit": {
+      "scope": "actual_generated_text",
+      "validator": "deterministic ClaimExtractor + rule-based TNLI",
+      "validation_status": "pass",
+      "statements_validated": 6,
+      "verified_count": 6,
+      "unverified_count": 0,
+      "contradiction_count": 0,
+      "sentence_results": [
+        {
+          "statement": "Our analysis indicates that heat pumps are the preferred heating solution for this area",
+          "status": "ENTAILMENT",
+          "confidence": 0.95,
+          "evidence": "Recommendation is HP (verified)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Both district heating and heat pumps are technically viable, meeting all relevant engineering standards",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "Both DH and HP are feasible",
+          "label": "Entailment"
+        },
+        {
+          "statement": "However, heat pumps offer a significantly lower cost of heat at 120.1 \u20ac/MWh compared to district heating's 214.7 \u20ac/MWh",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "HP LCOH (120.1) < DH LCOH (214.7)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "This substantial cost advantage, along with a slightly lower carbon footprint of 72 kg/MWh, makes heat pumps the more economical and environmentally sound choice",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "HP LCOH (120.1) < DH LCOH (214.7)",
+          "label": "Entailment"
+        },
+        {
+          "statement": "Furthermore, a comprehensive assessment of various future scenarios consistently shows heat pumps as the most favorable option in 100% of cases, ensuring a robust and reliable decision",
+          "status": "ENTAILMENT",
+          "confidence": 0.9,
+          "evidence": "HP win fraction = 100.0% \u2265 70%",
+          "label": "Entailment"
+        }
+      ],
+      "contradictions": [],
+      "quantitative_extraction": {
+        "lcoh_dh_median": [
+          214.7
+        ]
+      },
+      "cross_validation": [
+        {
+          "key": "lcoh_dh_median",
+          "text": 214.7,
+          "kpi": 214.6930294884511,
+          "match": true,
+          "reason": "lcoh_dh_median: text says 214.7, KPI says 214.6930294884511 -> MATCH (tol=10%)"
+        }
+      ]
+    }
+  }
+}
