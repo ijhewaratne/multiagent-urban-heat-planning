@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "power_lines",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::25833" } },
+"features": [
+{ "type": "Feature", "properties": { "line_id": "L001", "voltage_kv": 0.4, "length_m": 100.0 }, "geometry": { "type": "LineString", "coordinates": [ [ 390000.0, 5810000.0 ], [ 390100.0, 5810000.0 ] ] } },
+{ "type": "Feature", "properties": { "line_id": "L002", "voltage_kv": 0.4, "length_m": 100.0 }, "geometry": { "type": "LineString", "coordinates": [ [ 390100.0, 5810000.0 ], [ 390200.0, 5810000.0 ] ] } },
+{ "type": "Feature", "properties": { "line_id": "L003", "voltage_kv": 0.4, "length_m": 100.0 }, "geometry": { "type": "LineString", "coordinates": [ [ 390200.0, 5810000.0 ], [ 390300.0, 5810000.0 ] ] } },
+{ "type": "Feature", "properties": { "line_id": "L004", "voltage_kv": 0.4, "length_m": 100.0 }, "geometry": { "type": "LineString", "coordinates": [ [ 390300.0, 5810000.0 ], [ 390400.0, 5810000.0 ] ] } },
+{ "type": "Feature", "properties": { "line_id": "L005", "voltage_kv": 0.4, "length_m": 100.0 }, "geometry": { "type": "LineString", "coordinates": [ [ 390400.0, 5810000.0 ], [ 390500.0, 5810000.0 ] ] } }
+]
+}

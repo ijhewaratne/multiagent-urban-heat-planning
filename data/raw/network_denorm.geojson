@@ -1,0 +1,13 @@
+{
+"type": "FeatureCollection",
+"name": "network_denorm",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "diameter_m": 0.5, "p_from": null, "p_to": null, "pressure_gradient": 0.15, "vel_ms": null }, "geometry": { "type": "LineString", "coordinates": [ [ 14.4, 51.7 ], [ 14.8, 51.7 ] ] } },
+{ "type": "Feature", "properties": { "diameter_m": 0.4, "p_from": null, "p_to": null, "pressure_gradient": 0.22, "vel_ms": null }, "geometry": { "type": "LineString", "coordinates": [ [ 14.8, 51.7 ], [ 15.2, 51.9 ] ] } },
+{ "type": "Feature", "properties": { "diameter_m": 0.35, "p_from": null, "p_to": null, "pressure_gradient": 0.28, "vel_ms": null }, "geometry": { "type": "LineString", "coordinates": [ [ 14.8, 51.7 ], [ 15.2, 51.5 ] ] } },
+{ "type": "Feature", "properties": { "diameter_m": 0.3, "p_from": null, "p_to": null, "pressure_gradient": 0.35, "vel_ms": null }, "geometry": { "type": "LineString", "coordinates": [ [ 15.2, 51.9 ], [ 15.6, 51.7 ] ] } },
+{ "type": "Feature", "properties": { "diameter_m": 0.25, "p_from": null, "p_to": null, "pressure_gradient": 0.45, "vel_ms": null }, "geometry": { "type": "LineString", "coordinates": [ [ 15.2, 51.9 ], [ 15.6, 52.1 ] ] } },
+{ "type": "Feature", "properties": { "diameter_m": 0.2, "p_from": null, "p_to": null, "pressure_gradient": 0.55, "vel_ms": null }, "geometry": { "type": "LineString", "coordinates": [ [ 15.2, 51.5 ], [ 15.6, 51.3 ] ] } }
+]
+}

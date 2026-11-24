@@ -1,0 +1,1568 @@
+{
+    "mittleres_jahr": {
+        "winter": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 1.88,
+                    "minimum": -14.9,
+                    "maximum": 12.8,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 31,
+                        "stunde": 5
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 14,
+                        "stunde": 1
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 86.53,
+                    "minimum": 57.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 3.9,
+                    "minimum": 1.1,
+                    "maximum": 7.8
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 720,
+                    "mittlere_heizperioden_temperatur": 1.88,
+                    "tiefste_temperatur": -14.9
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 2.07,
+                    "minimum": -16.6,
+                    "maximum": 13.7,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 31,
+                        "stunde": 8
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 14,
+                        "stunde": 9
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 86.86,
+                    "minimum": 52.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 3.9,
+                    "minimum": 0.9,
+                    "maximum": 7.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 540,
+                    "mittlere_heizperioden_temperatur": 2.07,
+                    "tiefste_temperatur": -16.6
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 4.78,
+                    "minimum": -10.1,
+                    "maximum": 14.4,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 31,
+                        "stunde": 12
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 14,
+                        "stunde": 13
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 75.71,
+                    "minimum": 30.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 4.13,
+                    "minimum": 1.3,
+                    "maximum": 8.6
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 540,
+                    "mittlere_heizperioden_temperatur": 4.78,
+                    "tiefste_temperatur": -10.1
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 2.78,
+                    "minimum": -8.2,
+                    "maximum": 13.3,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 31,
+                        "stunde": 20
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 13,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 82.56,
+                    "minimum": 47.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 4.0,
+                    "minimum": 1.5,
+                    "maximum": 8.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 360,
+                    "mittlere_heizperioden_temperatur": 2.78,
+                    "tiefste_temperatur": -8.2
+                }
+            }
+        },
+        "fruehling": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 7.3,
+                    "minimum": -4.7,
+                    "maximum": 21.8,
+                    "min_zeitpunkt": {
+                        "monat": 4,
+                        "tag": 21,
+                        "stunde": 5
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 5,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 84.68,
+                    "minimum": 35.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.72,
+                    "minimum": 2.2,
+                    "maximum": 11.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 693,
+                    "mittlere_heizperioden_temperatur": 6.71,
+                    "tiefste_temperatur": -4.7
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 9.61,
+                    "minimum": -4.2,
+                    "maximum": 25.7,
+                    "min_zeitpunkt": {
+                        "monat": 4,
+                        "tag": 21,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 6,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 77.97,
+                    "minimum": 32.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.76,
+                    "minimum": 1.8,
+                    "maximum": 11.0
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 444,
+                    "mittlere_heizperioden_temperatur": 7.55,
+                    "tiefste_temperatur": -4.2
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 14.57,
+                    "minimum": 0.1,
+                    "maximum": 29.3,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 27,
+                        "stunde": 17
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 5,
+                        "stunde": 16
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 54.16,
+                    "minimum": 21.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.6,
+                    "minimum": 1.6,
+                    "maximum": 11.6
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 300,
+                    "mittlere_heizperioden_temperatur": 10.12,
+                    "tiefste_temperatur": 0.1
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 11.67,
+                    "minimum": -1.8,
+                    "maximum": 28.2,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 27,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 5,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 64.23,
+                    "minimum": 22.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.78,
+                    "minimum": 1.6,
+                    "maximum": 11.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 261,
+                    "mittlere_heizperioden_temperatur": 8.89,
+                    "tiefste_temperatur": -1.8
+                }
+            }
+        },
+        "sommer": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 15.39,
+                    "minimum": 3.9,
+                    "maximum": 24.9,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 16,
+                        "stunde": 4
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 5,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 80.78,
+                    "minimum": 44.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.12,
+                    "minimum": 4.9,
+                    "maximum": 14.6
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 310,
+                    "mittlere_heizperioden_temperatur": 11.77,
+                    "tiefste_temperatur": 3.9
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 19.11,
+                    "minimum": 8.0,
+                    "maximum": 31.9,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 1,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 5,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 72.09,
+                    "minimum": 26.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.52,
+                    "minimum": 5.3,
+                    "maximum": 14.7
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 86,
+                    "mittlere_heizperioden_temperatur": 12.89,
+                    "tiefste_temperatur": 8.0
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 24.12,
+                    "minimum": 15.1,
+                    "maximum": 35.0,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 19,
+                        "stunde": 12
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 13,
+                        "stunde": 15
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 48.2,
+                    "minimum": 20.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 8.86,
+                    "minimum": 4.6,
+                    "maximum": 14.9
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 0,
+                    "mittlere_heizperioden_temperatur": null,
+                    "tiefste_temperatur": null
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 21.36,
+                    "minimum": 11.5,
+                    "maximum": 32.2,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 1,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 13,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 54.43,
+                    "minimum": 22.0,
+                    "maximum": 97.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 8.87,
+                    "minimum": 4.9,
+                    "maximum": 14.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 18,
+                    "mittlere_heizperioden_temperatur": 13.53,
+                    "tiefste_temperatur": 11.5
+                }
+            }
+        },
+        "herbst": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 8.21,
+                    "minimum": -6.5,
+                    "maximum": 18.8,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 14,
+                        "stunde": 3
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 10,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 92.1,
+                    "minimum": 49.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 6.53,
+                    "minimum": 2.4,
+                    "maximum": 12.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 646,
+                    "mittlere_heizperioden_temperatur": 7.16,
+                    "tiefste_temperatur": -6.5
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 10.1,
+                    "minimum": -5.5,
+                    "maximum": 26.8,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 14,
+                        "stunde": 7
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 9,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 87.95,
+                    "minimum": 39.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 6.74,
+                    "minimum": 2.5,
+                    "maximum": 13.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 422,
+                    "mittlere_heizperioden_temperatur": 7.74,
+                    "tiefste_temperatur": -5.5
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 15.37,
+                    "minimum": -2.0,
+                    "maximum": 29.3,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 13,
+                        "stunde": 17
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 11,
+                        "stunde": 16
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 65.39,
+                    "minimum": 31.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 7.14,
+                    "minimum": 3.3,
+                    "maximum": 14.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 259,
+                    "mittlere_heizperioden_temperatur": 9.82,
+                    "tiefste_temperatur": -2.0
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 10.98,
+                    "minimum": -3.6,
+                    "maximum": 27.3,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 13,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 9,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 81.75,
+                    "minimum": 33.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 7.06,
+                    "minimum": 2.9,
+                    "maximum": 14.8
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 274,
+                    "mittlere_heizperioden_temperatur": 8.4,
+                    "tiefste_temperatur": -3.6
+                }
+            }
+        }
+    },
+    "kaltes_jahr": {
+        "winter": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": -0.4,
+                    "minimum": -14.8,
+                    "maximum": 11.3,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 4,
+                        "stunde": 5
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 13,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 89.69,
+                    "minimum": 57.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 3.45,
+                    "minimum": 1.1,
+                    "maximum": 8.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 720,
+                    "mittlere_heizperioden_temperatur": -0.4,
+                    "tiefste_temperatur": -14.8
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": -0.39,
+                    "minimum": -15.8,
+                    "maximum": 10.1,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 4,
+                        "stunde": 9
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 2,
+                        "tag": 27,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 90.22,
+                    "minimum": 52.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 3.42,
+                    "minimum": 1.0,
+                    "maximum": 7.6
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 540,
+                    "mittlere_heizperioden_temperatur": -0.39,
+                    "tiefste_temperatur": -15.8
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 2.4,
+                    "minimum": -9.0,
+                    "maximum": 13.9,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 4,
+                        "stunde": 12
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 2,
+                        "tag": 27,
+                        "stunde": 15
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 78.38,
+                    "minimum": 30.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 3.58,
+                    "minimum": 1.2,
+                    "maximum": 7.4
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 540,
+                    "mittlere_heizperioden_temperatur": 2.4,
+                    "tiefste_temperatur": -9.0
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 0.68,
+                    "minimum": -11.2,
+                    "maximum": 11.5,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 4,
+                        "stunde": 20
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 13,
+                        "stunde": 20
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 84.96,
+                    "minimum": 47.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 3.53,
+                    "minimum": 1.3,
+                    "maximum": 7.6
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 360,
+                    "mittlere_heizperioden_temperatur": 0.68,
+                    "tiefste_temperatur": -11.2
+                }
+            }
+        },
+        "fruehling": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 6.41,
+                    "minimum": -5.5,
+                    "maximum": 21.1,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 18,
+                        "stunde": 4
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 8,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 82.18,
+                    "minimum": 36.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.25,
+                    "minimum": 2.5,
+                    "maximum": 11.6
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 703,
+                    "mittlere_heizperioden_temperatur": 5.92,
+                    "tiefste_temperatur": -5.5
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 9.02,
+                    "minimum": -4.6,
+                    "maximum": 29.0,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 18,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 30,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 75.98,
+                    "minimum": 27.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.39,
+                    "minimum": 2.3,
+                    "maximum": 11.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 445,
+                    "mittlere_heizperioden_temperatur": 6.84,
+                    "tiefste_temperatur": -4.6
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 14.13,
+                    "minimum": 0.4,
+                    "maximum": 31.3,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 21,
+                        "stunde": 13
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 30,
+                        "stunde": 14
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 52.19,
+                    "minimum": 16.0,
+                    "maximum": 96.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.25,
+                    "minimum": 2.0,
+                    "maximum": 11.2
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 309,
+                    "mittlere_heizperioden_temperatur": 9.76,
+                    "tiefste_temperatur": 0.4
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 11.21,
+                    "minimum": -1.7,
+                    "maximum": 29.3,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 22,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 30,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 60.8,
+                    "minimum": 18.0,
+                    "maximum": 99.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.31,
+                    "minimum": 2.0,
+                    "maximum": 10.9
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 269,
+                    "mittlere_heizperioden_temperatur": 8.4,
+                    "tiefste_temperatur": -1.7
+                }
+            }
+        },
+        "sommer": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 15.37,
+                    "minimum": 6.9,
+                    "maximum": 25.0,
+                    "min_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 27,
+                        "stunde": 5
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 7,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 81.33,
+                    "minimum": 40.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.12,
+                    "minimum": 5.9,
+                    "maximum": 15.8
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 337,
+                    "mittlere_heizperioden_temperatur": 12.59,
+                    "tiefste_temperatur": 6.9
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 19.03,
+                    "minimum": 7.4,
+                    "maximum": 30.0,
+                    "min_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 27,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 18,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 71.87,
+                    "minimum": 28.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.41,
+                    "minimum": 5.5,
+                    "maximum": 14.2
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 88,
+                    "mittlere_heizperioden_temperatur": 13.24,
+                    "tiefste_temperatur": 7.4
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 23.52,
+                    "minimum": 13.3,
+                    "maximum": 33.0,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 8,
+                        "stunde": 17
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 18,
+                        "stunde": 16
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 50.1,
+                    "minimum": 22.0,
+                    "maximum": 98.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 8.84,
+                    "minimum": 4.9,
+                    "maximum": 14.0
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 9,
+                    "mittlere_heizperioden_temperatur": 13.91,
+                    "tiefste_temperatur": 13.3
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 20.9,
+                    "minimum": 12.7,
+                    "maximum": 32.2,
+                    "min_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 16,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 18,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 57.59,
+                    "minimum": 23.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.06,
+                    "minimum": 5.4,
+                    "maximum": 15.4
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 27,
+                    "mittlere_heizperioden_temperatur": 13.76,
+                    "tiefste_temperatur": 12.7
+                }
+            }
+        },
+        "herbst": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 8.17,
+                    "minimum": -4.1,
+                    "maximum": 19.4,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 19,
+                        "stunde": 1
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 10,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 93.76,
+                    "minimum": 59.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 6.7,
+                    "minimum": 2.8,
+                    "maximum": 14.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 670,
+                    "mittlere_heizperioden_temperatur": 7.46,
+                    "tiefste_temperatur": -4.1
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 9.72,
+                    "minimum": -5.1,
+                    "maximum": 25.6,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 16,
+                        "stunde": 7
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 10,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 89.55,
+                    "minimum": 44.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 6.77,
+                    "minimum": 2.5,
+                    "maximum": 12.7
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 441,
+                    "mittlere_heizperioden_temperatur": 7.64,
+                    "tiefste_temperatur": -5.1
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 14.45,
+                    "minimum": -1.7,
+                    "maximum": 29.8,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 16,
+                        "stunde": 17
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 8,
+                        "stunde": 16
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 69.95,
+                    "minimum": 31.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 7.19,
+                    "minimum": 2.1,
+                    "maximum": 13.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 300,
+                    "mittlere_heizperioden_temperatur": 9.3,
+                    "tiefste_temperatur": -1.7
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 10.59,
+                    "minimum": -2.4,
+                    "maximum": 27.1,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 16,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 8,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 84.62,
+                    "minimum": 37.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 7.18,
+                    "minimum": 2.5,
+                    "maximum": 14.0
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 272,
+                    "mittlere_heizperioden_temperatur": 7.99,
+                    "tiefste_temperatur": -2.4
+                }
+            }
+        }
+    },
+    "heisses_jahr": {
+        "winter": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 2.44,
+                    "minimum": -6.4,
+                    "maximum": 12.2,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 26,
+                        "stunde": 1
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 2,
+                        "tag": 28,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 86.57,
+                    "minimum": 44.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 4.01,
+                    "minimum": 1.9,
+                    "maximum": 6.4
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 720,
+                    "mittlere_heizperioden_temperatur": 2.44,
+                    "tiefste_temperatur": -6.4
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 2.57,
+                    "minimum": -6.3,
+                    "maximum": 11.6,
+                    "min_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 27,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 7,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 86.59,
+                    "minimum": 49.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 4.02,
+                    "minimum": 2.1,
+                    "maximum": 7.3
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 540,
+                    "mittlere_heizperioden_temperatur": 2.57,
+                    "tiefste_temperatur": -6.3
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 4.56,
+                    "minimum": -3.8,
+                    "maximum": 15.2,
+                    "min_zeitpunkt": {
+                        "monat": 12,
+                        "tag": 27,
+                        "stunde": 12
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 2,
+                        "tag": 28,
+                        "stunde": 15
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 77.75,
+                    "minimum": 35.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 4.13,
+                    "minimum": 2.3,
+                    "maximum": 7.3
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 539,
+                    "mittlere_heizperioden_temperatur": 4.54,
+                    "tiefste_temperatur": -3.8
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 3.21,
+                    "minimum": -5.7,
+                    "maximum": 12.4,
+                    "min_zeitpunkt": {
+                        "monat": 1,
+                        "tag": 25,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 2,
+                        "tag": 28,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 83.01,
+                    "minimum": 45.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 4.09,
+                    "minimum": 2.2,
+                    "maximum": 6.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 360,
+                    "mittlere_heizperioden_temperatur": 3.21,
+                    "tiefste_temperatur": -5.7
+                }
+            }
+        },
+        "fruehling": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 7.71,
+                    "minimum": -4.7,
+                    "maximum": 21.5,
+                    "min_zeitpunkt": {
+                        "monat": 4,
+                        "tag": 21,
+                        "stunde": 5
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 30,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 81.44,
+                    "minimum": 36.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.57,
+                    "minimum": 2.2,
+                    "maximum": 12.0
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 699,
+                    "mittlere_heizperioden_temperatur": 7.19,
+                    "tiefste_temperatur": -4.7
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 10.43,
+                    "minimum": -4.2,
+                    "maximum": 29.0,
+                    "min_zeitpunkt": {
+                        "monat": 4,
+                        "tag": 21,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 31,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 75.03,
+                    "minimum": 27.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.72,
+                    "minimum": 1.8,
+                    "maximum": 11.0
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 432,
+                    "mittlere_heizperioden_temperatur": 8.0,
+                    "tiefste_temperatur": -4.2
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 15.21,
+                    "minimum": 0.3,
+                    "maximum": 31.4,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 5,
+                        "stunde": 14
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 31,
+                        "stunde": 14
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 52.59,
+                    "minimum": 22.0,
+                    "maximum": 97.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.48,
+                    "minimum": 1.6,
+                    "maximum": 9.4
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 274,
+                    "mittlere_heizperioden_temperatur": 9.78,
+                    "tiefste_temperatur": 0.3
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 12.21,
+                    "minimum": 0.1,
+                    "maximum": 28.9,
+                    "min_zeitpunkt": {
+                        "monat": 3,
+                        "tag": 14,
+                        "stunde": 20
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 5,
+                        "tag": 11,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 61.36,
+                    "minimum": 22.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 5.56,
+                    "minimum": 1.6,
+                    "maximum": 11.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 250,
+                    "mittlere_heizperioden_temperatur": 8.83,
+                    "tiefste_temperatur": 0.1
+                }
+            }
+        },
+        "sommer": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 16.53,
+                    "minimum": 8.3,
+                    "maximum": 25.8,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 10,
+                        "stunde": 4
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 21,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 79.46,
+                    "minimum": 44.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.58,
+                    "minimum": 4.6,
+                    "maximum": 14.4
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 226,
+                    "mittlere_heizperioden_temperatur": 12.68,
+                    "tiefste_temperatur": 8.3
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 20.38,
+                    "minimum": 11.4,
+                    "maximum": 31.9,
+                    "min_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 30,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 5,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 69.59,
+                    "minimum": 26.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.84,
+                    "minimum": 5.7,
+                    "maximum": 14.4
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 50,
+                    "mittlere_heizperioden_temperatur": 13.66,
+                    "tiefste_temperatur": 11.4
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 25.97,
+                    "minimum": 14.3,
+                    "maximum": 35.0,
+                    "min_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 29,
+                        "stunde": 12
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 8,
+                        "tag": 13,
+                        "stunde": 15
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 43.96,
+                    "minimum": 20.0,
+                    "maximum": 94.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.02,
+                    "minimum": 4.8,
+                    "maximum": 14.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 2,
+                    "mittlere_heizperioden_temperatur": 14.4,
+                    "tiefste_temperatur": 14.3
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 22.74,
+                    "minimum": 12.6,
+                    "maximum": 33.5,
+                    "min_zeitpunkt": {
+                        "monat": 6,
+                        "tag": 19,
+                        "stunde": 19
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 7,
+                        "tag": 21,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 52.03,
+                    "minimum": 22.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 9.2,
+                    "minimum": 4.7,
+                    "maximum": 14.9
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 8,
+                    "mittlere_heizperioden_temperatur": 14.09,
+                    "tiefste_temperatur": 12.6
+                }
+            }
+        },
+        "herbst": {
+            "nacht": {
+                "temperatur": {
+                    "durchschnitt": 8.86,
+                    "minimum": -4.5,
+                    "maximum": 19.8,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 28,
+                        "stunde": 4
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 22,
+                        "stunde": 22
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 88.72,
+                    "minimum": 57.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 6.7,
+                    "minimum": 2.5,
+                    "maximum": 14.1
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 654,
+                    "mittlere_heizperioden_temperatur": 7.98,
+                    "tiefste_temperatur": -4.5
+                }
+            },
+            "morgen": {
+                "temperatur": {
+                    "durchschnitt": 10.51,
+                    "minimum": -5.6,
+                    "maximum": 26.9,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 28,
+                        "stunde": 6
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 21,
+                        "stunde": 11
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 84.5,
+                    "minimum": 42.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 6.78,
+                    "minimum": 2.4,
+                    "maximum": 12.7
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 422,
+                    "mittlere_heizperioden_temperatur": 8.0,
+                    "tiefste_temperatur": -5.6
+                }
+            },
+            "mittag": {
+                "temperatur": {
+                    "durchschnitt": 15.1,
+                    "minimum": 0.3,
+                    "maximum": 30.1,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 25,
+                        "stunde": 12
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 22,
+                        "stunde": 15
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 66.28,
+                    "minimum": 25.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 7.05,
+                    "minimum": 2.7,
+                    "maximum": 13.5
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 272,
+                    "mittlere_heizperioden_temperatur": 8.69,
+                    "tiefste_temperatur": 0.3
+                }
+            },
+            "abend": {
+                "temperatur": {
+                    "durchschnitt": 11.67,
+                    "minimum": -2.8,
+                    "maximum": 27.1,
+                    "min_zeitpunkt": {
+                        "monat": 11,
+                        "tag": 24,
+                        "stunde": 21
+                    },
+                    "max_zeitpunkt": {
+                        "monat": 9,
+                        "tag": 8,
+                        "stunde": 18
+                    }
+                },
+                "rel_feuchte": {
+                    "durchschnitt": 77.51,
+                    "minimum": 35.0,
+                    "maximum": 100.0
+                },
+                "windgeschwindigkeit": {
+                    "durchschnitt": 7.09,
+                    "minimum": 2.9,
+                    "maximum": 14.0
+                },
+                "heizungskennzahlen": {
+                    "stunden_unter_heizgrenze": 253,
+                    "mittlere_heizperioden_temperatur": 8.48,
+                    "tiefste_temperatur": -2.8
+                }
+            }
+        }
+    }
+}

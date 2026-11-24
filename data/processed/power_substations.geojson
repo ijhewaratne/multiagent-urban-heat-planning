@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "power_substations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::25833" } },
+"features": [
+{ "type": "Feature", "properties": { "substation_id": "S001", "capacity_kva": 630.0 }, "geometry": { "type": "Point", "coordinates": [ 390000.0, 5810000.0 ] } },
+{ "type": "Feature", "properties": { "substation_id": "S002", "capacity_kva": 630.0 }, "geometry": { "type": "Point", "coordinates": [ 390400.0, 5810000.0 ] } }
+]
+}

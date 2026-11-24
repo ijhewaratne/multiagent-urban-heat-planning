@@ -1,0 +1,68 @@
+{
+  "type": "FeatureCollection",
+  "name": "test_buildings_valid",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32633" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "B001",
+        "heating_load_kw": 15.5,
+        "annual_heat_demand_kwh": 25000,
+        "building_type": "residential",
+        "building_area_m2": 150
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [456050, 5734050],
+          [456100, 5734050],
+          [456100, 5734100],
+          [456050, 5734100],
+          [456050, 5734050]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "B002",
+        "heating_load_kw": 22.3,
+        "annual_heat_demand_kwh": 35000,
+        "building_type": "residential",
+        "building_area_m2": 200
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [456150, 5734150],
+          [456200, 5734150],
+          [456200, 5734200],
+          [456150, 5734200],
+          [456150, 5734150]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "B003",
+        "heating_load_kw": 18.7,
+        "annual_heat_demand_kwh": 30000,
+        "building_type": "residential",
+        "building_area_m2": 180
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [456075, 5734075],
+          [456125, 5734075],
+          [456125, 5734125],
+          [456075, 5734125],
+          [456075, 5734075]
+        ]]
+      }
+    }
+  ]
+}
+
